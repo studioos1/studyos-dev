@@ -1,7 +1,21 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { iso, t2m } from "@/lib/time";
+import { iso, t2m, du, m2t, f12, fmtDur } from "@/lib/time";
 import { courseNameFor } from "@/lib/courses";
+import { DS, DF, CC } from "@/lib/constants";
+import {
+  buildBlocks,
+  freeSlots,
+  weekStartOf,
+  realDayBlocks,
+  weekHasBeenPlanned,
+  saveBlockToDay,
+  deleteBlockFromDay,
+  logCompletion,
+  findRawDayBlock,
+  tc,
+  assignLanesClustered,
+} from "@/lib/calendar";
 import {
   planHorizon,
   estimateDifficulty,
@@ -31,45 +45,6 @@ const APP_VERSION="2.38.0";
 const APP_BUILD_DATE="2026-09-04";
 const APP_BUILD_TIME="Next.js migration";
 console.log(`StudyOS v${APP_VERSION} (built ${APP_BUILD_DATE} ${APP_BUILD_TIME}) loaded`);
-const DS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const DF=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const CC=[
-  {block:"#0e243c",border:"#7ab4cc",text:"#7ab4cc"},
-  {block:"#0c2418",border:"#78b888",text:"#78b888"},
-  {block:"#1c1030",border:"#9080c0",text:"#9080c0"},
-  {block:"#281c08",border:"#c8a860",text:"#c8a860"},
-  {block:"#281808",border:"#c87860",text:"#c87860"},
-  {block:"#0c2428",border:"#68b8a8",text:"#68b8a8"},
-  {block:"#182808",border:"#90b060",text:"#90b060"},
-  {block:"#282008",border:"#c8b060",text:"#c8b060"},
-];
-const ACT={
-  class:    {bg:"var(--a-class)",  fg:"var(--a-class-t)"},
-  study:    {bg:"var(--a-study)",  fg:"var(--a-study-t)"},
-  breakfast:{bg:"var(--a-bfast)",  fg:"var(--a-bfast-t)"},
-  lunch:    {bg:"var(--a-lunch)",  fg:"var(--a-lunch-t)"},
-  dinner:   {bg:"var(--a-dinr)",   fg:"var(--a-dinr-t)"},
-  gym:      {bg:"var(--a-gym)",    fg:"var(--a-gym-t)"},
-  stretch:  {bg:"var(--a-study)",  fg:"var(--a-study-t)"},
-  commute:  {bg:"var(--a-comm)",   fg:"var(--a-comm-t)"},
-  sleep:    {bg:"var(--a-sleep)",  fg:"var(--a-sleep-t)"},
-  chore:    {bg:"var(--a-chore)",  fg:"var(--a-chore-t)"},
-  fun:      {bg:"var(--a-fun)",    fg:"var(--a-fun-t)"},
-  exam:     {bg:"var(--a-exam)",   fg:"var(--a-exam-t)"},
-  deadline: {bg:"var(--a-comm)",   fg:"var(--a-comm-t)"},
-  default:  {bg:"var(--card2)",    fg:"var(--t2)"},
-};
-function du(ds){return Math.ceil((new Date(ds)-new Date(iso()))/(864e5));}
-function m2t(m){return`${Math.floor(m/60).toString().padStart(2,"0")}:${(m%60).toString().padStart(2,"0")}`;}
-function f12(t){if(!t)return"";const m=t2m(t);const h=Math.floor(m/60)%12||12;const mn=(m%60).toString().padStart(2,"0");return`${h}:${mn}${Math.floor(m/60)>=12?"pm":"am"}`;}
-// Formats a raw minute count as "1h 30m" (or just "45m" under an hour) — used anywhere a total
-// duration is shown, instead of a raw minute count that gets hard to read past ~60.
-function fmtDur(totalMin){
-  const h=Math.floor(totalMin/60),m=totalMin%60;
-  if(h<=0)return`${m}m`;
-  if(m===0)return`${h}h`;
-  return`${h}h ${m}m`;
-}
 // ── Week navigation helpers ──────────────────────────────────────────────────
 function fmtWeekRange(weekStart){
   const we=new Date(weekStart);we.setDate(weekStart.getDate()+6);
@@ -249,45 +224,6 @@ async function PDF(file){
 
 // Shifts a movable [s,e) block forward past any (buffered) fixed academic interval it overlaps,
 // preserving its original duration. Leaves the block untouched if no room exists before midnight.
-function resolveConflict(s,e,fixedIntervals,bufferMins){
-  const dur=e-s;
-  let ns=s,ne=e,moved=false,changed=true,guard=0;
-  const sorted=[...fixedIntervals].sort((a,b)=>a.s-b.s);
-  while(changed&&guard<12){
-    changed=false;guard++;
-    for(const f of sorted){
-      const fs=f.s-bufferMins,fe=f.e+bufferMins;
-      if(ns<fe&&ne>fs){ns=fe;ne=ns+dur;moved=true;changed=true;}
-    }
-  }
-  if(ne>1439)return{s,e,moved:false}; // no room before midnight — keep original rather than push it off-screen
-  return{s:ns,e:ne,moved};
-}
-
-// Returns sorted free {s,e} gaps within the student's wake-sleep window, given the day's
-// already-resolved fixed/personal schedule (classes, exams, meals, gym, chores, adhoc events).
-function freeSlots(dateStr,data,userEditedBlocks=[]){
-  const p=data.profile;
-  const dayStart=t2m(p.wakeTime);
-  let dayEnd=t2m(p.sleepTime);
-  if(!Number.isFinite(dayStart)||!Number.isFinite(dayEnd))return[];
-  // Sleep time is usually after midnight (e.g. wake 08:00, sleep 00:00 = midnight, or 01:00 = 1am).
-  // When the sleep clock-time is <= wake clock-time, it means "past midnight" — add 24h so the
-  // day window is wake→(midnight+sleepTime) instead of collapsing to zero.
-  if(dayEnd<=dayStart)dayEnd+=1440;
-  const fixed=buildBlocks(dateStr,data,[]) // no AI study blocks yet — that's what we're solving for
-    .filter(b=>b.type!=="sleep"&&b.type!=="deadline")
-    .concat(userEditedBlocks) // student's own manually-placed/edited blocks are also occupied time —
-                              // the planner must work around them, never overlap or replace them
-    .map(b=>({s:Math.max(b.s,dayStart),e:Math.min(b.e,dayEnd)}))
-    .filter(b=>b.s<b.e)
-    .sort((a,b)=>a.s-b.s);
-  const gaps=[];
-  let cursor=dayStart;
-  fixed.forEach(b=>{if(b.s>cursor)gaps.push({s:cursor,e:b.s});cursor=Math.max(cursor,b.e);});
-  if(cursor<dayEnd)gaps.push({s:cursor,e:dayEnd});
-  return gaps.filter(g=>g.e-g.s>=10);
-}
 // Backward-ramp weight for a day that is `d` days before a deadline, within a `windowDays`-long
 // planning horizon — later days (closer to the deadline) get proportionally more time than earlier ones.
 function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
@@ -297,139 +233,6 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
   const raw=totalMinutes*weight/totalWeight;
   return Math.min(maxPerDay,Math.max(minPerDay,Math.round(raw)));
 }
-// Sunday of the week containing dateStr, as an ISO date string — the key used throughout
-// data.studyPlan.weeks. Matches how WeekGrid already computes its own week boundaries.
-function weekStartOf(dateStr){
-  const d=new Date(dateStr+"T12:00:00");
-  d.setDate(d.getDate()-d.getDay());
-  return iso(d);
-}
-
-// Single source of truth for "what does the REAL plan say about this day" — reads directly from
-// data.studyPlan.weeks (what refreshQuarterPlan/refreshWeekPlan actually persist), shaped into
-// what buildBlocks()/Timeline expects. Anywhere that used to call planStudyBlocks() directly, or
-// read from the disconnected AI-generated brief, should use this instead — otherwise different
-// parts of the app can show different schedules for the same day, which is exactly what was
-// happening before this fix.
-function realDayBlocks(data,dateStr){
-  const ws=weekStartOf(dateStr);
-  const stored=data.studyPlan?.weeks?.[ws]?.days?.[dateStr]||[];
-  return stored.map(b=>({
-    time:m2t(b.s),duration:b.e-b.s,task:b.label,kind:b.kind,
-    id:b.id,courseId:b.courseId,course:b.course,userEdited:b.userEdited,completed:b.completed,source:b.source,
-  }));
-}
-// Whether this date's WEEK has ever actually been planned at all — distinct from "planned but
-// legitimately has zero blocks today" (e.g. a real rest day). Used to show an honest prompt
-// instead of silently computing a fictional alternate schedule when nothing's been planned yet.
-function weekHasBeenPlanned(data,dateStr){
-  return !!data.studyPlan?.weeks?.[weekStartOf(dateStr)];
-}
-
-function buildBlocks(dateStr,data,studyBlocks=[]){
-  data=termScopedForPlanning(data); // otherwise a completed term's old course/exam would still show as "happening" on its usual weekday forever — buildBlocks has no date-range awareness of its own, just a weekday pattern
-  const p=data.profile,di=new Date(dateStr+"T12:00:00").getDay(),bl=[];
-  const wm=t2m(p.wakeTime);if(wm>0)bl.push({type:"sleep",label:"Sleep",s:0,e:wm});
-
-  // ── Classes: sorted by start time. Commute blocks are only drawn at the edges of a same-day
-  // cluster (before the first class, after the last) — not between back-to-back/closely-spaced
-  // classes, since the student stays on campus rather than driving home and back. ──
-  const dayCourses=data.courses.filter(c=>(c.days||[]).includes(di))
-    .map(c=>({...c,cs:t2m(c.startTime),ce:t2m(c.endTime)}))
-    .sort((a,b)=>a.cs-b.cs);
-  const busyRaw=[]; // {s,e} for every class + real commute block actually drawn, merged below into the protected zone
-  dayCourses.forEach((c,idx)=>{
-    const prev=dayCourses[idx-1],next=dayCourses[idx+1];
-    const gapBefore=prev?c.cs-prev.ce:Infinity;
-    const gapAfter=next?next.cs-c.ce:Infinity;
-    if(gapBefore>=p.commuteMins*2){
-      bl.push({type:"commute",label:`Drive → ${c.name.split("(")[0].trim().split(" ").slice(0,2).join(" ")}`,s:c.cs-p.commuteMins,e:c.cs});
-      busyRaw.push({s:c.cs-p.commuteMins,e:c.cs});
-    }
-    bl.push({type:"class",label:c.name.split("(")[0].trim(),s:c.cs,e:c.ce,color:c.color});
-    busyRaw.push({s:c.cs,e:c.ce});
-    if(gapAfter>=p.commuteMins*2){
-      bl.push({type:"commute",label:"Drive home",s:c.ce,e:c.ce+p.commuteMins});
-      busyRaw.push({s:c.ce,e:c.ce+p.commuteMins});
-    }
-  });
-  data.exams.filter(e=>e.date===dateStr).forEach(e=>{
-    bl.push({type:"exam",label:`EXAM: ${courseNameFor(data.courses,e.courseId)}`,s:540,e:660});
-    busyRaw.push({s:540,e:660});
-  });
-  // Merge into the actual protected "academic" zone — guarantees it matches exactly what's drawn, no divergence.
-  const fixedAcademic=busyRaw.sort((a,b)=>a.s-b.s).reduce((merged,iv)=>{
-    if(merged.length&&iv.s<=merged[merged.length-1].e)merged[merged.length-1].e=Math.max(merged[merged.length-1].e,iv.e);
-    else merged.push({...iv});
-    return merged;
-  },[]);
-
-  const WALK_BUFFER=10; // minutes of breathing room kept clear when repositioning meals/gym/chores
-
-  // ── Movable: meals, gym, chores — each resolved against academics AND everything already placed
-  // before it (in that order), so they never collide with each other either. ──
-  const occupied=[...fixedAcademic];
-
-  const bfDur=parseInt(p.breakfastDur)||30;
-  const luDur=parseInt(p.lunchDur)||30;
-  const diDur=parseInt(p.dinnerDur)||30;
-  [["breakfast","Breakfast",t2m(p.breakfastTime),bfDur],
-   ["lunch","Lunch",t2m(p.lunchTime),luDur],
-   ["dinner","Dinner",t2m(p.dinnerTime),diDur]].forEach(([type,label,start,dur])=>{
-    const r=resolveConflict(start,start+dur,occupied,WALK_BUFFER);
-    bl.push({type,label,s:r.s,e:r.e,autoMoved:r.moved});
-    occupied.push({s:r.s,e:r.e});
-  });
-
-  // ── Movable: gym — resolve the WHOLE outing (stretch + commute + session + commute) as one
-  // atomic unit against everything so far, then shift all four sub-blocks by the same amount. ──
-  const gd=(p.gymDays||GYM0).find(g=>g.day===di&&g.on);
-  if(gd){
-    const gs0=t2m(gd.s),ge0=t2m(gd.e);
-    if(ge0>gs0){
-      const st=parseInt(p.gymStretch)||30;
-      const dr=parseInt(p.gymDrive)||10;
-      const outingStart0=gs0-st-dr,outingEnd0=ge0+dr;
-      const r=resolveConflict(outingStart0,outingEnd0,occupied,WALK_BUFFER);
-      const shift=r.s-outingStart0;
-      const gs=gs0+shift,ge=ge0+shift;
-      bl.push({type:"stretch",label:"Stretch / prep",s:gs-st-dr,e:gs-dr});
-      bl.push({type:"commute",label:"Drive to gym",s:gs-dr,e:gs});
-      bl.push({type:"gym",label:"Gym",s:gs,e:ge,autoMoved:r.moved});
-      bl.push({type:"commute",label:"Drive home",s:ge,e:ge+dr});
-      occupied.push({s:gs-st-dr,e:ge+dr}); // reserve the whole gym outing, including its own stretch/commute
-    }
-  }
-
-  // AI-generated study blocks — placed via placeCourseBlocks()/planHorizon() into real free gaps,
-  // so these never need conflict resolution here; they're guaranteed clear by construction.
-  (studyBlocks||[]).forEach(b=>{
-    const s=t2m(b.time),e=s+(b.duration||25);
-    bl.push({type:b.kind||"study",label:b.task||"Study",s,e,id:b.id,courseId:b.courseId,userEdited:b.userEdited,completed:b.completed,source:b.source});
-  });
-
-  // ── Movable: chores ──
-  (p.chores||[]).filter(c=>c.days?.includes(di)&&c.time).forEach(c=>{
-    const start=t2m(c.time),dur=c.dur||30;
-    const r=resolveConflict(start,start+dur,occupied,WALK_BUFFER);
-    bl.push({type:"chore",label:`${c.e||"📋"} ${c.n}`,s:r.s,e:r.e,autoMoved:r.moved});
-    occupied.push({s:r.s,e:r.e});
-  });
-
-  (data.adhoc||[]).filter(e=>e.date===dateStr&&e.time).forEach(e=>bl.push({type:"fun",label:e.title,s:t2m(e.time),e:t2m(e.time)+e.dur}));
-  // Assignment deadlines — shown as a milestone marker, not a range. Most syllabi don't state
-  // a specific due time (just a date), so we assume a conventional end-of-day deadline (11:59pm)
-  // and place the marker 1 hour before that, at 10:59pm. If a specific due time is ever added to
-  // the schema, use that instead.
-  data.assignments.filter(a=>a.dueDate===dateStr&&a.status!=="done").forEach(a=>{
-    const dueMin=1439; // 11:59pm default due time
-    const markerMin=dueMin-60; // 1 hour before due
-    bl.push({type:"deadline",label:`Due: ${a.title}`,s:markerMin,e:markerMin+1,courseId:a.courseId,title:a.title,dueMin});
-  });
-  bl.push({type:"sleep",label:"Sleep",s:t2m(p.sleepTime),e:1440});
-  return bl.filter(b=>b.s<b.e&&b.s>=0&&b.e<=1500).sort((a,b)=>a.s-b.s);
-}
-
 // ── Small shared components ──────────────────────────────────────────────────
 function Sp({sz=15}){return <div className="spin" style={{width:sz,height:sz}}/>;}
 
@@ -1157,89 +960,6 @@ function StatCard({label,value,sub,col,icon}){
 }
 
 // ── Calendar components ──────────────────────────────────────────────────────
-const TIMELINE_COLORS={
-  class:    {line:"#e8a030",text:"#f5c060"}, // amber
-  study:    {line:"#28a050",text:"#60d080"}, // green
-  homework: {line:"#1ea8a0",text:"#5cd0c8"}, // cyan
-  gym:      {line:"#8040c0",text:"#b090e0"}, // purple
-  breakfast:{line:"#d8d8d8",text:"#f8f8f8"}, // white
-  lunch:    {line:"#d8d8d8",text:"#f8f8f8"}, // white
-  dinner:   {line:"#d8d8d8",text:"#f8f8f8"}, // white
-  commute:  {line:"#484848",text:"#909090"},
-  stretch:  {line:"#a070d0",text:"#c8a8ec"}, // light-purple, matches gym
-  chore:    {line:"#2060c0",text:"#60a8f0"}, // blue
-  fun:      {line:"#c04090",text:"#e090c0"}, // pink
-  exam:     {line:"#c04020",text:"#f08060"},
-  deadline: {line:"#c04020",text:"#f08060"},
-  sleep:    {line:"#282838",text:"#505068"},
-  default:  {line:"#4060a0",text:"#80a0d0"},
-};
-function tc(type){return TIMELINE_COLORS[type]||TIMELINE_COLORS.default;}
-// Assigns a vertical "lane" to each block so overlapping time ranges stack instead of drawing on top of each other,
-// scoped per connected cluster of overlapping blocks — each block gets .lane (its column within its own cluster)
-// and .clusterLanes (how many columns that cluster needs), so non-overlapping blocks elsewhere stay full-width.
-function assignLanesClustered(blocks){
-  const sorted=[...blocks].sort((a,b)=>a.s-b.s);
-  const result=[];
-  let cluster=[],clusterEnd=-Infinity;
-  function flush(){
-    if(!cluster.length)return;
-    const laneEnds=[];
-    cluster.forEach(b=>{
-      let lane=laneEnds.findIndex(e=>e<=b.s);
-      if(lane===-1){lane=laneEnds.length;laneEnds.push(b.e);}
-      else laneEnds[lane]=b.e;
-      result.push({...b,lane,clusterLanes:0}); // clusterLanes filled in below once known
-    });
-    const clusterLanes=laneEnds.length;
-    for(let i=result.length-cluster.length;i<result.length;i++)result[i].clusterLanes=clusterLanes;
-    cluster=[];
-  }
-  sorted.forEach(b=>{
-    if(cluster.length&&b.s>=clusterEnd){flush();clusterEnd=-Infinity;}
-    cluster.push(b);
-    clusterEnd=Math.max(clusterEnd,b.e);
-  });
-  flush();
-  return result;
-}
-
-// Writes a block into data.studyPlan for a specific date, creating that week's entry if it
-// doesn't exist yet (e.g. adding an activity to a week that's never been formally planned).
-// Standalone (not component-local) so both WeekGrid and Today can share the exact same logic.
-function saveBlockToDay(data,upd,dateStr,block){
-  const dWs=weekStartOf(dateStr);
-  const existingWeek=data.studyPlan?.weeks?.[dWs];
-  const existingDay=existingWeek?.days?.[dateStr]||[];
-  const idx=existingDay.findIndex(b=>b.id===block.id);
-  const newDay=idx===-1?[...existingDay,block]:existingDay.map((b,i)=>i===idx?block:b);
-  const newWeek={
-    generatedAt:existingWeek?.generatedAt||new Date().toISOString(),
-    generatedFrom:existingWeek?.generatedFrom||{courseCount:data.courses.length,assignmentCount:data.assignments.length,examCount:data.exams.length,profileHash:""},
-    days:{...(existingWeek?.days||{}),[dateStr]:newDay.sort((a,b)=>a.s-b.s)},
-  };
-  upd({studyPlan:{weeks:{...(data.studyPlan?.weeks||{}),[dWs]:newWeek}}});
-}
-function deleteBlockFromDay(data,upd,dateStr,blockId){
-  const dWs=weekStartOf(dateStr);
-  const existingWeek=data.studyPlan?.weeks?.[dWs];
-  if(!existingWeek)return;
-  const newDay=(existingWeek.days?.[dateStr]||[]).filter(b=>b.id!==blockId);
-  const newWeek={...existingWeek,days:{...existingWeek.days,[dateStr]:newDay}};
-  upd({studyPlan:{weeks:{...(data.studyPlan?.weeks||{}),[dWs]:newWeek}}});
-}
-function logCompletion(data,upd,entry){
-  upd({completionLog:[...(data.completionLog||[]),entry]});
-}
-// BlockEditModal/completion logic needs the RAW stored block shape (createdAt/editedAt/etc),
-// not the display-shaped output of realDayBlocks()/buildBlocks(). Shared so every place that
-// needs to mutate a real block (Timeline's double-click edit, Focus Time's per-row controls)
-// looks it up the same way.
-function findRawDayBlock(data,dateStr,blockId){
-  const ws=weekStartOf(dateStr);
-  return (data.studyPlan?.weeks?.[ws]?.days?.[dateStr]||[]).find(b=>b.id===blockId)||null;
-}
-
 function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editState,setEditState}){
   const START=7,END=24,TOTAL=(END-START)*60;
   function pct(m){return((m-START*60)/TOTAL*100).toFixed(4)+"%";}
