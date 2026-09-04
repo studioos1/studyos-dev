@@ -9,6 +9,22 @@ import {
   computePriorityScore,
   computeEstimateFields,
 } from "@/lib/planner";
+import {
+  GYM0,
+  ED,
+  CHORE_PRESETS,
+  load,
+  save,
+  getQ,
+  isHol,
+  isFin,
+  getTermRange,
+  computeTermStatuses,
+  getActiveTermAndSchool,
+  termScopedForPlanning,
+  migrateLegacyTermIfNeeded,
+  syncActiveTermToProfilePatch,
+} from "@/lib/data";
 // ── Build version — bumped every time a new app.js is generated, so you can confirm which
 // build is actually running (check Settings → bottom, or the browser console on load). ──
 const APP_VERSION="2.38.0";
@@ -43,103 +59,6 @@ const ACT={
   deadline: {bg:"var(--a-comm)",   fg:"var(--a-comm-t)"},
   default:  {bg:"var(--card2)",    fg:"var(--t2)"},
 };
-// ── US federal holidays — rule-based (nth-weekday/fixed-date + weekend observance), not
-// hardcoded per-year, so this never goes stale. Serves as the ALWAYS-ON baseline "no school at
-// minimum" — a specific college's actual calendar (fetched separately, see collegeCalendar below)
-// can add school-specific closures on top of this, but this baseline never depends on that fetch
-// having succeeded.
-function nthWeekdayOfMonth(year,month,weekday,n){
-  const d=new Date(year,month,1);let count=0;
-  while(true){if(d.getDay()===weekday){count++;if(count===n)return d.toISOString().split("T")[0];}d.setDate(d.getDate()+1);}
-}
-function lastWeekdayOfMonth(year,month,weekday){
-  const d=new Date(year,month+1,0);while(d.getDay()!==weekday)d.setDate(d.getDate()-1);return d.toISOString().split("T")[0];
-}
-function observedFixedDate(year,month,day){
-  const d=new Date(year,month,day);const dow=d.getDay();
-  if(dow===6)d.setDate(d.getDate()-1);if(dow===0)d.setDate(d.getDate()+1);
-  return d.toISOString().split("T")[0];
-}
-function usFederalHolidays(year){
-  return{
-    [observedFixedDate(year,0,1)]:"New Year's Day",
-    [nthWeekdayOfMonth(year,0,1,3)]:"Martin Luther King Jr. Day",
-    [nthWeekdayOfMonth(year,1,1,3)]:"Presidents' Day",
-    [lastWeekdayOfMonth(year,4,1)]:"Memorial Day",
-    [observedFixedDate(year,5,19)]:"Juneteenth",
-    [observedFixedDate(year,6,4)]:"Independence Day",
-    [nthWeekdayOfMonth(year,8,1,1)]:"Labor Day",
-    [nthWeekdayOfMonth(year,10,4,4)]:"Thanksgiving",
-    [observedFixedDate(year,11,25)]:"Christmas Day",
-  };
-}
-const _federalHolidayCache={};
-function federalHolidayName(dateStr){
-  const year=+dateStr.slice(0,4);
-  if(!_federalHolidayCache[year])_federalHolidayCache[year]=usFederalHolidays(year);
-  return _federalHolidayCache[year][dateStr]||null;
-}
-
-const CHORE_PRESETS=[
-  {e:"🧺",n:"Laundry"},{e:"🗑",n:"Trash"},{e:"🍳",n:"Meal Prep"},
-  {e:"🛒",n:"Food Shop"},{e:"🧹",n:"Clean"},{e:"🍽",n:"Dishes"}
-];
-const STORE="studyos_v6";
-function load(){
-  try{
-    const d=JSON.parse(localStorage.getItem(STORE)||"null");
-    if(!d)return null;
-    // Migrate: coerce all duration fields that may have been stored as strings
-    if(d.profile){
-      const num=["breakfastDur","lunchDur","dinnerDur","focusMins","breakMins","sessionPreset","commuteMins","funWD","funWE","gymStretch","gymDrive"];
-      num.forEach(k=>{if(d.profile[k]!==undefined)d.profile[k]=parseInt(d.profile[k])||0;});
-      // Also fix gymDays s/e times — ensure they stay as "HH:MM" strings not numbers
-      if(d.profile.gymDays){
-        d.profile.gymDays=d.profile.gymDays.map(g=>({...g,day:parseInt(g.day)||0}));
-      }
-    }
-    // Migrate: normalize course records so every downstream consumer can safely assume `days` is
-    // an array and `weeklyHours`/`difficulty` are valid numbers — courses created by older import
-    // paths or edge cases could otherwise be missing these and crash the scheduling engine.
-    if(Array.isArray(d.courses)){
-      d.courses=d.courses.map(c=>({
-        ...c,
-        days:Array.isArray(c.days)?c.days:[],
-        weeklyHours:Number.isFinite(+c.weeklyHours)&&+c.weeklyHours>0?+c.weeklyHours:4,
-        difficulty:Number.isFinite(+c.difficulty)&&+c.difficulty>=1&&+c.difficulty<=10?+c.difficulty:5,
-      }));
-    }
-    // Migrate: drop any assignment/exam with a missing or malformed date rather than letting it
-    // silently poison downstream date math — surfaces as "no due date" which the app already handles.
-    if(Array.isArray(d.assignments)){
-      d.assignments=d.assignments.map(a=>({...a,dueDate:(a.dueDate&&/^\d{4}-\d{2}-\d{2}$/.test(a.dueDate))?a.dueDate:null}));
-    }
-    if(Array.isArray(d.exams)){
-      d.exams=d.exams.filter(e=>e.date&&/^\d{4}-\d{2}-\d{2}$/.test(e.date));
-    }
-    return d;
-  }catch{return null;}
-}
-function save(d){try{localStorage.setItem(STORE,JSON.stringify(d));}catch{}}
-const GYM0=[
-  {day:0,on:false,s:"09:00",e:"10:00"},{day:1,on:true,s:"19:00",e:"20:00"},
-  {day:2,on:false,s:"19:00",e:"20:00"},{day:3,on:true,s:"19:00",e:"20:00"},
-  {day:4,on:false,s:"19:00",e:"20:00"},{day:5,on:false,s:"19:00",e:"20:00"},
-  {day:6,on:true,s:"12:00",e:"13:00"}
-];
-const EP={
-  name:"",lastName:"",phone:"",email:"",username:"",password:"",homeAddress:"",schoolName:"",schoolAddress:"",schoolType:"quarter",
-  collegeCalendar:null,wakeTime:"07:00",sleepTime:"23:00",
-  breakfastTime:"07:30",breakfastDur:30,lunchTime:"12:00",lunchDur:30,dinnerTime:"18:30",dinnerDur:30,
-  focusMins:25,breakMins:5,sessionPreset:30,energyPeak:"morning",commuteMins:20,
-  funWD:1.5,funWE:4,gymDays:GYM0,gymStretch:30,gymDrive:10,chores:[],remindersOn:true,termStart:"",termEnd:"",
-  // Default grade-weight assumptions, used only when a course's syllabus doesn't state a weight
-  // for an item — visible and editable in Settings so the student can correct them per their
-  // actual courses. examsTotal + hwTotal should add to 100.
-  defaultWeights:{examsTotal:60,hwTotal:40,finalShare:35}, // finalShare = the Final's cut of examsTotal; remaining exams split the rest evenly
-};
-const ED={profile:EP,schools:[],terms:[],courses:[],assignments:[],exams:[],adhoc:[],gymLogs:[],dailyLogs:[],pomodoroLogs:[],history:[],briefCache:null,briefDate:null,quarterPlan:null,studyPlan:{weeks:{}},completionLog:[],onboarded:false,planStale:false};
-
 function du(ds){return Math.ceil((new Date(ds)-new Date(iso()))/(864e5));}
 function m2t(m){return`${Math.floor(m/60).toString().padStart(2,"0")}:${(m%60).toString().padStart(2,"0")}`;}
 function f12(t){if(!t)return"";const m=t2m(t);const h=Math.floor(m/60)%12||12;const mn=(m%60).toString().padStart(2,"0");return`${h}:${mn}${Math.floor(m/60)>=12?"pm":"am"}`;}
@@ -151,30 +70,6 @@ function fmtDur(totalMin){
   if(m===0)return`${h}h`;
   return`${h}h ${m}m`;
 }
-// Generic term/holiday lookups — work for ANY college, not just De Anza. p.collegeCalendar has
-// the same {quarters:[{name,start,end,finals:{start,end}}],
-// holidays:[{name,date}|{name,start,end}]}), populated by the college-calendar fetch flow once
-// the student picks their school. Until that's populated, term range falls back to manually-set
-// termStart/termEnd exactly as before — but federal holidays apply either way, unconditionally,
-// as the "no school at minimum" baseline this doesn't depend on any fetch having succeeded.
-function getQ(p){
-  const cal=p?.collegeCalendar;
-  if(!cal?.quarters?.length)return null;
-  const n=iso();
-  return cal.quarters.find(q=>n>=q.start&&n<=q.end)||null;
-}
-function isHol(d,p){
-  if(federalHolidayName(d))return true;
-  const cal=p?.collegeCalendar;
-  if(!cal?.holidays?.length)return false;
-  return cal.holidays.some(h=>h.date===d||(h.start&&d>=h.start&&d<=h.end));
-}
-function isFin(d,p){
-  const cal=p?.collegeCalendar;
-  if(!cal?.quarters?.length)return false;
-  return cal.quarters.some(q=>q.finals&&d>=q.finals.start&&d<=q.finals.end);
-}
-
 // ── Week navigation helpers ──────────────────────────────────────────────────
 function fmtWeekRange(weekStart){
   const we=new Date(weekStart);we.setDate(weekStart.getDate()+6);
@@ -237,26 +132,6 @@ function searchColleges(indexed,query,limit=8){
 }
 
 function sundayOf(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-x.getDay());return x;}
-// Returns {start,end} (iso strings) for the active term, or null if unknown.
-// Students with a fetched collegeCalendar get it automatically; everyone else sets it manually
-// in Settings (or hasn't picked a college / the fetch failed yet).
-function getTermRange(p){
-  const cal=p?.collegeCalendar;
-  if(cal?.quarters?.length){
-    const active=getQ(p);
-    if(active)return{start:active.start,end:active.end};
-    // No quarter active right now (e.g. break) — fall back to whichever quarter is nearest today.
-    const today=iso();
-    let best=null,bestDiff=Infinity;
-    cal.quarters.forEach(q=>{
-      const diff=Math.abs(new Date(q.start)-new Date(today));
-      if(diff<bestDiff){bestDiff=diff;best=q;}
-    });
-    if(best)return{start:best.start,end:best.end};
-  }
-  if(p?.termStart&&p?.termEnd)return{start:p.termStart,end:p.termEnd};
-  return null;
-}
 
 // ── Grades / GPA ────────────────────────────────────────────────────────────
 function letterFromPct(pct){
@@ -748,105 +623,6 @@ function applyCollegeCalendarResult(result,updP){
     };
   }
   updP(patch);
-}
-
-// ── MULTI-SCHOOL / MULTI-TERM ────────────────────────────────────────────────
-// Derives each term's status from real dates — status is never stored, always computed, so it
-// can't drift out of sync with the data it's derived from. Rule: a term is "completed" once its
-// end date has passed; among the rest, the one with the earliest start date is "current" (even
-// if its own start date hasn't technically arrived yet — once the previous term ends, the next
-// one in line is what's relevant), and everything else is "upcoming". A newly-added future term
-// stays "upcoming" no matter how far ahead it's dated, until the currently-current term's end
-// date actually passes.
-function computeTermStatuses(terms,todayStr){
-  const sorted=[...(terms||[])].sort((a,b)=>(a.start||"").localeCompare(b.start||""));
-  const notCompleted=sorted.filter(t=>t.end&&t.end>=todayStr);
-  const currentId=notCompleted.length?notCompleted[0].id:null;
-  return sorted.map(t=>({
-    ...t,
-    status:(t.end&&t.end<todayStr)?"completed":(t.id===currentId?"current":"upcoming"),
-  }));
-}
-// The term currently driving the planner, plus the school it belongs to. Null if no terms exist
-// yet (e.g. before the one-time legacy migration below has run, or a brand-new install).
-function getActiveTermAndSchool(data){
-  const statuses=computeTermStatuses(data.terms,iso());
-  const active=statuses.find(t=>t.status==="current");
-  if(!active)return{term:null,school:null};
-  const school=(data.schools||[]).find(s=>s.id===active.schoolId)||null;
-  return{term:active,school};
-}
-// Scopes courses/assignments/exams to just the current term before handing off to the planner.
-// Without this, the planner (both the deadline-driven scheduler and the regular-study fallback,
-// which iterates data.courses directly) would consider EVERY course/assignment/exam ever
-// created — including years-old completed terms kept for history, and any upcoming term
-// prepped in advance — mixing all of it into today's real schedule. freeSlots() also reads
-// data.courses for class-time blocking, so scoping it here via the same data object fixes both
-// at once. If no term exists yet (e.g. before the legacy migration has run), falls back to
-// unscoped data rather than breaking a fresh/pre-migration install.
-function termScopedForPlanning(data){
-  const{term}=getActiveTermAndSchool(data);
-  if(!term)return data;
-  const currentCourses=data.courses.filter(c=>c.termId===term.id);
-  const currentCourseIds=new Set(currentCourses.map(c=>c.id));
-  return{
-    ...data,
-    courses:currentCourses,
-    assignments:data.assignments.filter(a=>currentCourseIds.has(a.courseId)),
-    exams:data.exams.filter(e=>currentCourseIds.has(e.courseId)),
-  };
-}
-// One-time migration: existing installs (like the current single-school/single-term setup)
-// have their school+term info living directly on profile, not in schools[]/terms[]. If terms[]
-// is still empty but profile already has a school on record, synthesize a school+term entry
-// from those legacy fields so nothing is lost. Idempotent — once terms[] is non-empty, this
-// never fires again, so it's safe to check on every load rather than needing a version flag.
-function migrateLegacyTermIfNeeded(data){
-  if((data.terms||[]).length>0)return null; // already migrated (or a fresh install with no school yet)
-  if(!data.profile.schoolName)return null; // nothing to migrate
-  const schoolId="sch_"+Date.now();
-  const termId="term_"+Date.now();
-  const school={id:schoolId,name:data.profile.schoolName,address:data.profile.schoolAddress||"",schoolType:data.profile.schoolType||"quarter"};
-  const term={
-    id:termId,schoolId,name:data.profile.collegeCalendar?.quarters?.[0]?.name||"Current term",
-    type:data.profile.schoolType||"quarter",
-    start:data.profile.termStart||"",end:data.profile.termEnd||"",
-    holidays:data.profile.collegeCalendar?.holidays||[],
-    source:data.profile.collegeCalendar?.source||null,fetchedAt:data.profile.collegeCalendar?.fetchedAt||null,
-  };
-  const patch={schools:[school],terms:[term]};
-  // Backfill: any course that predates this feature has no termId at all — without this, it
-  // would silently disappear from every term-filtered view the moment filtering goes live,
-  // since undefined never matches the freshly-generated term id above.
-  const untagged=(data.courses||[]).filter(c=>!c.termId);
-  if(untagged.length>0){
-    patch.courses=(data.courses||[]).map(c=>c.termId?c:{...c,termId});
-  }
-  return patch;
-}
-// Keeps profile's existing termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
-// mirrored to whichever term is currently active, so every existing consumer of those fields
-// (the planner, getTermRange, isFin/isHol, WeekGrid...) keeps working completely unchanged —
-// they just always reflect "the active term" now instead of being the single source of truth
-// themselves. Returns a patch to apply via updP, or null if nothing needs to change.
-function syncActiveTermToProfilePatch(data){
-  const{term,school}=getActiveTermAndSchool(data);
-  if(!term)return null;
-  const p=data.profile;
-  const patch={};
-  if(p.termStart!==term.start)patch.termStart=term.start;
-  if(p.termEnd!==term.end)patch.termEnd=term.end;
-  if(school){
-    if(p.schoolName!==school.name)patch.schoolName=school.name;
-    if(p.schoolAddress!==school.address)patch.schoolAddress=school.address;
-    if(p.schoolType!==term.type)patch.schoolType=term.type;
-  }
-  if(term.start&&term.end){
-    const wantCal=JSON.stringify({quarters:[{name:term.name,start:term.start,end:term.end}],holidays:term.holidays||[],source:term.source||null});
-    const haveCal=JSON.stringify({quarters:p.collegeCalendar?.quarters||[],holidays:p.collegeCalendar?.holidays||[],source:p.collegeCalendar?.source||null});
-    if(wantCal!==haveCal)patch.collegeCalendar={quarters:[{name:term.name,start:term.start,end:term.end}],holidays:term.holidays||[],source:term.source||null,fetchedAt:new Date().toISOString()};
-  }
-  return Object.keys(patch).length?patch:null;
 }
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
