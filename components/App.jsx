@@ -1,5 +1,14 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { iso, t2m } from "@/lib/time";
+import { courseNameFor } from "@/lib/courses";
+import {
+  planHorizon,
+  estimateDifficulty,
+  estimateStudyHours,
+  computePriorityScore,
+  computeEstimateFields,
+} from "@/lib/planner";
 // ── Build version — bumped every time a new app.js is generated, so you can confirm which
 // build is actually running (check Settings → bottom, or the browser console on load). ──
 const APP_VERSION="2.38.0";
@@ -131,18 +140,7 @@ const EP={
 };
 const ED={profile:EP,schools:[],terms:[],courses:[],assignments:[],exams:[],adhoc:[],gymLogs:[],dailyLogs:[],pomodoroLogs:[],history:[],briefCache:null,briefDate:null,quarterPlan:null,studyPlan:{weeks:{}},completionLog:[],onboarded:false,planStale:false};
 
-function iso(d){
-  const dt=d?new Date(d):new Date();
-  // Local date components, NOT toISOString() (which converts to UTC) — for any timezone behind
-  // UTC, evening local time is already the next calendar day in UTC, so the old implementation
-  // silently returned tomorrow's date for a large part of every day. This was the root cause of
-  // Weekly showing a different "today" than Today's own page header, which correctly used
-  // toLocaleDateString() (local-time based) instead of this function.
-  const y=dt.getFullYear(),m=(dt.getMonth()+1).toString().padStart(2,"0"),day=dt.getDate().toString().padStart(2,"0");
-  return`${y}-${m}-${day}`;
-}
 function du(ds){return Math.ceil((new Date(ds)-new Date(iso()))/(864e5));}
-function t2m(t){if(!t)return 0;const[h,m]=String(t).split(":").map(Number);if(!Number.isFinite(h)||!Number.isFinite(m))return 0;return h*60+m;}
 function m2t(m){return`${Math.floor(m/60).toString().padStart(2,"0")}:${(m%60).toString().padStart(2,"0")}`;}
 function f12(t){if(!t)return"";const m=t2m(t);const h=Math.floor(m/60)%12||12;const mn=(m%60).toString().padStart(2,"0");return`${h}:${mn}${Math.floor(m/60)>=12?"pm":"am"}`;}
 // Formats a raw minute count as "1h 30m" (or just "45m" under an hour) — used anywhere a total
@@ -238,12 +236,6 @@ function searchColleges(indexed,query,limit=8){
   return[...acronymMatch,...starts,...contains].slice(0,limit);
 }
 
-// Display-name lookup for an assignment/exam by its courseId — the single place every UI/planner
-// read site should go through, instead of trusting a re-typed course string.
-function courseNameFor(courses,courseId){
-  const c=courses.find(x=>x.id===courseId);
-  return c?c.name:"(unknown course)";
-}
 function sundayOf(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-x.getDay());return x;}
 // Returns {start,end} (iso strings) for the active term, or null if unknown.
 // Students with a fetched collegeCalendar get it automatically; everyone else sets it manually
@@ -320,29 +312,6 @@ async function CI(name,code){
   try{const r=await fetch("/api/course-info",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({courseName:name,courseCode:code})});return await r.json();}
   catch{return{difficultyScore:5,difficultyLabel:"Medium",weeklyStudyHours:5,startExamPrepDays:5};}
 }
-// MOCK — real-world difficulty signal lookup for a single assignment/exam (e.g. "how hard is a
-// UCSD MATH 180A midterm" from student reviews, past syllabi, etc). This is the seam for a real
-// web-search implementation later; for now it returns a neutral stub so the rest of the Estimator
-// pipeline can be built and tested end-to-end without depending on that feature existing yet.
-// Swapping this one function for a real search call is the only change needed to wire it up later.
-async function webDifficultySignal(item,course){
-  // Deliberately neutral/no-op — returning null means "no external signal available," which the
-  // estimator treats the same as if this function didn't exist at all (falls back to local-only
-  // calculation). This keeps today's estimates identical to a pre-web-search world by design.
-  return null;
-}
-// Core Estimator — computes a Low/Mid/High difficulty rating for one assignment or exam.
-// Local-only inputs: the course's own difficulty score (1-10) and the item's weight (% of grade).
-// A high-weight item in a hard course scores High; a low-weight item in an easy course scores Low.
-// The webDifficultySignal() call is wired in but currently always returns null (see above) — when
-// a real implementation exists later, its result would nudge this rating without any other change
-// needed here.
-// We never alter or supplement a real weight extracted from the syllabus. Defaults only apply
-// per-course, per-category (exams / homework), and only when that ENTIRE category has zero real
-// weights for that course — if even one exam has a stated weight, no exam in that course gets a
-// default; the rest are simply left unweighted (null) for the student to fill in themselves.
-// This avoids ever mixing real and assumed numbers within the same category, which is the only
-// way to guarantee we're not silently distorting what the syllabus actually said.
 // Deterministic safety net, run on every AI extraction response before saving — the AI is
 // generative and won't always classify items identically between calls (e.g. it has sometimes
 // put weekly reading/lecture quizzes in "exams" instead of "assignments", even with prompt
@@ -396,68 +365,6 @@ function applyDefaultWeights(courseAssignments,courseExams,defaults){
 
   return{examUpdates,hwUpdates};
 }
-async function estimateDifficulty(item,course){
-  const courseDiff=+(course?.difficulty)||5; // 1-10 scale, defaults to Medium if unknown
-  const weight=item.weight!=null?+item.weight:10; // no weight stated → assume a modest 10%, not zero
-  // Weight is the primary stakes signal, scaled against realistic single-item grade weights
-  // (most fall 2-35% — a 30% midterm should clearly register as high-stakes without needing
-  // near-100% weight to do so). Difficulty then modulates that base as a multiplier.
-  const weightScore=Math.min(10,weight/3);
-  const diffMult=0.7+(courseDiff/10)*0.6; // 1/10 diff → 0.76x, 10/10 diff → 1.3x
-  let combined=weightScore*diffMult;
-
-  const webSignal=await webDifficultySignal(item,course);
-  if(webSignal?.adjustment)combined=Math.max(0,combined+webSignal.adjustment);
-
-  const value=combined<=4?"Low":combined<=7.5?"Mid":"High";
-  return{value,combinedScore:Math.round(combined*10)/10};
-}
-
-// Total suggested study hours for one assignment/exam — Phase 1 of the planner design.
-// total_hours = base_hours(type) × difficulty_multiplier(course) × weight_scaling(item stakes)
-// Reuses difficultyMultiplier() (course-level 1-10 → 0.7x-1.3x, same as studyTargets' regular-study
-// scaling) and the same weightScore normalization as estimateDifficulty, rather than introducing a
-// second, inconsistent notion of "how much this course's difficulty matters." Deliberately does NOT
-// factor in the item's own Low/Mid/High rating — that rating is itself partly weight-derived, so
-// multiplying by it too would double-count stakes.
-const STUDY_HOURS_BASE={homework:2,exam:4}; // homework matches today's existing estimatedHours default; exams start higher since prep spans more material
-function estimateStudyHours(item,course,kind){
-  const base=STUDY_HOURS_BASE[kind]??2;
-  const diffMult=difficultyMultiplier(course?.difficulty);
-  const weight=item.weight!=null?+item.weight:10;
-  const weightScore=Math.min(10,weight/3); // same normalization as estimateDifficulty
-  const weightScaling=Math.min(2.0,Math.max(0.5,weightScore/5)); // 15% weight (weightScore 5) → neutral 1.0x
-  const hours=base*diffMult*weightScaling;
-  return Math.round(hours*2)/2; // nearest half-hour, matches the existing "Est. hours" input's step
-}
-
-// Composite priority score for one assignment/exam — priority = urgency × difficulty_weight × grade_weight.
-// Not persisted (depends on "today," so storing it would go stale immediately) — always computed
-// live wherever it's displayed or used for scheduling.
-function urgencyFactor(daysUntilDue){
-  const clamped=Math.max(0,Math.min(14,daysUntilDue));
-  return daysUntilDue>14?1.0:1.0+(14-clamped)/14; // flat 1.0x beyond 2 weeks out, gentle linear ramp to 2.0x by the due date — no drastic spike
-}
-const DIFFICULTY_WEIGHT={Low:1,Mid:2,High:3};
-function computePriorityScore(dueDate,effectiveDifficulty,weight,asOfDate){
-  if(!dueDate)return 0;
-  const urgency=urgencyFactor(daysFrom(asOfDate||iso(),dueDate));
-  const diffWeight=DIFFICULTY_WEIGHT[effectiveDifficulty]||2;
-  const gradeWeight=weight!=null?+weight:10;
-  return Math.round(urgency*diffWeight*gradeWeight*10)/10;
-}
-
-// Computes and packages the difficulty + hours fields for a brand-new assignment/exam, meant to be
-// called once at item-CREATION time (syllabus sync, manual add) — one of the agreed replan/estimate
-// triggers — rather than lazily whenever the Study Preferences tab happens to be opened. This is what
-// lets that tab simply read stored values on every visit with no async recompute and no spinner,
-// except for genuinely legacy items that predate this change.
-async function computeEstimateFields(item,course,kind){
-  const r=await estimateDifficulty(item,course);
-  const aiHours=estimateStudyHours(item,course,kind);
-  return{estimatorValue:r.value,aiHours,userValue:null,userHours:null,reviewedAt:null};
-}
-
 async function PDF(file){
   if(!window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   const buf=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data:buf}).promise;
@@ -506,15 +413,6 @@ function freeSlots(dateStr,data,userEditedBlocks=[]){
   if(cursor<dayEnd)gaps.push({s:cursor,e:dayEnd});
   return gaps.filter(g=>g.e-g.s>=10);
 }
-function daysFrom(dateStr,targetDate){
-  return Math.round((new Date(targetDate+"T12:00:00")-new Date(dateStr+"T12:00:00"))/864e5);
-}
-// Harder classes get proportionally more time: 1/10 difficulty → 0.76x baseline, 5/10 → 1.0x (neutral), 10/10 → 1.3x.
-function difficultyMultiplier(difficulty){
-  const n=+difficulty;
-  const d=Number.isFinite(n)&&n>=1&&n<=10?n:5;
-  return 0.7+(d/10)*0.6;
-}
 // Backward-ramp weight for a day that is `d` days before a deadline, within a `windowDays`-long
 // planning horizon — later days (closer to the deadline) get proportionally more time than earlier ones.
 function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
@@ -524,336 +422,6 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
   const raw=totalMinutes*weight/totalWeight;
   return Math.min(maxPerDay,Math.max(minPerDay,Math.round(raw)));
 }
-const ISO_DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
-// Rounds a minute-of-day value UP to the next 15-min grid line (:00/:15/:30/:45).
-// Already-aligned values pass through unchanged.
-function alignUp15(m){return Math.ceil(m/15)*15;}
-
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// PHASE 2 PLANNER — priority-driven, stateful across the whole planning horizon (not just one
-// day in isolation). Implements every agreed rule together: session presets, real priority
-// scoring, primary/secondary with minimize-switching, 15-min topic buffer, 1-day due-date
-// buffer, energyPeak time-of-day placement, and a completion guarantee with early risk warnings
-// — validated as a standalone prototype before this integration (see project history).
-// ══════════════════════════════════════════════════════════════════════════════════════════
-
-// Each preset is ONE placed block — study+break folded together internally, always a multiple
-// of 15, sidestepping the sub-alignment problem a separately-shown break portion would create
-// (e.g. a 25-min study-only chunk doesn't end on the 15-min grid, but a 30-min combined block
-// always does).
-const SESSION_PRESETS={30:30,45:45,60:60};
-function dayWindows(profile){
-  const wake=t2m(profile.wakeTime);
-  let sleep=t2m(profile.sleepTime);
-  if(sleep<=wake)sleep+=1440;
-  return{morning:[wake,720],afternoon:[720,1020],evening:[1020,sleep]};
-}
-function windowOrderFor(energyPeak){
-  if(energyPeak==="afternoon")return["afternoon","evening","morning"];
-  if(energyPeak==="evening")return["evening","afternoon","morning"];
-  return["morning","afternoon","evening"];
-}
-
-// Builds the candidate list of deadline-driven items (assignments/exams) with everything the
-// planner needs: remaining minutes (from estimatedHours, already computed by the Study
-// Preferences flow), effective difficulty, and priority is computed fresh per-day by the caller
-// (urgency depends on which day is being planned, not a single fixed "today").
-// How many days before its due date an item is even eligible to start being scheduled — starting
-// too early wastes limited near-term capacity on work that isn't actually urgent yet, and crowds
-// out items that genuinely need that time now. Homework gets a fixed window; exams use their own
-// per-exam prepDays field (already existed, already editable per-exam) — the bug fixed here is
-// that the new planner was never actually consulting it, so every exam was "eligible" the moment
-// it existed, regardless of how far out it was.
-const HOMEWORK_START_WINDOW_DAYS=5;
-function buildItemDemand(data){
-  const items=[];
-  data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&ISO_DATE_RE.test(a.dueDate)).forEach(a=>{
-    const course=data.courses.find(c=>c.id===a.courseId);
-    items.push({
-      id:`a_${a.id}`,rawId:a.id,kind:"homework",courseId:a.courseId,
-      courseName:course?course.name:courseNameFor(data.courses,a.courseId),
-      title:a.title,dueDate:a.dueDate,weight:a.weight,
-      effectiveDifficulty:a.userValue||a.estimatorValue||"Mid",
-      remainingMinutes:Math.max(0,(a.userHours??a.aiHours??a.estimatedHours??2)*60),
-      source:{type:"assignment",id:a.id},startWindowDays:HOMEWORK_START_WINDOW_DAYS,
-    });
-  });
-  data.exams.filter(e=>e.date&&ISO_DATE_RE.test(e.date)).forEach(e=>{
-    const course=data.courses.find(c=>c.id===e.courseId);
-    items.push({
-      id:`e_${e.id}`,rawId:e.id,kind:"study",courseId:e.courseId,
-      courseName:course?course.name:"(unknown course)",
-      title:e.title||"Exam",dueDate:e.date,weight:e.weight,
-      effectiveDifficulty:e.userValue||e.estimatorValue||"Mid",
-      remainingMinutes:Math.max(0,(e.userHours??e.aiHours??e.estimatedHours??4)*60),
-      source:{type:"exam",id:e.id},startWindowDays:+e.prepDays||7,
-    });
-  });
-  return items;
-}
-
-// Places one course's block(s) for the day — may span multiple items within that course (highest
-// priority covered first), placed as ONE continuous session group (back-to-back, same window
-// preference) so switching between different ITEMS of the SAME course doesn't count as a topic
-// switch. Mutates `gaps` (consumes time) and each item's `remainingMinutes` (depletes demand) in
-// place. Returns the blocks placed.
-function placeCourseBlocks(gaps,courseItems,budgetCap,presetLen,windowOrderList,windowMap,courseId,courseName,dateStr,seqRef,now){
-  // Pass 1 — DECIDE allocations in priority order (who deserves how many minutes today; this
-  // part is unchanged). Nothing is placed into gaps yet.
-  let budgetLeft=budgetCap;
-  const allocations=[];
-  for(const item of courseItems){
-    if(budgetLeft<15||item.remainingMinutes<15)continue;
-    const toPlace=Math.min(item.remainingMinutes,budgetLeft);
-    if(toPlace<15)continue;
-    allocations.push({item,minutes:toPlace});
-    budgetLeft-=toPlace;
-  }
-
-  // Pass 2 — PLACE those allocations size-descending, not priority-descending. Without this
-  // separation, a high-priority item left with only a small remainder (e.g. 15 min to finish)
-  // would claim the day's earliest time slot just by virtue of being processed first, while a
-  // lower-priority item with a much bigger chunk got pushed later — visually "15 > 30 > 30"
-  // instead of the expected "30 > 30 > 15". Splitting allocation from placement order fixes this:
-  // whoever has the MOST time today gets the earliest slot, and any small leftover naturally
-  // lands last, while which item gets how much time is still entirely priority-driven.
-  allocations.sort((a,b)=>b.minutes-a.minutes);
-
-  const placed=[];
-  for(const{item,minutes:toPlace}of allocations){
-    let remaining=toPlace,actuallyPlaced=0;
-    for(const winName of windowOrderList){
-      if(remaining<15)break;
-      const[winStart,winEnd]=windowMap[winName];
-      for(const wg of gaps.map(g=>({s:Math.max(g.s,winStart),e:Math.min(g.e,winEnd)})).filter(g=>g.e-g.s>=15)){
-        if(remaining<15)break;
-        let cursor=alignUp15(wg.s);
-        while(remaining>=15){
-          const chunk=Math.min(presetLen,Math.round(remaining/15)*15);
-          if(chunk<15||cursor+chunk>wg.e)break;
-          const s=cursor,e=s+chunk;
-          const label=item.kind==="homework"
-            ?`${item.courseName} — ${item.title} (due ${daysFrom(dateStr,item.dueDate)===0?"today":`in ${daysFrom(dateStr,item.dueDate)}d`})`
-            :`${item.courseName} exam prep (${daysFrom(dateStr,item.dueDate)===0?"today!":`${daysFrom(dateStr,item.dueDate)}d left`})`;
-          placed.push({
-            id:`blk_${dateStr}_${Date.now()}_${seqRef.n++}`,courseId,course:courseName,source:item.source,
-            label,description:"",s,e,kind:item.kind,
-            userEdited:false,completed:false,createdAt:now,editedAt:null,completedAt:null,
-          });
-          const gi=gaps.findIndex(g=>g.s<=s&&g.e>=e);
-          if(gi!==-1){
-            const g=gaps[gi];
-            const newGaps=[];
-            if(g.s<s)newGaps.push({s:g.s,e:s});
-            if(g.e>e)newGaps.push({s:e,e:g.e});
-            gaps.splice(gi,1,...newGaps);
-          }
-          remaining-=chunk;actuallyPlaced+=chunk;
-          cursor=e; // back-to-back — same item's next chunk starts immediately after this one
-        }
-      }
-    }
-    item.remainingMinutes-=actuallyPlaced;
-  }
-  return placed;
-}
-
-// Consumes a 15-min buffer immediately after the last-placed block, from whichever gap contains
-// that point — guarantees adjacency between DIFFERENT topics always has the buffer, while
-// same-topic sessions (handled inside placeCourseBlocks) stay genuinely back-to-back.
-function consumeTopicBuffer(gaps,lastEnd){
-  const gi=gaps.findIndex(g=>g.s===lastEnd);
-  if(gi===-1)return;
-  const g=gaps[gi];
-  const newStart=Math.min(g.e,lastEnd+15);
-  if(newStart>=g.e)gaps.splice(gi,1);else gaps[gi]={s:newStart,e:g.e};
-}
-
-// One day's placement. itemState is the SHARED, MUTATED-IN-PLACE array from buildItemDemand —
-// remainingMinutes gets depleted here so later days in the same horizon see reduced demand.
-// Deadline-driven items (Tier 1) get primary/secondary treatment with the full rule set; any
-// capacity left over after that gets filled with ongoing regular per-course study (Tier 2, no
-// specific deadline) so idle time doesn't go to waste, but real deadline pressure always wins
-// first. Returns the day's blocks.
-function planDayV2(dateStr,itemState,data,gaps,seqRef){
-  const profile=data.profile;
-  const presetLen=SESSION_PRESETS[profile.sessionPreset]||30;
-  const STUDY_BUFFER_DAYS=1; // hard wall — never study on the due date itself
-  const PREFERRED_BUFFER_DAYS=2; // soft target — prefer finishing by due-2; due-1 stays available
-                                  // as a genuine emergency fallback, not a wall, so the completion
-                                  // guarantee never gets weaker
-  const DAILY_CAP=300;
-  const now=new Date().toISOString();
-  const winMap=dayWindows(profile);
-  const winOrder=windowOrderFor(profile.energyPeak);
-  const blocks=[];
-  let totalPlaced=0;
-
-  // ── Tier 1: deadline-driven items ──
-  // "Plan as late as needed, not as early as possible": an item within its eligible window is
-  // only a REAL candidate today if today is actually needed to stay on pace for finishing by
-  // due-2 — i.e. it has no slack left. If it could still be fully covered by starting later
-  // (even just tomorrow) while finishing by due-2, it's deferred, so a solo item with no real
-  // competition doesn't front-load onto the very first eligible day just because nothing else
-  // happened to need that day. An item that's already run out of slack even for due-1 (its last
-  // possible day) still gets included — never silently dropped, matching the completion guarantee.
-  const candidates=itemState.filter(it=>{
-    if(it.remainingMinutes<=0||!it.dueDate)return false;
-    const daysOut=daysFrom(dateStr,it.dueDate);
-    if(daysOut<STUDY_BUFFER_DAYS||daysOut>(it.startWindowDays??Infinity))return false;
-    // Remaining days from TODAY through the preferred (due-2) deadline, inclusive. If we're
-    // already past the preferred deadline (daysOut < PREFERRED_BUFFER_DAYS, i.e. only due-1 is
-    // left), there's no more slack to compute — it's unconditionally a candidate now.
-    if(daysOut<PREFERRED_BUFFER_DAYS)return true;
-    const remainingPreferredDays=daysOut-PREFERRED_BUFFER_DAYS+1;
-    const roughDailyCapacity=DAILY_CAP*0.65; // same share a primary item could realistically claim in one day
-    const daysNeededIfStartedNow=Math.ceil(it.remainingMinutes/roughDailyCapacity);
-    const slack=remainingPreferredDays-daysNeededIfStartedNow;
-    return slack<=0; // no room left to defer further and still finish by due-2 — must start today
-  });
-  candidates.forEach(it=>{it.priority=computePriorityScore(it.dueDate,it.effectiveDifficulty,it.weight,dateStr);});
-  const byCourse={};
-  candidates.forEach(it=>{
-    if(!byCourse[it.courseId])byCourse[it.courseId]={courseId:it.courseId,courseName:it.courseName,items:[],priority:0};
-    byCourse[it.courseId].items.push(it);
-    byCourse[it.courseId].priority=Math.max(byCourse[it.courseId].priority,it.priority);
-  });
-  const courseList=Object.values(byCourse).sort((a,b)=>b.priority-a.priority);
-  courseList.forEach(c=>{c.items.sort((a,b)=>b.priority-a.priority);});
-
-  if(courseList.length){
-    const primary=courseList[0];
-    const primaryBlocks=placeCourseBlocks(gaps,primary.items,Math.round(DAILY_CAP*0.65),presetLen,winOrder,winMap,primary.courseId,primary.courseName,dateStr,seqRef,now);
-    blocks.push(...primaryBlocks);
-    totalPlaced+=primaryBlocks.reduce((s,b)=>s+(b.e-b.s),0);
-    const secondary=courseList[1];
-    if(secondary&&totalPlaced<DAILY_CAP&&primaryBlocks.length){
-      consumeTopicBuffer(gaps,primaryBlocks[primaryBlocks.length-1].e);
-      const secondaryBlocks=placeCourseBlocks(gaps,secondary.items,DAILY_CAP-totalPlaced,presetLen,winOrder,winMap,secondary.courseId,secondary.courseName,dateStr,seqRef,now);
-      blocks.push(...secondaryBlocks);
-      totalPlaced+=secondaryBlocks.reduce((s,b)=>s+(b.e-b.s),0);
-    }
-  }
-
-  // ── Tier 2: regular per-course study (no specific deadline) fills any leftover capacity ──
-  if(totalPlaced<DAILY_CAP){
-    const num=(v,fallback)=>{const n=+v;return Number.isFinite(n)&&n>0?n:fallback;};
-    data.courses.forEach(c=>{
-      if(totalPlaced>=DAILY_CAP)return;
-      const mult=difficultyMultiplier(c.difficulty);
-      const weeklyHours=num(c.weeklyHours,4);
-      const dailyTarget=Math.round((weeklyHours*60)/7*mult);
-      if(dailyTarget<15)return;
-      const budget=Math.min(dailyTarget,DAILY_CAP-totalPlaced);
-      if(blocks.length)consumeTopicBuffer(gaps,blocks[blocks.length-1].e);
-      const fakeItem=[{remainingMinutes:budget,kind:"study",dueDate:null,title:null,courseName:c.name,
-        source:null}];
-      // Regular study has no due date, so it bypasses placeCourseBlocks' label logic — build its
-      // own simple label/placement inline instead, reusing the same window/chunk mechanics.
-      const label=`${c.name.split("(")[0].trim()} — regular study`;
-      let remaining=budget;
-      for(const winName of winOrder){
-        if(remaining<15)break;
-        const[winStart,winEnd]=winMap[winName];
-        for(const wg of gaps.map(g=>({s:Math.max(g.s,winStart),e:Math.min(g.e,winEnd)})).filter(g=>g.e-g.s>=15)){
-          if(remaining<15)break;
-          let cursor=alignUp15(wg.s);
-          while(remaining>=15){
-            const chunk=Math.min(presetLen,Math.round(remaining/15)*15);
-            if(chunk<15||cursor+chunk>wg.e)break;
-            const s=cursor,e=s+chunk;
-            blocks.push({id:`blk_${dateStr}_${Date.now()}_${seqRef.n++}`,courseId:c.id,course:c.name,source:null,
-              label,description:"",s,e,kind:"study",userEdited:false,completed:false,
-              createdAt:now,editedAt:null,completedAt:null});
-            const gi=gaps.findIndex(g=>g.s<=s&&g.e>=e);
-            if(gi!==-1){
-              const g=gaps[gi];const newGaps=[];
-              if(g.s<s)newGaps.push({s:g.s,e:s});if(g.e>e)newGaps.push({s:e,e:g.e});
-              gaps.splice(gi,1,...newGaps);
-            }
-            remaining-=chunk;totalPlaced+=chunk;cursor=e;
-          }
-        }
-      }
-    });
-  }
-
-  blocks.sort((a,b)=>a.s-b.s);
-  return blocks;
-}
-
-// Pre-flight feasibility check — run ONCE before any real placement, using REAL per-day capacity
-// (actual free-gap minutes for each day, from freeSlots), not a guess. Greedily reserves capacity
-// for items in due-date order (earliest deadline claims scarce shared days first, tiebroken by
-// priority) — whatever's left unclaimed is a genuine, mathematically-confirmed at-risk item,
-// found before planning even starts, not discovered after the fact.
-function preflightRiskCheck(dateStrs,itemState,gapsByDay){
-  const STUDY_BUFFER_DAYS=1;
-  const pool={};
-  dateStrs.forEach(d=>{pool[d]=(gapsByDay[d]||[]).reduce((sum,g)=>sum+(g.e-g.s),0);});
-  const sorted=itemState.filter(it=>it.remainingMinutes>0&&it.dueDate)
-    .map(it=>({...it,priority:computePriorityScore(it.dueDate,it.effectiveDifficulty,it.weight,dateStrs[0])}))
-    .sort((a,b)=>{
-      const dueDiff=new Date(a.dueDate)-new Date(b.dueDate);
-      if(dueDiff!==0)return dueDiff;
-      return b.priority-a.priority;
-    });
-  const risks=[];
-  sorted.forEach(it=>{
-    let need=it.remainingMinutes;
-    const validDays=dateStrs.filter(d=>{
-      const daysOut=daysFrom(d,it.dueDate);
-      return daysOut>=STUDY_BUFFER_DAYS&&daysOut<=(it.startWindowDays??Infinity);
-    });
-    for(const d of validDays){
-      if(need<=0)break;
-      const take=Math.min(pool[d],need);
-      pool[d]-=take;need-=take;
-    }
-    if(need>0)risks.push({id:it.id,rawId:it.rawId,kind:it.kind,courseName:it.courseName,title:it.title,
-      shortfallMin:need,desiredMinutes:it.remainingMinutes});
-  });
-  return risks;
-}
-
-// Runs the whole multi-day horizon: pre-flight risk check, then day-by-day placement with real
-// cross-day depletion tracking (an item planned on Monday correctly has less remaining demand by
-// Wednesday) — this is what actually implements "the plan shall not miss completion," not just a
-// per-day heuristic re-run independently every day with no memory of what came before.
-// gapsByDayFn(dateStr, userEditedBlocks) must return that day's free gaps, matching freeSlots().
-function planHorizon(dateStrs,data,gapsByDayFn,userEditedByDate){
-  const itemState=buildItemDemand(data);
-  const seqRef={n:0};
-  // Pre-flight needs real gaps for every day up front — compute once, reused both for the risk
-  // check and (mutated further) as actual placement proceeds.
-  const gapsByDay={};
-  dateStrs.forEach(d=>{gapsByDay[d]=gapsByDayFn(d,userEditedByDate[d]||[]);});
-  const risks=preflightRiskCheck(dateStrs,itemState,gapsByDay);
-
-  const blocksByDate={};
-  dateStrs.forEach(dateStr=>{
-    const gaps=gapsByDay[dateStr];
-    const generated=planDayV2(dateStr,itemState,data,gaps,seqRef);
-    blocksByDate[dateStr]=[...(userEditedByDate[dateStr]||[]),...generated];
-  });
-
-  // Summary: what actually got planned vs. what was originally desired, per item — for the
-  // post-refresh message so a shortage is never silent.
-  const original=buildItemDemand(data);
-  const summaryItems=original.map(orig=>{
-    const final=itemState.find(it=>it.id===orig.id);
-    const desiredMin=orig.remainingMinutes;
-    const plannedMin=desiredMin-(final?final.remainingMinutes:desiredMin);
-    return{id:orig.id,title:orig.title,courseName:orig.courseName,
-      desiredHours:Math.round(desiredMin/60*10)/10,plannedHours:Math.round(plannedMin/60*10)/10,
-      shortfallHours:Math.round((desiredMin-plannedMin)/60*10)/10,
-      fullyCovered:plannedMin>=desiredMin-0.5};
-  });
-  const shortfalls=summaryItems.filter(it=>!it.fullyCovered).sort((a,b)=>b.shortfallHours-a.shortfallHours);
-
-  return{blocksByDate,risks,shortfalls,summaryItems};
-}
-
 // Sunday of the week containing dateStr, as an ISO date string — the key used throughout
 // data.studyPlan.weeks. Matches how WeekGrid already computes its own week boundaries.
 function weekStartOf(dateStr){
