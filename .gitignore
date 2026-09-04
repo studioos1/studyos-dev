@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Build packaging (the zip workflow)
+*.zip
+
+# OS / editor cruft
+.DS_Store
+*.log
+npm-debug.log*

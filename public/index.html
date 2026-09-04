@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StudyOS</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="fonts/tabler-icons.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      /* Backgrounds */
+      --bg:      #1e2330;
+      --surface: #2e3445;
+      --card:    #424a60;
+      --card2:   #4e5870;
+      --card3:   #5a6480;
+
+      /* Text — high contrast */
+      --t1: #f2f6fc;   /* primary — very light, high contrast */
+      --t2: #b8cce0;   /* secondary — clearly readable */
+      --t3: #6a8aaa;   /* tertiary — labels only */
+
+      /* Borders */
+      --b1: #2a3a52;
+      --b2: #3a4e68;
+
+      /* Amber — primary action color */
+      --amber:    #cf9a48;
+      --amber-bg: #2a1e08;
+      --amber-dim:#1e1608;
+
+      /* Semantic */
+      --blue:    #6aace0;  --blue-bg:   #0c1e34;
+      --green:   #6ac890;  --green-bg:  #0c2418;
+      --red:     #e07068;  --red-bg:    #2a0e0c;
+      --purple:  #9880c8;  --purple-bg: #1c1438;
+      --teal:    #60b8a8;  --teal-bg:   #0c2228;
+      --lime:    #94b860;  --lime-bg:   #182208;
+
+      /* Activity block colors */
+      --a-class: #0e2030;  --a-class-t: #80b4d0;
+      --a-study: #0c2018;  --a-study-t: #78b888;
+      --a-bfast: #2a1e08;  --a-bfast-t: #d0a860;
+      --a-lunch: #182808;  --a-lunch-t: #90b860;
+      --a-dinr:  #2a1808;  --a-dinr-t:  #d08060;
+      --a-gym:   #1c1030;  --a-gym-t:   #9080c8;
+      --a-homework: #0a2828; --a-homework-t: #58c8c0;
+      --a-comm:  #0e1a2c;  --a-comm-t:  #7090b8;
+      --a-sleep: #090d14;  --a-sleep-t: #3a5268;
+      --a-chore: #182818;  --a-chore-t: #70a878;
+      --a-fun:   #281e08;  --a-fun-t:   #c8b060;
+      --a-exam:  #2a1808;  --a-exam-t:  #d09060;
+    }
+
+    /* Base font size increased to 17px (was 15px) */
+    html{font-size:17px;}
+    body{
+      background:var(--bg); color:var(--t1);
+      font-family:'Inter',sans-serif; min-height:100vh;
+      line-height:1.6; font-weight:400;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* Typography — all sizes increased proportionally */
+    h1{font-size:1.65rem; font-weight:600; color:var(--t1); line-height:1.3;}
+    h2{font-size:1.4rem;  font-weight:600; color:var(--t1); line-height:1.3;}
+    h3{font-size:1.15rem; font-weight:500; color:var(--t1);}
+    p{color:var(--t2); font-size:0.95rem;}
+
+    /* Inputs */
+    input,select,textarea{
+      background:var(--card2); border:1.5px solid var(--b1);
+      border-radius:8px; color:var(--t1); font-family:inherit;
+      font-size:15px; font-weight:400; padding:10px 13px;
+      outline:none; transition:border-color 0.15s; width:100%;
+    }
+    input:focus,select:focus,textarea:focus{border-color:var(--amber);}
+    input::placeholder,textarea::placeholder{color:var(--t3);}
+    select option{background:var(--card2);}
+    /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
+       weights, hours) benefit from stepper buttons; typing is the expected interaction. */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+    input[type="number"]{-moz-appearance:textfield;}
+
+    /* Labels */
+    label{
+      font-size:12px; color:var(--t3); display:block; margin-bottom:6px;
+      text-transform:uppercase; letter-spacing:0.07em; font-weight:400;
+    }
+
+    /* Cards */
+    .card{background:var(--card); border-radius:12px; padding:20px 22px; margin-bottom:14px;}
+    .card2{background:var(--card2); border-radius:10px; padding:15px 18px; margin-bottom:11px;}
+    .card-accent  {background:var(--card); border-radius:12px; padding:18px 20px; margin-bottom:12px; border-left:3px solid var(--blue);}
+    .card-warn    {background:var(--amber-bg); border-radius:12px; padding:16px 20px; margin-bottom:12px; border-left:3px solid var(--amber);}
+    .card-critical{background:var(--red-bg); border-radius:12px; padding:16px 20px; margin-bottom:12px; border-left:3px solid var(--red);}
+
+    /* Section headers */
+    .sec-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--b1);}
+    .sec-title{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:500; color:var(--t2); text-transform:uppercase; letter-spacing:0.08em;}
+    .sec-title i{font-size:16px; color:var(--blue);}
+
+    /* ── BUTTONS ──────────────────────────────────────────────── */
+    .btn{
+      display:inline-flex; align-items:center; gap:7px;
+      border:none; border-radius:8px; padding:10px 18px;
+      font-size:15px; font-weight:400; cursor:pointer;
+      font-family:inherit; transition:opacity 0.15s, background 0.15s;
+      min-height:42px; white-space:nowrap;
+    }
+    /* Action buttons = AMBER */
+    .btn-action{background:var(--amber); color:#1a0e00;}
+    .btn-action:hover{opacity:0.85;}
+    .btn-action:disabled{opacity:0.3; cursor:not-allowed;}
+
+    /* Ghost */
+    .btn-ghost{background:var(--card2); color:var(--t2);}
+    .btn-ghost:hover{background:var(--card3); color:var(--t1);}
+    .btn-ghost:disabled{opacity:0.3; cursor:not-allowed;}
+    /* Custom hover tooltip — doesn't rely on native title-attribute timing/behavior */
+    .tt{position:relative;}
+    .tt::after{
+      content:attr(data-tt);
+      position:absolute; left:50%; bottom:100%; transform:translate(-50%,-6px);
+      background:#1a1f2e; color:#e8ecf4; border:1px solid rgba(255,255,255,0.14);
+      padding:6px 10px; border-radius:7px; font-size:12px; line-height:1.4;
+      white-space:normal; max-width:280px; width:max-content;
+      box-shadow:0 4px 14px rgba(0,0,0,0.35);
+      opacity:0; pointer-events:none; visibility:hidden;
+      transition:opacity 0.1s ease;
+      z-index:1000;
+    }
+    .tt:hover::after{opacity:1; visibility:visible;}
+    /* Edge-anchored variants — used for blocks near an edge of their container so the tooltip
+       grows inward instead of getting clipped off-screen. */
+    .tt-left::after{left:0; transform:translateY(-6px);}
+    .tt-right::after{left:auto; right:0; transform:translateY(-6px);}
+    .tt-below::after{bottom:auto; top:100%; transform:translate(-50%,6px);}
+    /* Compound: opens below AND anchored to the right edge — needed as its own explicit rule
+       rather than just combining .tt-right + .tt-below as separate classes, since both set
+       `transform` and whichever came later in the stylesheet would silently win, breaking the
+       other's positioning. */
+    .tt-below.tt-right::after{bottom:auto; top:100%; left:auto; right:0; transform:translateY(6px);}
+
+    /* Delete — red, clearly visible */
+    .btn-del{background:transparent; color:var(--red); padding:7px 10px; min-height:34px; border-radius:7px;}
+    .btn-del:hover{background:var(--red-bg);}
+
+    /* Small */
+    .btn-sm{padding:6px 12px; font-size:13px; min-height:32px; border-radius:7px;}
+
+    /* Nav tab active */
+    .tab-active{color:var(--amber) !important; border-bottom-color:var(--amber) !important;}
+
+    /* ── TOGGLE BUTTONS — amber when selected ── */
+    .toggle-group{display:flex; background:var(--card2); border-radius:10px; padding:3px; gap:2px;}
+    .toggle-opt{
+      flex:1; text-align:center; padding:8px 16px; border-radius:8px;
+      font-size:14px; font-weight:400; cursor:pointer; border:none;
+      font-family:inherit; transition:all 0.15s; color:var(--t3); background:transparent;
+    }
+    .toggle-opt.on{background:var(--amber); color:#1a0e00; font-weight:500;}
+
+    /* ── OPTION SELECTORS (study time, energy peak etc) ── */
+    .opt-btn{
+      padding:8px 16px; border-radius:8px; font-size:14px; cursor:pointer;
+      border:1.5px solid var(--b1); background:var(--card2);
+      color:var(--t3); font-family:inherit; transition:all 0.15s;
+    }
+    .opt-btn.sel{background:var(--amber-bg); color:var(--amber); border-color:var(--amber);}
+    .opt-btn:hover:not(.sel){border-color:var(--b2); color:var(--t2);}
+
+    /* Pills */
+    .badge{display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:400; gap:4px;}
+    .badge-blue  {background:var(--blue-bg);   color:var(--blue);}
+    .badge-green {background:var(--green-bg);  color:var(--green);}
+    .badge-amber {background:var(--amber-bg);  color:var(--amber);}
+    .badge-red   {background:var(--red-bg);    color:var(--red);}
+    .badge-purple{background:var(--purple-bg); color:var(--purple);}
+    .badge-teal  {background:var(--teal-bg);   color:var(--teal);}
+    .badge-lime  {background:var(--lime-bg);   color:var(--lime);}
+
+    /* Status dots */
+    .sdot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+    .sdot-r{background:var(--red);}
+    .sdot-a{background:var(--amber);}
+    .sdot-b{background:var(--blue);}
+    .sdot-g{background:var(--green);}
+    .sdot-d{background:var(--b2);}
+
+    /* List items */
+    .li{display:flex; align-items:center; gap:13px; padding:11px 0; border-bottom:1px solid var(--b1);}
+    .li:last-child{border-bottom:none;}
+    .li-title{font-size:15px; color:var(--t1);}
+    .li-sub  {font-size:12px; color:var(--t3); margin-top:3px;}
+
+    /* Grids */
+    .g2{display:grid; grid-template-columns:1fr 1fr; gap:13px;}
+    .g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:13px;}
+    .g4{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:11px;}
+    .row{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
+
+    /* Progress bar */
+    .bar{height:6px; border-radius:3px; background:var(--card2); overflow:hidden;}
+    .bar-fill{height:100%; border-radius:3px; transition:width 0.4s;}
+
+    /* Checkbox */
+    .chk{width:20px; height:20px; border-radius:5px; background:var(--card2); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background 0.15s;}
+    .chk.on{background:var(--green-bg);}
+
+    /* Spinner */
+    .spin{width:16px; height:16px; border:2px solid var(--b2); border-top-color:var(--amber); border-radius:50%; animation:rot 0.7s linear infinite; display:inline-block;}
+
+    /* Toast */
+    .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); padding:11px 22px; border-radius:9px; font-size:14px; z-index:9999; background:var(--card2); color:var(--t2); white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+
+    /* WhatsApp */
+    .wapp{background:var(--card2); border-radius:10px; padding:15px 17px; font-size:14px; line-height:1.7; color:var(--t2); white-space:pre-wrap; max-width:100%;}
+
+    /* Calendar — larger fonts */
+    .cal-week-label{font-size:13px !important;}
+    .cal-block-text{font-size:11px !important;}
+
+    details summary{list-style:none; cursor:pointer;}
+    details summary::-webkit-details-marker{display:none;}
+    @keyframes rot{to{transform:rotate(360deg);}}
+    @keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .fade{animation:up 0.25s ease;}
+
+    /* Diff badges */
+    .d1,.d2,.d3{background:var(--green-bg); color:var(--green);}
+    .d4,.d5,.d6{background:var(--amber-bg); color:var(--amber);}
+    .d7,.d8    {background:var(--red-bg);   color:var(--red);}
+    .d9,.d10   {background:var(--purple-bg);color:var(--purple);}
+    [class^="d"]{display:inline-flex; align-items:center; padding:3px 9px; border-radius:10px; font-size:12px;}
+
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-track{background:var(--surface);}
+    ::-webkit-scrollbar-thumb{background:var(--b2); border-radius:3px;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="app.js"></script>
+</body>
+</html>
