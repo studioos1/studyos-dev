@@ -2,6 +2,8 @@
 
 A personal AI-powered study planner. Daily briefing, weekly schedule, assignments, exams, and progress tracking — all in one place.
 
+> **Dev note (v2.38.0):** StudyOS is now a Next.js app. For development, run `npm install` then `npm run dev` (not `npm start`). The setup instructions below still describe the old single-file build — a full README refresh is roadmap step A8.
+
 ---
 
 ## What you need

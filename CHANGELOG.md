@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.38.0 — 2026-09-04
+
+**Migrated to Next.js — build tooling replaced, app logic untouched (roadmap step A4)**
+
+First structural step of the prototype-to-product roadmap. The single-file CDN build (React + `@babel/standalone` loaded from a CDN, no build step) is replaced with a real Next.js (App Router, JavaScript) toolchain. **No application logic changed.**
+
+- `public/app.js` → `components/App.jsx` — same 6,094 lines, now an ES module: `"use client"` + `import React, { useState, useEffect, useRef }` at the top, `export default App` at the bottom, the `ReactDOM.createRoot(...)` mount line removed (Next mounts it).
+- `public/index.html` → split: `<head>` (fonts, pdf.js via `next/script`) into `app/layout.jsx`; the entire `<style>` block copied verbatim into `app/globals.css`.
+- `app/page.jsx` renders `<App/>` via `next/dynamic` with `ssr:false` — the app reads `localStorage` in a `useState` initializer, so it stays client-only and runtime behavior is identical to the old CDN build.
+- `server.js`'s four endpoints → Next route handlers under `app/api/*/route.js` (`ai`, `course-info`, `college-calendar`, `health`), ported verbatim; `node-fetch` → native `fetch`. The hard-coded "De Anza College" string in `course-info` is preserved as-is — that fix is roadmap step C4.
+- `server.js` kept but unused, and its deps (express/cors/node-fetch/dotenv) left installed for one commit, per the "don't delete superseded code in the same pass" rule. Removed in the follow-up cleanup.
+- Scripts: `npm run dev` / `npm run build` / `npm start` are Next now; `npm run legacy-server` still runs the old Express server. Same port 3000.
+- `eslint.ignoreDuringBuilds` enabled — the 6k-line `App.jsx` won't pass a strict lint yet; lint cleanup is a later phase.
+
+**Validation:** `npm run build` succeeds and `next dev` serves the app; `/api/health` returns `hasApiKey: true`. Full 7-tab click-through is the dev-machine gate for A4.
+
 ## v2.37.3 — 2026-09-02
 
 **Focus Time right column — corrected the actual grouping, not just the order**

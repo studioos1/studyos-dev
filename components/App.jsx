@@ -1,9 +1,10 @@
-const { useState, useEffect, useRef } = React;
+"use client";
+import React, { useState, useEffect, useRef } from "react";
 // ── Build version — bumped every time a new app.js is generated, so you can confirm which
 // build is actually running (check Settings → bottom, or the browser console on load). ──
-const APP_VERSION="2.37.3";
-const APP_BUILD_DATE="2026-09-02";
-const APP_BUILD_TIME="11:59 PM PT";
+const APP_VERSION="2.38.0";
+const APP_BUILD_DATE="2026-09-04";
+const APP_BUILD_TIME="Next.js migration";
 console.log(`StudyOS v${APP_VERSION} (built ${APP_BUILD_DATE} ${APP_BUILD_TIME}) loaded`);
 const DS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DF=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -6091,4 +6092,4 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+export default App;
