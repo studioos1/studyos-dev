@@ -78,7 +78,13 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
 }
 
 function App(){
-  const [data,setD]=useState(()=>load()||{...ED});
+  // Starts null (not {...ED}) because load() is async by contract — see lib/data/store.js. The
+  // loading gate below (after every hook is declared, before any data.* access) renders nothing
+  // until the very first load() resolves; against today's localStorage backend that's effectively
+  // instant, but this is also exactly the shape a real async backend (Phase C) needs, so that
+  // switchover doesn't also have to introduce this gate at the same time.
+  const [data,setD]=useState(null);
+  useEffect(()=>{load().then(d=>setD(d||{...ED}));},[]);
   const [tab,setTab]=useState("today");
   const [busy,setBusy]=useState(false);
   // Dedicated to refreshQuarterPlan/refreshWeekPlan specifically — deliberately SEPARATE from
@@ -107,18 +113,20 @@ function App(){
   // once migrated (migrateLegacyTermIfNeeded returns null once terms[].length>0), so it's safe
   // without a separate version flag.
   useEffect(()=>{
+    if(!data)return;
     const migration=migrateLegacyTermIfNeeded(data);
     if(migration)upd(migration);
-  },[data.terms?.length,data.profile.schoolName]); // eslint-disable-line
+  },[data?.terms?.length,data?.profile.schoolName]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields
   // (the planner, getTermRange, isFin/isHol, WeekGrid) keeps working unchanged, now always
   // reflecting the active term instead of being hand-edited directly.
   useEffect(()=>{
+    if(!data)return;
     const patch=syncActiveTermToProfilePatch(data);
     if(patch)updP(patch);
-  },[JSON.stringify(data.terms),JSON.stringify(data.schools)]); // eslint-disable-line
+  },[JSON.stringify(data?.terms),JSON.stringify(data?.schools)]); // eslint-disable-line
 
   async function ai(sys,pr,mx,opts){
     setBusy(true);
@@ -286,7 +294,7 @@ function App(){
 
   // Daily browser-notification reminder for due dates / exam prep — fires at most once per day
   useEffect(()=>{
-    if(!data.onboarded)return;
+    if(!data||!data.onboarded)return;
     if(data.profile.remindersOn===false)return;
     if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
     const key="studyos_notified_"+iso();
@@ -298,7 +306,12 @@ function App(){
         localStorage.setItem(key,"1");
       }catch{}
     }
-  },[data.onboarded]);
+  },[data?.onboarded]);
+
+  // Nothing to render until the very first load() resolves (see the useState/useEffect pair
+  // above) — placed after every hook so hook count/order stays identical across renders
+  // regardless of data's null-ness, per the rules of hooks.
+  if(!data)return null;
 
   const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
