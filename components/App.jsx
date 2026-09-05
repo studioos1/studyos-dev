@@ -19,6 +19,7 @@ import {
   migrateLegacyTermIfNeeded,
   syncActiveTermToProfilePatch,
 } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
 import { Today } from "@/components/Today";
 import { Week } from "@/components/Week";
 import { Acad } from "@/components/Acad";
@@ -27,6 +28,7 @@ import { SchoolInfo } from "@/components/SchoolInfo";
 import { Sett } from "@/components/Sett";
 import { History } from "@/components/History";
 import { Prog } from "@/components/Prog";
+import { Login } from "@/components/Login";
 console.log(`StudyOS v${APP_VERSION} (built ${APP_BUILD_DATE} ${APP_BUILD_TIME}) loaded`);
 // ── Reminders ─────────────────────────────────────────────────────────────
 function urgentItems(data){
@@ -78,13 +80,27 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
 }
 
 function App(){
-  // Starts null (not {...ED}) because load() is async by contract — see lib/data/store.js. The
-  // loading gate below (after every hook is declared, before any data.* access) renders nothing
-  // until the very first load() resolves; against today's localStorage backend that's effectively
-  // instant, but this is also exactly the shape a real async backend (Phase C) needs, so that
-  // switchover doesn't also have to introduce this gate at the same time.
+  // Auth session: undefined = still checking on mount, null = signed out, object = signed in.
+  // load()/save() (lib/data/store.js) key off the Supabase session themselves, so `data` is only
+  // ever populated while signed in — see the load effect and the render gates further down.
+  const [session,setSession]=useState(undefined);
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data})=>setSession(data.session));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_evt,s)=>setSession(s));
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  // Starts null (not {...ED}) because load() is async and needs a signed-in user. Re-runs whenever
+  // the session changes: loads that user's row on sign-in, clears on sign-out. The loading gate
+  // below (after every hook is declared, before any data.* access) renders nothing until load()
+  // resolves for the current user.
   const [data,setD]=useState(null);
-  useEffect(()=>{load().then(d=>setD(d||{...ED}));},[]);
+  useEffect(()=>{
+    if(!session){setD(null);return;}
+    let cancelled=false;
+    load().then(d=>{if(!cancelled)setD(d||{...ED});});
+    return ()=>{cancelled=true;};
+  },[session?.user?.id]); // eslint-disable-line
   const [tab,setTab]=useState("today");
   const [busy,setBusy]=useState(false);
   // Dedicated to refreshQuarterPlan/refreshWeekPlan specifically — deliberately SEPARATE from
@@ -308,9 +324,11 @@ function App(){
     }
   },[data?.onboarded]);
 
-  // Nothing to render until the very first load() resolves (see the useState/useEffect pair
-  // above) — placed after every hook so hook count/order stays identical across renders
-  // regardless of data's null-ness, per the rules of hooks.
+  // Render gates — placed after every hook so hook count/order stays identical across renders,
+  // per the rules of hooks. Order: still checking the session → nothing; signed out → Login;
+  // signed in but this user's row still loading → nothing.
+  if(session===undefined)return null;
+  if(!session)return <Login/>;
   if(!data)return null;
 
   const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
@@ -348,6 +366,11 @@ function App(){
                 <i className="ti ti-user-circle" style={{fontSize:16}}/>
               </button>
             )}
+            <button className="tt" data-tt={`Sign out (${session.user?.email||""})`} onClick={()=>supabase.auth.signOut()}
+              style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+              <i className="ti ti-logout" style={{fontSize:15}}/>
+            </button>
           </div>
         </div>
         {/* NAV */}
