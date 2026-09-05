@@ -305,7 +305,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
 ]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,8000,{temperature:0,model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(t){
         const p=JSON.parse(t.replace(/```json|```/g,"").trim());
         setRawExtractResult({parsed:p,fileNames});
@@ -355,7 +355,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
 ]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,8000,{temperature:0,model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(t){
         const parsed=JSON.parse(t.replace(/```json|```/g,"").trim());
         const{courses:reclassified,moved}=reclassifyMisplacedQuizzes(parsed.courses);
