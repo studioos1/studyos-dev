@@ -2,17 +2,17 @@
 // Ported verbatim from the old server.js; logic unchanged.
 export async function POST(req) {
   try {
-    const { system, prompt, maxTokens = 1500, temperature, model } = await req.json();
+    const { system, prompt, maxTokens = 1500, model } = await req.json();
     if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.includes("your-api-key-here")) {
       return Response.json({ error: "Add your API key to the .env file" }, { status: 500 });
     }
     const messages = system
       ? [{ role: "user", content: `[INSTRUCTIONS]\n${system}\n\n[REQUEST]\n${prompt}` }]
       : [{ role: "user", content: prompt }];
+    // No `temperature`: the current Claude models (Opus 5 / Sonnet 5) have deprecated it and the
+    // API rejects requests that send it. Extraction calls used to pass temperature:0 for
+    // run-to-run stability; that knob no longer exists at the API level.
     const body = { model: model || "claude-sonnet-4-5", max_tokens: maxTokens, messages };
-    // temperature is opt-in per call — most calls benefit from the model's default variety;
-    // extraction/classification calls pass temperature:0 explicitly to minimize run-to-run drift.
-    if (temperature !== undefined) body.temperature = temperature;
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {

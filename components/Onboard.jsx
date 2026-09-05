@@ -110,7 +110,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
 ]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,8000,{temperature:0,model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(r)setPSyl(JSON.parse(r.replace(/```json|```/g,"").trim()));
     }catch{toast2("Couldn't parse",true);}
     setParsing(false);
