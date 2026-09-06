@@ -35,20 +35,47 @@ function Th({ children, right }) {
     }}>{children}</th>
   );
 }
-function Td({ children, right, muted, nowrap, style }) {
+function Td({ children, right, muted, nowrap, clip, style }) {
   return (
     <td style={{
       padding: "8px 8px", fontSize: 13, color: muted ? "var(--t2)" : "var(--t1)",
-      textAlign: right ? "right" : "left", whiteSpace: nowrap ? "nowrap" : undefined, ...style,
+      textAlign: right ? "right" : "left",
+      whiteSpace: (nowrap || clip) ? "nowrap" : undefined,
+      overflow: clip ? "hidden" : undefined,
+      textOverflow: clip ? "ellipsis" : undefined,
+      ...style,
     }}>{children}</td>
   );
 }
 
-// Both tables share one column layout so data lines up left-to-right between them; the Overdue
-// table just leaves the planner-only columns blank. Kept lean enough to fit the drawer without
-// a horizontal scroll.
+// Both tables share ONE fixed column layout so every column lines up exactly between them —
+// table-layout:fixed + this colgroup, applied identically to both. The Overdue table just leaves
+// the planner-only columns blank.
 const COLS = ["", "Item", "Class", "Due", "Diff", "Priority", "Need", "Short", ""];
+const COL_W = ["30px", "auto", "108px", "104px", "62px", "70px", "76px", "66px", "44px"];
 const RIGHT_FROM = 4, RIGHT_TO = 7; // Diff..Short are right-aligned
+
+function ColGroup() {
+  return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
+}
+
+// Empty click-to-fill checkbox, matching the "mark as completed" control in the Academics tabs —
+// so it reads as "click to check", not "already done".
+function DoneCheckbox({ onDone }) {
+  return (
+    <div
+      title="Mark done"
+      onClick={onDone}
+      style={{
+        width: 18, height: 18, borderRadius: 5, border: "2px solid var(--t3)", background: "var(--card2)",
+        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+        transition: "all 0.15s", color: "transparent", fontSize: 11, fontWeight: 700,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--green)"; e.currentTarget.style.background = "var(--green-bg)"; e.currentTarget.style.color = "var(--green)"; e.currentTarget.textContent = "✓"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--t3)"; e.currentTarget.style.background = "var(--card2)"; e.currentTarget.style.color = "transparent"; e.currentTarget.textContent = ""; }}
+    />
+  );
+}
 
 // Non-modal right-side slide-over for plan status, diagnostics, and quick fixes. Opened by the
 // Weekly-tab "Plan status" button and auto-opened after a replan that leaves items short. The grid
@@ -100,7 +127,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
 
   return (
     <div style={{
-      position: "fixed", top: 92, right: 0, bottom: 0, width: "min(760px,100vw)", zIndex: 95,
+      position: "fixed", top: 92, right: 0, bottom: 0, width: "min(880px,100vw)", zIndex: 95,
       background: "var(--card)", borderLeft: "1px solid var(--b1)", boxShadow: "-10px 0 34px rgba(0,0,0,0.4)",
       display: "flex", flexDirection: "column",
     }}>
@@ -168,8 +195,9 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
             {diag.overdue.length > 0 && (
               <>
                 <SectionLabel alert>Overdue — mark done now, or reschedule the due date</SectionLabel>
-                <div style={{ overflowX: "auto", marginBottom: 18 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ marginBottom: 18 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                    <ColGroup />
                     <thead>
                       <tr style={{ borderBottom: "1px solid var(--b1)" }}>
                         {COLS.map((c, i) => <Th key={i} right={i >= RIGHT_FROM && i <= RIGHT_TO}>{c}</Th>)}
@@ -179,19 +207,14 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                       {diag.overdue.map((it, i) => (
                         <tr key={it.id} style={{ borderBottom: i < diag.overdue.length - 1 ? "1px solid var(--b1)" : "none" }}>
                           <Td />
-                          <Td nowrap>{it.title}</Td>
-                          <Td muted nowrap>{it.courseName}</Td>
+                          <Td clip>{it.title}</Td>
+                          <Td muted clip>{it.courseName}</Td>
                           <Td nowrap style={{ color: "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
                           <Td right muted>—</Td>
                           <Td right muted>—</Td>
                           <Td right muted nowrap>{it.desiredHours}h</Td>
                           <Td right muted>—</Td>
-                          <Td right>
-                            <button className="btn btn-sm btn-action tt" data-tt="Mark this done" style={{ padding: "3px 8px" }}
-                              onClick={() => markDone(it)}>
-                              <i className="ti ti-check" style={{ fontSize: 13 }} />
-                            </button>
-                          </Td>
+                          <Td right><DoneCheckbox onDone={() => markDone(it)} /></Td>
                         </tr>
                       ))}
                     </tbody>
@@ -212,8 +235,9 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
             {diag.items.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--t3)" }}>No active assignments or exams in range.</div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <ColGroup />
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--b1)" }}>
                       {COLS.map((c, i) => <Th key={i} right={i >= RIGHT_FROM && i <= RIGHT_TO}>{c}</Th>)}
@@ -226,19 +250,19 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                           <input type="checkbox" checked={sel.has(it.id)} onChange={() => toggleSel(it.id)}
                             style={{ width: 14, height: 14, cursor: "pointer" }} />
                         </Td>
-                        <Td nowrap>
+                        <Td clip>
                           {it.forced && (
-                            <i className="ti ti-star-filled tt" data-tt="Prioritised — click to clear"
+                            <i className="ti ti-star-filled" title="Prioritised — click to clear"
                               onClick={() => setForced(it, false)}
                               style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
                           )}
                           {it.title}
                         </Td>
-                        <Td muted nowrap>{it.courseName}</Td>
+                        <Td muted clip>{it.courseName}</Td>
                         <Td muted nowrap>{it.dueDate || "—"}</Td>
                         <Td right muted>{it.difficulty || "—"}</Td>
                         <Td right muted>{it.priority != null ? it.priority : "—"}</Td>
-                        <Td right nowrap style={{ padding: "3px 8px" }}>
+                        <Td right style={{ padding: "3px 8px" }}>
                           <HoursInput value={it.desiredHours} isOverridden={it.forced}
                             onCommit={v => v != null && setHours(it, v)} />
                         </Td>
