@@ -251,7 +251,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
         )}
       </div>
       {modal}
-      <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data}/>
+      <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan}/>
 
       {mode==="week"&&(
         <div>

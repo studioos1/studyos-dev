@@ -28,14 +28,26 @@ export function Prog({data,upd,toast2,ai,busy}){
   const [fb,setFb]=useState(null);
   const [sub,setSub]=useState(false);
   const tasks=[
-    ...data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)<=2).map(a=>({id:`a-${a.id}`,l:`${a.title} (${courseNameFor(data.courses,a.courseId)})`,t:"assignment",days:du(a.dueDate)})),
+    // Overdue and due-within-2-days assignments both show here — checking one off marks the real
+    // assignment done (see submit), so overdue work doesn't quietly pile up on the planner.
+    ...data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)<=2).map(a=>{
+      const d=du(a.dueDate);
+      return{id:`a-${a.id}`,l:`${a.title} (${courseNameFor(data.courses,a.courseId)})${d<0?` — ${-d}d overdue`:""}`,t:"assignment",days:d};
+    }),
     ...data.exams.filter(e=>{const d=du(e.date);return d>=0&&d<=e.prepDays;}).map(e=>({id:`e-${e.id}`,l:`Study for ${courseNameFor(data.courses,e.courseId)} exam`,t:"exam",days:du(e.date)})),
   ].sort((a,b)=>a.days-b.days);
 
   async function submit(){
     setSub(true);
     const nl={date:td,completed:comp,skipped:tasks.map(t=>t.id).filter(id=>!comp.includes(id)),notes,savedAt:new Date().toISOString()};
-    upd({dailyLogs:[...logs.filter(l=>l.date!==td),nl]});
+    // Checked assignment tasks get marked done on the real record. (Exam tasks are "did you
+    // study" — not "the exam is over" — so those are left alone; the Plan status drawer's Overdue
+    // list is where a past exam gets marked done.)
+    const doneA=new Set(comp.filter(id=>id.startsWith("a-")).map(id=>+id.slice(2)));
+    upd({
+      dailyLogs:[...logs.filter(l=>l.date!==td),nl],
+      ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done"}:a)}:{}),
+    });
     try{
       const t=await AI(`Warm encouraging assistant. ${p.name} has ADD. Lead with achievements. 3-4 sentences. Plain text.`,
         `Check-in: ${comp.length}/${tasks.length} done.
