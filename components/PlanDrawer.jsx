@@ -94,13 +94,22 @@ function DoneCheckbox({ checked, onToggle }) {
 export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
   const [sel, setSel] = useState(() => new Set());          // "today forward" rows ticked for Prioritise
   const [toComplete, setToComplete] = useState(() => new Set()); // Overdue rows staged as completed (not yet saved)
+  const [confirmingClose, setConfirmingClose] = useState(false);
+
+  // Close is guarded: staged completions that aren't saved yet block the X / Esc.
+  const attemptClose = () => (toComplete.size > 0 ? setConfirmingClose(true) : onClose());
 
   useEffect(() => {
     if (!open) return;
-    const onKey = e => { if (e.key === "Escape") onClose(); };
+    const onKey = e => { if (e.key === "Escape") attemptClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, toComplete.size]); // eslint-disable-line
+
+  // Reset all transient state whenever the drawer closes, so it reopens clean.
+  useEffect(() => {
+    if (!open) { setSel(new Set()); setToComplete(new Set()); setConfirmingClose(false); }
+  }, [open]);
 
   const diag = useMemo(() => (open ? computePlanDiagnostics(data) : null), [open, data]);
   if (!open) return null;
@@ -165,10 +174,32 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
           <i className="ti ti-stethoscope" style={{ fontSize: 17, color: "var(--blue)" }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>Plan status</span>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close" style={{ padding: "4px 8px" }}>
+        <button className="btn btn-ghost btn-sm" onClick={attemptClose} aria-label="Close" style={{ padding: "4px 8px" }}>
           <i className="ti ti-x" style={{ fontSize: 16 }} />
         </button>
       </div>
+
+      {confirmingClose && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
+          background: "var(--amber-bg)", color: "var(--amber)", fontSize: 12.5, flexShrink: 0,
+        }}>
+          <i className="ti ti-alert-triangle" style={{ fontSize: 14 }} />
+          {toComplete.size} completion{toComplete.size !== 1 ? "s" : ""} not saved.
+          <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
+            onClick={() => { applyCompletions(); onClose(); }}>
+            <i className="ti ti-device-floppy" style={{ fontSize: 12 }} /> Save &amp; close
+          </button>
+          <button className="btn btn-sm btn-ghost" style={{ padding: "3px 10px" }}
+            onClick={() => { setToComplete(new Set()); onClose(); }}>
+            Discard
+          </button>
+          <button className="btn btn-sm btn-ghost" style={{ padding: "3px 10px" }}
+            onClick={() => setConfirmingClose(false)}>
+            Keep editing
+          </button>
+        </div>
+      )}
 
       {data.planStale && (
         <div style={{
@@ -225,7 +256,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                   {toComplete.size > 0 && (
                     <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
                       onClick={applyCompletions}>
-                      <i className="ti ti-check" style={{ fontSize: 12 }} /> Mark {toComplete.size} completed
+                      <i className="ti ti-device-floppy" style={{ fontSize: 12 }} /> Save ({toComplete.size})
                     </button>
                   )}
                 </div>
