@@ -17,11 +17,20 @@ function SectionLabel({ children, alert }) {
   );
 }
 
-function Stat({ label, value, warn }) {
+function Stat({ label, value, warn, alert }) {
   return (
-    <div style={{ background: "var(--card2)", borderRadius: 8, padding: "8px 11px", minWidth: 92, flex: "1 1 auto" }}>
-      <div style={{ fontSize: 10.5, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: warn ? "var(--amber)" : "var(--t1)", marginTop: 2 }}>{value}</div>
+    <div style={{
+      background: alert ? "var(--red)" : "var(--card2)", borderRadius: 8, padding: "8px 11px",
+      minWidth: 92, flex: "1 1 auto",
+    }}>
+      <div style={{
+        fontSize: 10.5, color: alert ? "rgba(255,255,255,0.85)" : "var(--t3)",
+        textTransform: "uppercase", letterSpacing: "0.05em",
+      }}>{label}</div>
+      <div style={{
+        fontSize: 14, fontWeight: 600, marginTop: 2,
+        color: alert ? "#fff" : warn ? "var(--amber)" : "var(--t1)",
+      }}>{value}</div>
     </div>
   );
 }
@@ -188,7 +197,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                 value={t.shortItems ? `${t.shortItems} item${t.shortItems !== 1 ? "s" : ""} · ${t.shortH}h` : "none"}
                 warn={t.shortItems > 0} />
               {diag.overdue.length > 0 && (
-                <Stat label="Overdue" value={`${diag.overdue.length} item${diag.overdue.length !== 1 ? "s" : ""}`} warn />
+                <Stat label="Overdue" value={`${diag.overdue.length} item${diag.overdue.length !== 1 ? "s" : ""}`} alert />
               )}
             </div>
 
@@ -210,7 +219,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                           <Td clip>{it.title}</Td>
                           <Td muted clip>{it.courseName}</Td>
                           <Td nowrap style={{ color: "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
-                          <Td right muted>—</Td>
+                          <Td right muted>{it.difficulty || "—"}</Td>
                           <Td right muted>—</Td>
                           <Td right muted nowrap>{it.desiredHours}h</Td>
                           <Td right muted>—</Td>
