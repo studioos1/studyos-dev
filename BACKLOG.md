@@ -17,9 +17,9 @@ No need to order the whole list up front.
 | — | B-02 | Personalization loop for estimates | Planner | M | Backlog |
 | — | B-03 | Fix + test `refreshQuarterPlan` week-merging (D0) | Planner | M | Backlog |
 | **2** | B-04 | Make the two planning-mode buttons consistent (decision: keep both) | UX | S | Next |
-| — | B-05 | Overflow UI — persistent shortfall banner | UX | M | Backlog |
+| — | B-05 | Per-shortfall suggested-fix value (mostly absorbed by B-07) | UX | S | Backlog |
 | — | B-06 | GPA target-planning | UX | M | Backlog |
-| **1** | B-07 | Planner diagnostics panel + past-day study plan read-only | UX | M | Next |
+| **1** | B-07 | Weekly toolbar redesign + diagnostics drawer + past-day read-only | UX | M–L | In progress |
 | — | B-08 | Day-view calendar visual design | UX | S–M | Backlog |
 | — | B-09 | Validate college-calendar auto-fetch end-to-end | External data | S + ? | Backlog |
 | — | B-10 | Real notification sending (WhatsApp / email) | Notifications | L | Backlog |
@@ -58,30 +58,63 @@ styling, one red, tucked among Clear plan / Add). Give them a systematic, self-e
 treatment so it's obvious they're a pair — scope-of-one-week vs. scope-of-whole-term — and which
 one you're reaching for. Small. Sensible to do in the same pass as B-07 (same Weekly-tab surface).
 
-### B-05 · Overflow UI — persistent shortfall banner
-When the planner can't fit everything, the only signal is a transient toast naming the shortfalls.
-Designed but not built: a persistent alert banner that stays until addressed, deep-links into
-Study Preferences, and pre-fills a suggested value (e.g. lower an estimate, extend prep days).
+### B-05 · Per-shortfall suggested-fix value
+Mostly absorbed by B-07 (the diagnostics drawer now surfaces shortfalls and auto-opens on a
+shortage). What's left: for each shortfall row in the drawer, show a concrete suggested fix —
+e.g. "lower this estimate to Xh" or "extend prep to N days" — and a one-click way to apply it
+into Study Preferences.
 
 ### B-06 · GPA target-planning
 Grade capture exists (per-course and per-item grades, letter conversion, live GPA). Nothing is
 built on top: "what grade do I need on the remaining items to hit a target GPA," and optionally
 letting that target influence how the planner allocates study time.
 
-### B-07 · Planner diagnostics panel + past-day study plan read-only
-Two things in one pass:
+### B-07 · Weekly-tab plan surface: toolbar redesign + diagnostics drawer + past-day read-only
+One PR (all the same Weekly-tab surface, tightly coupled). Scope is the control row and the plan
+surface — **no change to what any button does**, except the two new behaviours noted.
 
-**Diagnostics panel.** Preferences currently shows only a Refresh Plan history. A real diagnostic
-view would expose the *current* planner's concepts — per-item slack, priority score, why an item
-was placed where it was, where capacity ran out — so plan decisions are inspectable rather than a
-black box.
+**1. Toolbar redesign.** The current control row has no logical order, mixes text/icon buttons,
+inconsistent widths, a redundant Wk1–Wk13 button wall alongside prev/next arrows, and an
+oversized Schedule/Time-Allocation toggle. New layout, three groups (view · nav · actions) with
+per-group consistent sizing:
+- **Left — view mode:** compact segmented control `[ Schedule │ Time ]`.
+- **Centre — week nav:** `‹` / `›` for ±1 week, plus a dropdown for any week; dropdown label reads
+  "Week 3 of 13 · Sep 1–7" so term position is always visible. Replaces the Wk button wall and
+  the separate "Today" button ("This week" is pinned at the top of the dropdown).
+- **Right — actions:** `+` (add activity) · **Plan status** (ghost button, always visible) ·
+  **Replan** (primary). Replan's `▾` menu holds scope + clear: **This week · Whole term · — ·
+  Clear plan** — this is also the B-04 resolution (keep both planning modes, make them one
+  consistent scoped control). On a narrow width, `+` collapses into the Replan menu first;
+  Plan status stays visible.
+- Rules: within a group every control is the same height; icon-only controls always have a
+  tooltip; only Replan is filled/accent, the rest are ghost.
+- **Skipped:** a vertical Wk rail down the grid's left edge — redundant with the dropdown,
+  doesn't fit the 7-row grid height, works against the minimalist goal. Revisit a slim
+  *horizontal* term strip only if term navigation proves clunky in use.
 
-**Past-day study plan read-only.** Replan / Refresh / Clear plan already leave `dateStr < today`
-untouched (verified — the earlier history-protection fix holds; empty early weeks are just weeks
-that were never planned, not erased). The remaining gap: the *manual* edit paths
-(`saveBlockToDay` / `deleteBlockFromDay`, the double-click block-edit modal in Timeline/WeekGrid)
-have no past-day guard, so a user can still edit history. Disable the double-click edit / add /
-delete on any day before today — past days only.
+**2. Diagnostics drawer.** Remove the always-visible inline "Plan Status" bar (frees grid
+height). Its content + new diagnostics move into a right-side **slide-over drawer** (~400px,
+full-width on mobile), opened by the Plan status button, closed by X or Esc, **non-modal** (grid
+stays usable behind it, light shadow not a heavy scrim). Contents:
+- Replan history (generated when / through when / N days / last error) — kept from today's bar.
+- Per active assignment/exam: due date, effective difficulty, priority score, desired hrs,
+  planned hrs, shortfall, and the date it first became schedulable (its start-window).
+- Capacity summary: total study demand vs. total free study capacity over the horizon, and which
+  days/weeks came up short.
+- v1 is all computable from existing planner outputs; per-placement rationale ("why is *this*
+  block at *this* time") needs planner instrumentation → deferred to a later pass.
+
+**3. Auto-open on shortfall (new behaviour).** After `refreshQuarterPlan` / `refreshWeekPlan`,
+if there are shortfalls, auto-open the drawer instead of only flashing a toast. Stash the last
+shortfall list on `quarterPlan` so it's still shown if the drawer is reopened later. This
+absorbs most of B-05 — B-05 shrinks to "drawer also shows a suggested fix value per shortfall".
+
+**4. Past-day study plan read-only (new behaviour).** Replan/Refresh/Clear already protect
+`dateStr < today` (verified — the earlier history-protection fix holds; empty early weeks are
+just weeks never planned, not erased). The gap is the *manual* edit paths — the double-click
+block-edit modal in Timeline/WeekGrid, plus `saveBlockToDay` / `deleteBlockFromDay`. Disable
+double-click edit / delete for any day before today; guard the two store functions at the source
+as a backstop.
 
 ### B-08 · Day-view calendar visual design
 The Today tab's "view day calendar" modal is functional but its visual design was explicitly left
