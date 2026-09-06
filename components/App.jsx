@@ -119,6 +119,7 @@ function App(){
   const [planMsg,setPlanMsg]=useState("");
   const {confirm:confirmApp,modal:modalApp}=useConfirm();
   const [showAccount,setShowAccount]=useState(false);
+  const [planDrawerOpen,setPlanDrawerOpen]=useState(false); // Weekly-tab Plan status drawer — lifted here so a replan can auto-open it on a shortfall
 
   function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
@@ -246,6 +247,7 @@ function App(){
       }else{
         const names=result.shortfalls.slice(0,3).map(it=>`${it.title} (${it.plannedHours}h of ${it.desiredHours}h)`).join("; ");
         toast2(`Re-planned ${allDates.length} days — but ${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short: ${names}${result.shortfalls.length>3?"…":""}. Check Academics → Study Preferences.`,true);
+        setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
     }catch(err){
       console.error("StudyOS: refreshQuarterPlan() failed —",err);
@@ -301,6 +303,7 @@ function App(){
     }else{
       const names=result.shortfalls.slice(0,2).map(it=>`${it.title} (${it.plannedHours}h of ${it.desiredHours}h)`).join("; ");
       toast2(`Week updated — ${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short: ${names}. Check Academics → Study Preferences.`,true);
+      setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer
     }
   }
 
@@ -392,7 +395,7 @@ function App(){
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
           :tab==="today"   ?<Today    data={data} upd={upd} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning}/>
-          :tab==="week"    ?<Week     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg}/>
+          :tab==="week"    ?<Week     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
           :tab==="acad"    ?<Acad     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg}/>
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy}/>
           :tab==="history" ?<History  data={data} upd={upd} toast2={toast2}/>

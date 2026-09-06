@@ -79,6 +79,12 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Established UI conventions
 
+- **"Activated" state = amber text.** A control that reflects a *state* rather than firing an
+  action (a selected tab/segment, the currently-viewed item, a toggle that's "on", a button
+  that's now relevant) is shown by turning its **text/icon colour to `var(--amber)`** — same as
+  the Academics sub-tabs, the Weekly view segmented toggle, the current-week dropdown, and
+  "Save" buttons when there's something to save. Not-activated / not-relevant is muted
+  (`var(--t3)`) or disabled. Apply this by default for any new state-reflecting control.
 - Every content section uses the same `BOX`/`TITLE_ROW`/`TITLE_LEFT`/`TITLE_ICON`/`TITLE_TEXT`/
   `DIVIDER`/`INNER` style-constant pattern (each top-level tab component redefines these locally —
   `Today`, `Acad`, `Sett`, `SchoolInfo` etc. all have their own copies). New sections should match

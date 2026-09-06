@@ -3,14 +3,59 @@ import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
 import { GYM0, getTermRange } from "@/lib/data";
 import { weekHasBeenPlanned, realDayBlocks, weekStartOf } from "@/lib/calendar";
 import { Sp, SecHead, useConfirm, Timeline, WeekGrid } from "@/components/shared";
+import { PlanDrawer } from "@/components/PlanDrawer";
 
 // ── WEEK ─────────────────────────────────────────────────────────────────────
-export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg}){
+export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg,planDrawerOpen,setPlanDrawerOpen}){
   const {confirm,modal}=useConfirm();
   const [selDay,setSel]=useState(null);
   const [mode,setMode]=useState("week");
   const [editState,setEditState]=useState(null); // {dateStr, block|null} — lifted up from WeekGrid so the Add Activity button can live in this header row, next to Clear plan/Refresh Plan
+  const [replanMenu,setReplanMenu]=useState(false); // the Replan split-button's ▾ menu
   const p=data.profile;
+
+  // Clear the generated study plan from today forward — extracted from the old inline onClick so
+  // the Replan menu can call it. Past days (history) are never touched.
+  async function clearPlan(){
+    const weeks=data.studyPlan?.weeks||{};
+    const today=iso();
+    let toClear=0,toKeep=0;
+    Object.values(weeks).forEach(week=>{
+      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
+        if(dateStr<today)return; // history — never touched by Clear plan
+        (blocks||[]).forEach(b=>{if(b.userEdited)toKeep++;else toClear++;});
+      });
+    });
+    if(toClear===0&&toKeep===0){toast2("No study plan to clear from today forward — nothing scheduled yet.");return;}
+    const ok=await confirm(`Clear the generated study plan from today forward? This removes ${toClear} AI-planned block${toClear!==1?"s":""}. Past days are never touched.${toKeep>0?` ${toKeep} upcoming block${toKeep!==1?"s":""} marked as edited or completed will be kept for now — you'll get a chance to clear those too.`:""}`);
+    if(!ok)return;
+    const keptWeeks={};
+    Object.entries(weeks).forEach(([weekStart,week])=>{
+      const days={};
+      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
+        days[dateStr]=dateStr<today?(blocks||[]):(blocks||[]).filter(b=>b.userEdited);
+      });
+      keptWeeks[weekStart]={...week,days};
+    });
+    upd({studyPlan:{weeks:keptWeeks},quarterPlan:null,briefCache:null,briefDate:null});
+    if(toKeep>0){
+      const forceOk=await confirm(`${toKeep} upcoming block${toKeep!==1?"s":""} were kept because they're marked as edited or completed — this includes blocks you customized on purpose, but can also include blocks that only got that flag from checking "Mark Complete" in an older version. Clear those too for a fully clean slate (today forward only — history stays untouched)? This can't be undone.`);
+      if(forceOk){
+        const emptied={};
+        Object.entries(keptWeeks).forEach(([weekStart,week])=>{
+          const days={};
+          Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
+            days[dateStr]=dateStr<today?blocks:[];
+          });
+          emptied[weekStart]={...week,days};
+        });
+        upd({studyPlan:{weeks:emptied}});
+        toast2("Study plan fully cleared from today forward. History was kept. Hit Replan to regenerate.");
+        return;
+      }
+    }
+    toast2(`Study plan cleared from today forward${toKeep>0?` — kept ${toKeep} edited block${toKeep!==1?"s":""}.`:"."} History was kept. Hit Replan to regenerate.`);
+  }
 
   // Build the list of Sunday-start weeks spanning the active term, if known.
   // The range auto-extends to cover any exam or dated assignment already on record,
@@ -95,122 +140,118 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
 
   return(
     <div className="fade">
-      {/* Compact single-row nav bar — nav/view buttons left, week chips center, Refresh Plan far right */}
+      {/* ── Weekly nav bar ─────────────────────────────────────────────────────
+          Three groups: view mode (left) · week navigation (centre) · plan actions (right). */}
       <div className="card" style={{padding:"8px 12px",marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div className="row" style={{gap:6,flexShrink:0}}>
-            {termWeeks.length>0&&(
-              <button className="btn btn-ghost btn-sm tt" data-tt="Previous week" style={{padding:"6px 10px",fontSize:15}}
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+
+          {/* View mode — segmented control */}
+          <div style={{display:"inline-flex",borderRadius:8,border:"1px solid var(--b1)",overflow:"hidden",flexShrink:0}}>
+            {[["week","Schedule"],["balance","Time"]].map(([m,l])=>(
+              <button key={m} onClick={()=>setMode(m)}
+                style={{padding:"6px 13px",fontSize:13,border:"none",cursor:"pointer",fontFamily:"inherit",
+                  background:mode===m?"var(--amber-bg)":"var(--card2)",
+                  color:mode===m?"var(--amber)":"var(--t3)"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* Week navigation — arrows + dropdown, centred. Fixed-width dropdown and an
+              always-present "jump to this week" button so nothing reflows as you page weeks. */}
+          {termWeeks.length>0?(
+            <div style={{display:"flex",alignItems:"center",gap:4,margin:"0 auto"}}>
+              <button className="btn btn-ghost btn-sm tt" data-tt="Previous week" style={{padding:"6px 9px",fontSize:15}}
                 onClick={()=>setSelWeekIdx(i=>Math.max(0,i-1))} disabled={atFirst}>
                 <i className="ti ti-chevron-left"/>
               </button>
-            )}
-            <button className="btn btn-ghost btn-sm" onClick={()=>setSelWeekIdx(defaultIdx)} disabled={isCurrentWeek}>Today</button>
-            {termWeeks.length>0&&(
-              <button className="btn btn-ghost btn-sm tt" data-tt="Next week" style={{padding:"6px 10px",fontSize:15}}
+              <select value={clampedIdx} onChange={e=>setSelWeekIdx(+e.target.value)}
+                style={{fontSize:13,padding:"6px 8px",width:300,textAlign:"center",fontFamily:"inherit",
+                  background:isCurrentWeek?"var(--amber-bg)":"var(--card2)",
+                  color:isCurrentWeek?"var(--amber)":"var(--t1)",
+                  fontWeight:isCurrentWeek?600:400,
+                  border:"1px solid var(--b1)",borderRadius:7,cursor:"pointer"}}>
+                {termWeeks.map((w,i)=>(
+                  <option key={w.index} value={i}>
+                    {w.start.getTime()===todaySunday.getTime()?"This week · ":""}Week {w.index} of {termWeeks.length} · {fmtWeekRange(w.start)}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-ghost btn-sm tt" data-tt="Next week" style={{padding:"6px 9px",fontSize:15}}
                 onClick={()=>setSelWeekIdx(i=>Math.min(termWeeks.length-1,i+1))} disabled={atLast}>
                 <i className="ti ti-chevron-right"/>
               </button>
-            )}
-            <button className={`btn btn-sm ${mode==="week"?"btn-action":"btn-ghost"}`} onClick={()=>setMode("week")}>Schedule</button>
-            <button className={`btn btn-sm ${mode==="balance"?"btn-action":"btn-ghost"}`} onClick={()=>setMode("balance")}>Time Allocation</button>
-          </div>
-
-          {termWeeks.length>0?(
-            <div style={{display:"flex",gap:6,overflowX:"auto",flex:1,minWidth:0}}>
-              {termWeeks.map((w,i)=>(
-                <button key={w.index} onClick={()=>setSelWeekIdx(i)}
-                  title={fmtWeekRange(w.start)}
-                  style={{flexShrink:0,padding:"4px 10px",borderRadius:7,border:"none",cursor:"pointer",
-                    fontFamily:"inherit",fontSize:12,fontWeight:400,whiteSpace:"nowrap",
-                    background:i===clampedIdx?"var(--amber-bg)":"var(--card2)",
-                    color:i===clampedIdx?"var(--amber)":"var(--t3)",
-                    outline:w.start.getTime()===todaySunday.getTime()?"1px solid var(--blue)":"none"}}>
-                  Wk{w.index}
-                </button>
-              ))}
+              {/* "Activated" state = amber (app-wide convention for a non-action toggle/relevance
+                  state — see CLAUDE.md). This is relevant only when you're viewing another week. */}
+              <button className="btn btn-ghost btn-sm tt" data-tt="Jump to the current week"
+                style={{padding:"6px 9px",fontSize:15,color:isCurrentWeek?"var(--t3)":"var(--amber)"}}
+                onClick={()=>setSelWeekIdx(defaultIdx)} disabled={isCurrentWeek}>
+                <i className="ti ti-calendar-due"/>
+              </button>
             </div>
           ):(
-            <div style={{fontSize:12,color:"var(--t3)",flex:1}}>
-              Set your term dates in <b>Settings → School Info</b> to browse your full term week by week.
+            <div style={{fontSize:12,color:"var(--t3)",margin:"0 auto"}}>
+              Set your term dates in <b>Settings → School Info</b> to browse the full term.
             </div>
           )}
 
-          {refreshWeekPlan&&(
-            <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Re-plans just this one week, using its existing scope — cheaper than Refresh Plan, but has no awareness of demand from adjacent weeks" style={{flexShrink:0}}
-              onClick={()=>refreshWeekPlan(weekKey)} disabled={busy}>
-              <i className="ti ti-refresh" style={{marginRight:4}}/>{isWeekPlanned?"Update this week":"Plan this week"}
+          {/* Plan actions */}
+          <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+            <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Add a one-off activity to today" style={{padding:"6px 9px"}}
+              onClick={()=>setEditState({dateStr:iso(),block:null})}>
+              <i className="ti ti-plus" style={{fontSize:15}}/>
             </button>
-          )}
-          <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Add a one-off activity to today" style={{flexShrink:0}}
-            onClick={()=>setEditState({dateStr:iso(),block:null})}>
-            <i className="ti ti-plus" style={{fontSize:15}}/>
-          </button>
-          <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Removes AI-planned study/homework blocks from today forward so you can regenerate fresh. Past days (history) are never touched. Offers to also clear edited/completed blocks if you want a truly clean slate." style={{flexShrink:0}}
-            onClick={async()=>{
-              const weeks=data.studyPlan?.weeks||{};
-              const today=iso();
-              let toClear=0,toKeep=0;
-              Object.values(weeks).forEach(week=>{
-                Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-                  if(dateStr<today)return; // history — never touched by Clear plan
-                  (blocks||[]).forEach(b=>{if(b.userEdited)toKeep++;else toClear++;});
-                });
-              });
-              if(toClear===0&&toKeep===0){toast2("No study plan to clear from today forward — nothing scheduled yet.");return;}
-              const ok=await confirm(`Clear the generated study plan from today forward? This removes ${toClear} AI-planned block${toClear!==1?"s":""}. Past days are never touched.${toKeep>0?` ${toKeep} upcoming block${toKeep!==1?"s":""} marked as edited or completed will be kept for now — you'll get a chance to clear those too.`:""}`);
-              if(!ok)return;
-              const keptWeeks={};
-              Object.entries(weeks).forEach(([weekStart,week])=>{
-                const days={};
-                Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-                  days[dateStr]=dateStr<today?(blocks||[]):(blocks||[]).filter(b=>b.userEdited);
-                });
-                keptWeeks[weekStart]={...week,days};
-              });
-              upd({studyPlan:{weeks:keptWeeks},quarterPlan:null,briefCache:null,briefDate:null});
-              if(toKeep>0){
-                const forceOk=await confirm(`${toKeep} upcoming block${toKeep!==1?"s":""} were kept because they're marked as edited or completed — this includes blocks you customized on purpose, but can also include blocks that only got that flag from checking "Mark Complete" in an older version. Clear those too for a fully clean slate (today forward only — history stays untouched)? This can't be undone.`);
-                if(forceOk){
-                  const emptied={};
-                  Object.entries(keptWeeks).forEach(([weekStart,week])=>{
-                    const days={};
-                    Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-                      days[dateStr]=dateStr<today?blocks:[];
-                    });
-                    emptied[weekStart]={...week,days};
-                  });
-                  upd({studyPlan:{weeks:emptied}});
-                  toast2("Study plan fully cleared from today forward. History was kept. Hit Refresh Plan to regenerate.");
-                  return;
-                }
-              }
-              toast2(`Study plan cleared from today forward${toKeep>0?` — kept ${toKeep} edited block${toKeep!==1?"s":""}.`:"."} History was kept. Hit Refresh Plan to regenerate.`);
-            }}>
-            <i className="ti ti-calendar-off" style={{marginRight:4}}/>Clear plan
-          </button>
-          <button className="btn btn-sm tt tt-below tt-right" data-tt="Re-plans every day from this week through the end of your term using current settings, assignments, and exams" style={{background:"var(--red)",color:"#fff",flexShrink:0}} onClick={refreshQuarterPlan} disabled={planning}>
-            {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Refresh Plan</>}
-          </button>
+            <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Plan status & diagnostics" style={{padding:"6px 9px"}}
+              onClick={()=>setPlanDrawerOpen(true)}>
+              <i className="ti ti-stethoscope" style={{fontSize:15}}/>
+            </button>
+
+            {/* Replan split-button: primary = whole-term replan; ▾ = scope + clear */}
+            <div style={{display:"flex",position:"relative",flexShrink:0}}>
+              <button className="btn btn-sm tt tt-below tt-right"
+                data-tt="Re-plan every day from this week through the end of your term"
+                style={{background:"var(--red)",color:"#fff",borderRadius:"7px 0 0 7px"}}
+                onClick={refreshQuarterPlan} disabled={planning}>
+                {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Replan</>}
+              </button>
+              <button className="tt tt-below tt-right" data-tt="Replan options"
+                onClick={()=>setReplanMenu(o=>!o)} disabled={planning}
+                style={{background:"var(--red)",color:"#fff",border:"none",borderLeft:"1px solid rgba(255,255,255,0.28)",
+                  borderRadius:"0 7px 7px 0",padding:"0 8px",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center"}}>
+                <i className="ti ti-chevron-down"/>
+              </button>
+              {replanMenu&&(
+                <>
+                  <div onClick={()=>setReplanMenu(false)} style={{position:"fixed",inset:0,zIndex:60}}/>
+                  <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:61,minWidth:210,
+                    background:"var(--card)",border:"1px solid var(--b1)",borderRadius:9,padding:5,
+                    boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                    <button className="btn btn-ghost btn-sm" style={{width:"100%",justifyContent:"flex-start"}}
+                      onClick={()=>{setReplanMenu(false);refreshWeekPlan(weekKey);}} disabled={busy}>
+                      <i className="ti ti-refresh"/> {isWeekPlanned?"Replan this week only":"Plan this week only"}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{width:"100%",justifyContent:"flex-start"}}
+                      onClick={()=>{setReplanMenu(false);refreshQuarterPlan();}} disabled={planning}>
+                      <i className="ti ti-sparkles"/> Replan whole term
+                    </button>
+                    <div style={{borderTop:"1px solid var(--b1)",margin:"4px 0"}}/>
+                    <button className="btn btn-ghost btn-sm" style={{width:"100%",justifyContent:"flex-start",color:"var(--amber)"}}
+                      onClick={()=>{setReplanMenu(false);clearPlan();}}>
+                      <i className="ti ti-calendar-off"/> Clear plan (today forward)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
         </div>
         {planning&&planMsg&&(
           <div style={{fontSize:11,color:"var(--t3)",marginTop:7,textAlign:"right"}}>{planMsg}</div>
         )}
       </div>
       {modal}
-
-      {/* Real, live status of the persisted plan — no dependency on any of the superseded planner functions */}
-      <details style={{marginBottom:10}}>
-        <summary style={{padding:"7px 12px",background:"var(--card2)",borderRadius:8,fontSize:12,color:"var(--t3)",cursor:"pointer"}}>
-          <i className="ti ti-stethoscope" style={{marginRight:6}}/>Plan status
-        </summary>
-        <div className="card" style={{marginTop:8,fontSize:12,lineHeight:1.7}}>
-          <div>
-            <b>Study Plan (Refresh Plan history):</b> {data.quarterPlan?`generated ${data.quarterPlan.generatedAt}, through ${data.quarterPlan.generatedThrough}, ${data.quarterPlan.datesPlanned||Object.keys(data.quarterPlan.tasksByDate||{}).length} days`:"never generated"}
-            {data.quarterPlan?.lastError&&<div style={{color:"var(--red)",marginTop:4}}>⚠ Last Refresh Plan error ({data.quarterPlan.lastErrorAt}): {data.quarterPlan.lastError}</div>}
-          </div>
-        </div>
-      </details>
+      <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data}/>
 
       {mode==="week"&&(
         <div>
