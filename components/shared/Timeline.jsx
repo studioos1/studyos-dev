@@ -22,7 +22,7 @@ export function Timeline({dateStr,data,upd,studyBlocks=[]}){
   // meals, gym, sleep, commute never have one). BlockEditModal needs the RAW stored block shape,
   // not buildBlocks' display-shaped output, so it's looked up by id at click-time.
   const [editState,setEditState]=useState(null);
-  const editable=!!upd;
+  const editable=!!upd&&dateStr>=iso(); // past days are read-only history — no block editing
 
   // One column's worth of the timeline — hour axis + blocks + now-line + deadline markers, all
   // scoped to [colStart,colEnd). All three columns call this with identical logic, just a

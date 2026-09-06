@@ -137,7 +137,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                   const tooltip=`${f12(m2t(b.s))} – ${f12(m2t(b.e))} · ${b.label}${b.autoMoved?" — auto-shifted to avoid a class/exam conflict":""}${b.completed?" ✓ completed":""}`;
                   const posPct=(b.s-START*60)/TOTAL*100;
                   const ttClass=posPct>75?"tt tt-right":posPct<15?"tt tt-left":"tt";
-                  const editable=!!b.id; // only blocks that came from studyPlan storage (have a stable id) are editable
+                  const editable=!!b.id&&dateStr>=todayStr; // only real (id-bearing) blocks, and only on today-or-later — past days are read-only history
                   return(
                     <div key={bi} className={ttClass} data-tt={tooltip}
                       onDoubleClick={editable?()=>setEditState({dateStr,block:b}):undefined}
