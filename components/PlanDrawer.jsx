@@ -73,7 +73,8 @@ function ColGroup() {
 function DoneCheckbox({ onDone }) {
   return (
     <div
-      title="Mark done"
+      title="Mark completed"
+      aria-label="Mark completed"
       onClick={onDone}
       style={{
         width: 18, height: 18, borderRadius: 5, border: "2px solid var(--t3)", background: "var(--card2)",
@@ -215,7 +216,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                     <tbody>
                       {diag.overdue.map((it, i) => (
                         <tr key={it.id} style={{ borderBottom: i < diag.overdue.length - 1 ? "1px solid var(--b1)" : "none" }}>
-                          <Td />
+                          <Td><DoneCheckbox onDone={() => markDone(it)} /></Td>
                           <Td clip>{it.title}</Td>
                           <Td muted clip>{it.courseName}</Td>
                           <Td nowrap style={{ color: "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
@@ -223,7 +224,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                           <Td right muted>—</Td>
                           <Td right muted nowrap>{it.desiredHours}h</Td>
                           <Td right muted>—</Td>
-                          <Td right><DoneCheckbox onDone={() => markDone(it)} /></Td>
+                          <Td />
                         </tr>
                       ))}
                     </tbody>
@@ -257,6 +258,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                       <tr key={it.id} style={{ borderBottom: i < diag.items.length - 1 ? "1px solid var(--b1)" : "none" }}>
                         <Td>
                           <input type="checkbox" checked={sel.has(it.id)} onChange={() => toggleSel(it.id)}
+                            title="Select to prioritise" aria-label="Select to prioritise"
                             style={{ width: 14, height: 14, cursor: "pointer" }} />
                         </Td>
                         <Td clip>
