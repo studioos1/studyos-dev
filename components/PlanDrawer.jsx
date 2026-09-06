@@ -68,22 +68,23 @@ function ColGroup() {
   return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
 }
 
-// Empty click-to-fill checkbox, matching the "mark as completed" control in the Academics tabs —
-// so it reads as "click to check", not "already done".
-function DoneCheckbox({ onDone }) {
+// Click-to-fill checkbox matching the "mark as completed" control in the Academics tabs. Controlled
+// and reversible: ticking it only STAGES the completion — nothing persists until "Mark N completed"
+// is pressed — so a mis-click is undone by just un-ticking.
+function DoneCheckbox({ checked, onToggle }) {
   return (
     <div
-      title="Mark completed"
+      title={checked ? "Staged as completed — click to undo" : "Mark completed"}
       aria-label="Mark completed"
-      onClick={onDone}
+      onClick={onToggle}
       style={{
-        width: 18, height: 18, borderRadius: 5, border: "2px solid var(--t3)", background: "var(--card2)",
-        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
-        transition: "all 0.15s", color: "transparent", fontSize: 11, fontWeight: 700,
+        width: 18, height: 18, borderRadius: 5, cursor: "pointer",
+        border: `2px solid ${checked ? "var(--green)" : "var(--t3)"}`,
+        background: checked ? "var(--green)" : "var(--card2)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        color: checked ? "#0a2410" : "transparent", fontSize: 11, fontWeight: 700, transition: "all 0.12s",
       }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--green)"; e.currentTarget.style.background = "var(--green-bg)"; e.currentTarget.style.color = "var(--green)"; e.currentTarget.textContent = "✓"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--t3)"; e.currentTarget.style.background = "var(--card2)"; e.currentTarget.style.color = "transparent"; e.currentTarget.textContent = ""; }}
-    />
+    >{checked ? "✓" : ""}</div>
   );
 }
 
@@ -91,7 +92,8 @@ function DoneCheckbox({ onDone }) {
 // Weekly-tab "Plan status" button and auto-opened after a replan that leaves items short. The grid
 // stays visible and usable behind it — close via the X or Esc.
 export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
-  const [sel, setSel] = useState(() => new Set());
+  const [sel, setSel] = useState(() => new Set());          // "today forward" rows ticked for Prioritise
+  const [toComplete, setToComplete] = useState(() => new Set()); // Overdue rows staged as completed (not yet saved)
 
   useEffect(() => {
     if (!open) return;
@@ -112,9 +114,23 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
     const k = arrKey(it);
     upd({ [k]: data[k].map(x => (x.id === it.rawId ? { ...x, ...fields } : x)), ...extra });
   };
-  const markDone = it => patch(it, { status: "done" });
   const setHours = (it, v) => patch(it, { userHours: v }, { planStale: true });
   const setForced = (it, val) => patch(it, { forced: val }, { planStale: true });
+
+  const toggleComplete = id => setToComplete(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  function applyCompletions() {
+    const chosen = (diag?.overdue || []).filter(it => toComplete.has(it.id));
+    if (!chosen.length) return;
+    const aIds = new Set(chosen.filter(c => c.kind === "assignment").map(c => c.rawId));
+    const eIds = new Set(chosen.filter(c => c.kind === "exam").map(c => c.rawId));
+    upd({
+      assignments: data.assignments.map(a => (aIds.has(a.id) ? { ...a, status: "done" } : a)),
+      exams: data.exams.map(e => (eIds.has(e.id) ? { ...e, status: "done" } : e)),
+    });
+    setToComplete(new Set());
+  }
 
   function prioritiseSelected() {
     const chosen = (diag?.items || []).filter(it => sel.has(it.id));
@@ -204,7 +220,15 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
 
             {diag.overdue.length > 0 && (
               <>
-                <SectionLabel alert>Overdue — mark done now, or reschedule the due date</SectionLabel>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 7px" }}>
+                  <SectionLabel alert>Overdue — tick what you actually finished, then apply</SectionLabel>
+                  {toComplete.size > 0 && (
+                    <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
+                      onClick={applyCompletions}>
+                      <i className="ti ti-check" style={{ fontSize: 12 }} /> Mark {toComplete.size} completed
+                    </button>
+                  )}
+                </div>
                 <div style={{ marginBottom: 18 }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                     <ColGroup />
@@ -214,19 +238,25 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {diag.overdue.map((it, i) => (
-                        <tr key={it.id} style={{ borderBottom: i < diag.overdue.length - 1 ? "1px solid var(--b1)" : "none" }}>
-                          <Td><DoneCheckbox onDone={() => markDone(it)} /></Td>
-                          <Td clip>{it.title}</Td>
-                          <Td muted clip>{it.courseName}</Td>
-                          <Td nowrap style={{ color: "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
-                          <Td right muted>{it.difficulty || "—"}</Td>
-                          <Td right muted>—</Td>
-                          <Td right muted nowrap>{it.desiredHours}h</Td>
-                          <Td right muted>—</Td>
-                          <Td />
-                        </tr>
-                      ))}
+                      {diag.overdue.map((it, i) => {
+                        const staged = toComplete.has(it.id);
+                        return (
+                          <tr key={it.id} style={{
+                            borderBottom: i < diag.overdue.length - 1 ? "1px solid var(--b1)" : "none",
+                            opacity: staged ? 0.5 : 1,
+                          }}>
+                            <Td><DoneCheckbox checked={staged} onToggle={() => toggleComplete(it.id)} /></Td>
+                            <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
+                            <Td muted clip>{it.courseName}</Td>
+                            <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
+                            <Td right muted>{it.difficulty || "—"}</Td>
+                            <Td right muted>—</Td>
+                            <Td right muted nowrap>{it.desiredHours}h</Td>
+                            <Td right muted>—</Td>
+                            <Td />
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
