@@ -25,6 +25,14 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 ## Core architecture
 
 ### The planner (two-phase)
+- **PRINCIPLE — all planner logic is generalized and non-term-specific.** No rule branches on
+  course names, specific dates, exam counts, or an assumed term shape (quarter vs semester). Logic
+  acts only on `data` and the derived horizon. Tuned default constants (`EXAM_EVE_CAP`,
+  `FINALS_STRETCH_MAX_SPAN`, `STUDY_HOURS_BY_RATING`, band thresholds, …) are fine but must be
+  universal defaults, centralized at the top of their module, never conditioned on which
+  term/course. Structural devices (clusters, run-in days, finals stretch) must scale to 1, 2, N
+  exams and any spacing — verify with a lone exam and a non-final mid-term cluster, not just the
+  3-final case. Real course names/dates in code only ever appear inside explanatory comments.
 - **Phase 1 (Estimate & Prioritize):** `estimateDifficulty()`/`estimateStudyHours()` — combines
   course difficulty rating with an item's grade weight. Student overrides (`userValue`/`userHours`)
   always take precedence over AI estimates, permanently, per item.
