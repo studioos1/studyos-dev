@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.42.0 — 2026-09-07
+
+**Login / signup / account cleanup (B-17 group 4)**
+
+- **Login screen** is now the standard pattern: email + password + **Log in**, a **Forgot your password?** link, and a **Sign up** switch beneath the form (no separate "landing" step).
+- **Sign up** collects mandatory **full name** and **mobile phone** alongside email + password; these go into the Supabase user's metadata and are seeded into `profile.name` / `profile.phone` the first time that account's data loads.
+- **Forgot password**: enter your email → `supabase.auth.resetPasswordForEmail` → neutral confirmation ("if an account exists, a link is on its way"). Reliable delivery still depends on B-11 (transactional email provider); the flow is in place.
+- **Set new password**: after following the reset link, `App.jsx` catches the `PASSWORD_RECOVERY` auth event and renders `<Login recoveryMode>` (new password + confirm → `supabase.auth.updateUser`).
+- **One account icon**: the standalone sign-out button is gone from the header; **Sign out** (with the signed-in email) now lives at the bottom of the Account modal.
+
+Field markup is inline per view, so inputs don't remount / drop focus on each keystroke.
+
+**Validation:** 53 tests pass, `npm run build` clean. Browser-verified on localhost: log in → app loads; Sign-up shows the name/phone fields; the header has a single icon and the Account modal has Sign out.
+
 ## v2.41.0 — 2026-09-07
 
 **Project-type assignments + two-day exam run-ins**
