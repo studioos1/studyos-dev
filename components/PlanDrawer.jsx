@@ -36,19 +36,20 @@ function Stat({ label, value, warn, alert }) {
 }
 
 // Table header / cell — same visual language as the Academics Assignments / Difficulty tabs.
-function Th({ children, right }) {
+// `align` is "left" | "right" | "center".
+function Th({ children, align = "left" }) {
   return (
     <th style={{
       fontSize: 11, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.04em",
-      textAlign: right ? "right" : "left", padding: "0 8px 8px", fontWeight: 600, whiteSpace: "nowrap",
+      textAlign: align, padding: "0 8px 8px", fontWeight: 600, whiteSpace: "nowrap",
     }}>{children}</th>
   );
 }
-function Td({ children, right, muted, nowrap, clip, style }) {
+function Td({ children, align = "left", muted, nowrap, clip, style }) {
   return (
     <td style={{
       padding: "8px 8px", fontSize: 13, color: muted ? "var(--t2)" : "var(--t1)",
-      textAlign: right ? "right" : "left",
+      textAlign: align,
       whiteSpace: (nowrap || clip) ? "nowrap" : undefined,
       overflow: clip ? "hidden" : undefined,
       textOverflow: clip ? "ellipsis" : undefined,
@@ -61,8 +62,8 @@ function Td({ children, right, muted, nowrap, clip, style }) {
 // table-layout:fixed + this colgroup, applied identically to both. The Overdue table just leaves
 // the planner-only columns blank.
 const COLS = ["", "Item", "Class", "Due", "Diff", "Priority", "Need", "Short", ""];
-const COL_W = ["30px", "auto", "108px", "104px", "62px", "70px", "76px", "66px", "44px"];
-const RIGHT_FROM = 4, RIGHT_TO = 7; // Diff..Short are right-aligned
+const COL_W = ["30px", "auto", "108px", "104px", "62px", "70px", "78px", "70px", "44px"];
+const COL_ALIGN = ["left", "left", "left", "left", "right", "right", "center", "center", "center"];
 
 function ColGroup() {
   return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
@@ -265,7 +266,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                     <ColGroup />
                     <thead>
                       <tr style={{ borderBottom: "1px solid var(--b1)" }}>
-                        {COLS.map((c, i) => <Th key={i} right={i >= RIGHT_FROM && i <= RIGHT_TO}>{c}</Th>)}
+                        {COLS.map((c, i) => <Th key={i} align={COL_ALIGN[i]}>{c}</Th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -280,10 +281,10 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                             <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
                             <Td muted clip>{it.courseName}</Td>
                             <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
-                            <Td right muted>{it.difficulty || "—"}</Td>
-                            <Td right muted>—</Td>
-                            <Td right muted nowrap>{it.desiredHours}h</Td>
-                            <Td right muted>—</Td>
+                            <Td align="right" muted>{it.difficulty || "—"}</Td>
+                            <Td align="right" muted>—</Td>
+                            <Td align="center" muted nowrap>{it.desiredHours}h</Td>
+                            <Td align="center" muted>—</Td>
                             <Td />
                           </tr>
                         );
@@ -311,7 +312,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                   <ColGroup />
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--b1)" }}>
-                      {COLS.map((c, i) => <Th key={i} right={i >= RIGHT_FROM && i <= RIGHT_TO}>{c}</Th>)}
+                      {COLS.map((c, i) => <Th key={i} align={COL_ALIGN[i]}>{c}</Th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -332,13 +333,13 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                         </Td>
                         <Td muted clip>{it.courseName}</Td>
                         <Td muted nowrap>{it.dueDate || "—"}</Td>
-                        <Td right muted>{it.difficulty || "—"}</Td>
-                        <Td right muted>{it.priority != null ? it.priority : "—"}</Td>
-                        <Td right style={{ padding: "3px 8px" }}>
+                        <Td align="right" muted>{it.difficulty || "—"}</Td>
+                        <Td align="right" muted>{it.priority != null ? it.priority : "—"}</Td>
+                        <Td align="center" style={{ padding: "3px 8px" }}>
                           <HoursInput value={it.desiredHours} isOverridden={it.forced}
                             onCommit={v => v != null && setHours(it, v)} />
                         </Td>
-                        <Td right nowrap style={{ color: it.fullyCovered ? "var(--t3)" : "var(--amber)", fontWeight: it.fullyCovered ? 400 : 600 }}>
+                        <Td align="center" nowrap style={{ color: it.fullyCovered ? "var(--t3)" : "var(--amber)", fontWeight: it.fullyCovered ? 400 : 600 }}>
                           {it.fullyCovered ? "—" : `−${round1(it.shortfallHours)}h`}
                         </Td>
                         <Td />
