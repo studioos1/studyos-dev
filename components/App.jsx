@@ -17,6 +17,7 @@ import {
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
   dedupeItemIdsIfNeeded,
+  normalizeCourseNamesIfNeeded,
   syncActiveTermToProfilePatch,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
@@ -142,6 +143,13 @@ function App(){
     const fix=dedupeItemIdsIfNeeded(data);
     if(fix)upd(fix);
   },[data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
+
+  // Collapse full AI course titles to canonical codes ("MATH 180A") so every account renders identically.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=normalizeCourseNamesIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.courses?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields

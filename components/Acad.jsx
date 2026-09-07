@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { iso, du } from "@/lib/time";
-import { courseNameFor, findMatchingCourse, norm } from "@/lib/courses";
+import { courseNameFor, findMatchingCourse, norm, prettyCourseCode } from "@/lib/courses";
 import { computeTermStatuses, uid } from "@/lib/data";
 import { calcGPA, letterFromPct } from "@/lib/grades";
 import {
@@ -418,7 +418,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         course={
           id:uid(),
           termId:viewingTermId,
-          name:c.courseName,
+          name:prettyCourseCode(c.courseName),
           days:primary?.days||[],
           startTime:primary?.startTime||"09:00",
           endTime:primary?.endTime||"10:00",

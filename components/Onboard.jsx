@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PDF } from "@/lib/pdf";
 import { CI } from "@/lib/api";
-import { findMatchingCourse } from "@/lib/courses";
+import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
 import { iso } from "@/lib/time";
 import { DS, DF, CC } from "@/lib/constants";
 import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
@@ -58,7 +58,7 @@ SCHEDULE:\n${t.slice(0,6000)}`);
     setProgress?.({label:"Looking up course difficulty...",detail:`${pSched.courses.length} class(es)`});
     const courses=await Promise.all(pSched.courses.filter(c=>c.name&&c.days).map(async(c,i)=>{
       const info=await CI(c.name,c.code);
-      return{id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,name:c.name+(c.code?` (${c.code})`:""),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],color:CC[i%CC.length]};
+      return{id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,name:prettyCourseCode(c.code||c.name),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],color:CC[i%CC.length]};
     }));
     // Dedup by stable course code (e.g. "DSC10"), not full display name — AI wording varies between
     // calls, but the department+number code is the actual stable identity.
