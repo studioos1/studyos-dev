@@ -13,13 +13,13 @@ No need to order the whole list up front.
 
 | Order | ID | Title | Category | Effort | Status |
 |------:|------|-------|----------|:------:|--------|
-| — | B-01 | Web-backed course difficulty (`webDifficultySignal`) | Planner | M | Backlog |
+| **1** | B-01 | Web-backed course difficulty (`webDifficultySignal`) | Planner | M | Next |
 | — | B-02 | Personalization loop for estimates | Planner | M | Backlog |
 | — | B-03 | Fix + test `refreshQuarterPlan` week-merging (D0) | Planner | M | Backlog |
-| **2** | B-04 | Make the two planning-mode buttons consistent (decision: keep both) | UX | S | Next |
+| — | B-04 | Make the two planning-mode buttons consistent (decision: keep both) | UX | S | Done (in B-07) |
 | — | B-05 | Per-shortfall suggested-fix value (mostly absorbed by B-07) | UX | S | Backlog |
 | — | B-06 | GPA target-planning | UX | M | Backlog |
-| **1** | B-07 | Weekly toolbar redesign + diagnostics drawer + past-day read-only | UX | M–L | In progress |
+| — | B-07 | Weekly toolbar redesign + diagnostics drawer + past-day read-only | UX | M–L | Done |
 | — | B-08 | Day-view calendar visual design | UX | S–M | Backlog |
 | — | B-09 | Validate college-calendar auto-fetch end-to-end | External data | S + ? | Backlog |
 | — | B-10 | Real notification sending (WhatsApp / email) | Notifications | L | Backlog |
@@ -28,6 +28,7 @@ No need to order the whole list up front.
 | — | B-13 | Onboard Itay as 2nd developer | Process | S | Backlog |
 | — | B-14 | Conversational AI query over all your data + app help | AI assistant | L | Backlog |
 | — | B-15 | New-user Site Tour / guided walkthrough | Onboarding | M | Backlog |
+| — | B-16 | In-app planner assistant — command-driven plan edits (no external LLM) | AI assistant | M–L | Parked |
 
 ## Details
 
@@ -164,6 +165,52 @@ An interactive tour for first-time users that walks through the startup flow and
 each part of the app does — coachmark-style highlights with short explanations, step-through,
 skippable, re-launchable later from a help menu. Complements the onboarding wizard (which collects
 data) by orienting the user in the UI once they're in.
+
+### B-16 · In-app planner assistant — command-driven plan edits (Parked)
+A single place to make plan changes by describing them, instead of navigating to Study
+Preferences / add-activity / etc.: "block Saturday 12–6 for a wedding", "make DSC harder",
+"I finished PS4" — then replan. This is the **write-capable** sibling of B-14 (which is read-only).
+
+**Hard constraint (Avishai):** must run inside the app — no data sent to Anthropic or any external
+LLM.
+
+Feasibility spike (2026-09, no design done):
+- The concrete operations are *structured*, not conversational: block time, add event, set
+  difficulty band, edit hours, mark done, trigger replan. Buildable as a **deterministic command
+  layer** — a command bar / quick-action panel parsed by rules + a local date library
+  (`chrono-node`), routed through the same `upd()` + planner calls the page buttons use. Zero
+  egress, fully deterministic, fits the "prefer deterministic method" preference. The AI stays a
+  front-end for *inputs*; the deterministic planner remains the only thing that writes a schedule.
+- Open-ended phrasing ("my week blew up, rearrange around a trip") needs a real model. With no
+  external calls that's a **local model** — in-browser WebLLM+WebGPU (GB-scale weight download,
+  desktop-only, small models unreliable at tool-calling) or Ollama on the Mac (no phone use).
+  Feasible to prototype but heavy and shaky for a single user; a separate spike only if plain
+  commands prove too rigid.
+- Note: the app currently *does* call Anthropic for syllabus extraction, difficulty estimation
+  and Today-tab encouragement. A blanket "no Anthropic" rule is a separate, bigger decision about
+  those too (B-01's deterministic difficulty research would replace one of them).
+
+Parked pending more thought on scope and whether the value clears the bar vs. other work.
+
+---
+
+## Shipped alongside B-07 (planner-quality pass, one bundled PR)
+
+Direct-conversation work, not separate B-## items, recorded here for the trail (see CHANGELOG
+v2.39.0–v2.41.0):
+- **D1** — no "regular study" scheduled after a course's last graded date.
+- **D2** (`lib/planningRange.js`) — planning horizon anchored on the last real deadline, not the
+  typed term-end; amber warning + toast on a >2-day mismatch.
+- **Exam-prep pre-pass** (`buildExamPrepPlan`) — exam study decided globally; exams grouped into
+  clusters; each exam gets a dedicated eve + a lead-in day (lead-ins dealt out in exam order
+  within a cluster); no study on an exam day; no Tier-2 in the finals stretch; lead-in days keep
+  room for due homework and top up idle evenings when an exam is short.
+- **Estimator** — `estimateStudyHours` is now a difficulty-band lookup (`STUDY_HOURS_BY_RATING`)
+  × weight nudge, so changing the band moves the hours; new "Very High" band; band change clears
+  a stale manual hours override.
+- **Projects** — assignment `type:"project"`: even-pace scheduling across the whole term, own
+  track. Toggle in Study Preferences; syllabus sync guesses from the title.
+- **Principle** recorded in `CLAUDE.md`: all planner logic is generalized and non-term-specific.
 
 ---
 
