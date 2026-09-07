@@ -43,7 +43,7 @@ export function GradeInput({value,onChange}){
 
 export function DiffPill({value,muted}){
   if(!value)return <span style={{fontSize:11,color:"var(--t3)"}}>—</span>;
-  const colors={Low:{bg:"var(--green-bg)",fg:"var(--green)"},Mid:{bg:"var(--amber-bg)",fg:"var(--amber)"},High:{bg:"var(--red-bg)",fg:"var(--red)"}};
+  const colors={Low:{bg:"var(--green-bg)",fg:"var(--green)"},Mid:{bg:"var(--amber-bg)",fg:"var(--amber)"},High:{bg:"var(--red-bg)",fg:"var(--red)"},"Very High":{bg:"var(--red)",fg:"#fff"}};
   const c=colors[value]||colors.Mid;
   return <span style={{fontSize:12,fontWeight:600,padding:"3px 9px",borderRadius:6,background:muted?"var(--card2)":c.bg,color:muted?"var(--t3)":c.fg}}>{value}</span>;
 }

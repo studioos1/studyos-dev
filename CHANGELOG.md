@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.40.0 — 2026-09-07
+
+**Study-hours estimate is now driven by the difficulty band — changing the rating moves the hours**
+
+The old `estimateStudyHours` looked only at the course's numeric difficulty (1–10) and grade weight — it never consulted the item's Low/Mid/High rating. So overriding an item M→H in Study Preferences left the suggested hours (and the plan) unchanged, which is exactly backwards from what the control implies.
+
+- **`estimateStudyHours(item, course, kind, rating)`** is now a plain lookup: `STUDY_HOURS_BY_RATING[kind][rating] × a ±30% weight nudge`, rounded to the half-hour. The table (`lib/planner/estimate.js`, marked "TUNE HERE"): homework 1.5 / 3 / 5 / 7h, exam 4 / 7 / 11 / 16h for Low / Mid / High / Very High. No double-count — the band already folds in course difficulty (that's what `estimateDifficulty` does), so the course multiplier is gone from the hours formula.
+- **New "Very High" band** for cumulative finals and capstone projects — deliberately rare (a heavy item in a genuinely hard course). Added to `estimateDifficulty`'s bucketing, `DIFFICULTY_WEIGHT` (→ priority), the exam pre-pass `highStakes` test (→ 3-day spread), the `DiffPill`, and the Study Preferences dropdown.
+- **Study Preferences table**: changing an item's band recomputes the suggested hours on the spot (no Save needed). A number you typed yourself still wins for planning; a "↺ Nh" chip next to the field drops your override back to the suggestion. On tab open, every item's hours suggestion is refreshed from its effective rating and cached back, so the planner reads current numbers.
+- Not touched: research-backed difficulty (`webDifficultySignal`, still a stub) and the personalization loop (learning from your edits) — both remain the next steps.
+
+**Validation:** 37 unit tests pass (`estimate.test.js` rewritten for the band-driven model + `computeEstimateFields` consistency; planner/prepass/range suites unchanged). `npm run build` succeeds. Browser-verified: a DSC exam at Mid shows 7h; switching it to High moves it to 11h and its priority 30→45 live; the ↺ chip restores the suggestion.
+
 ## v2.39.0 — 2026-09-07
 
 **Exam-prep pre-pass — final-week study is decided globally, back-loaded, and de-conflicted (rules A–H)**
