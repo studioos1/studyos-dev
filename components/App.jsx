@@ -18,6 +18,7 @@ import {
   migrateLegacyTermIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
+  repairTermLinkageIfNeeded,
   syncActiveTermToProfilePatch,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
@@ -150,6 +151,14 @@ function App(){
     const fix=normalizeCourseNamesIfNeeded(data);
     if(fix)upd(fix);
   },[data?.courses?.length]); // eslint-disable-line
+
+  // Heal a broken term/course linkage (dateless term, or courses not linked to it) — otherwise the
+  // planner scopes to nothing and the plan comes out empty. See repairTermLinkageIfNeeded.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=repairTermLinkageIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length,data?.courses?.length,data?.profile?.termStart,data?.profile?.termEnd]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields
