@@ -87,9 +87,15 @@ function App(){
   // load()/save() (lib/data/store.js) key off the Supabase session themselves, so `data` is only
   // ever populated while signed in — see the load effect and the render gates further down.
   const [session,setSession]=useState(undefined);
+  // True after the user follows a password-reset link — App shows <Login recoveryMode> so they can
+  // set a new password, even though Supabase has already established a (recovery) session.
+  const [recovery,setRecovery]=useState(false);
   useEffect(()=>{
     supabase.auth.getSession().then(({data})=>setSession(data.session));
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_evt,s)=>setSession(s));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((evt,s)=>{
+      if(evt==="PASSWORD_RECOVERY")setRecovery(true);
+      setSession(s);
+    });
     return ()=>subscription.unsubscribe();
   },[]);
 
@@ -352,6 +358,7 @@ function App(){
   // Render gates — placed after every hook so hook count/order stays identical across renders,
   // per the rules of hooks. Order: still checking the session → nothing; signed out → Login;
   // signed in but this user's row still loading → nothing.
+  if(recovery)return <Login recoveryMode onDone={()=>setRecovery(false)}/>;
   if(session===undefined)return null;
   if(!session)return <Login/>;
   if(!data)return null;

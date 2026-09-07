@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.42.0 — 2026-09-07
+
+**Login landing page + forgot-password flow (B-17 group 4, partial)**
+
+The auth gate was a single email/password form with a small "create an account" text link. Rebuilt it as an explicit entry point:
+
+- **Landing**: two buttons — **Log in** / **Sign up** — instead of dropping straight into a form.
+- **Log in** view: email + password, a **Forgot your password?** link, and a Back button.
+- **Sign up** view: unchanged fields; email-confirmation notice still shown when the project requires it.
+- **Reset** view: enter your email → `supabase.auth.resetPasswordForEmail` → neutral confirmation ("if an account exists, a link is on its way"). Reliable delivery depends on B-11 (transactional email provider); the flow is in place regardless.
+- **Set-new-password** view: after following the reset link, `App.jsx` catches the `PASSWORD_RECOVERY` auth event and renders `<Login recoveryMode>` (new-password + confirm → `supabase.auth.updateUser`) even though a recovery session already exists.
+
+Field markup is inline per view rather than via a helper component, so inputs don't remount and drop focus on each keystroke. Still pending in group 4: mandatory sign-up fields (full name, mobile), and consolidating the top-right Account/Sign-out icons.
+
+**Validation:** 53 tests pass, `npm run build` clean. Browser-verified on localhost: landing → Log in → real sign-in loads the app; Forgot-password and Sign-up views render.
+
 ## v2.41.0 — 2026-09-07
 
 **Project-type assignments + two-day exam run-ins**
