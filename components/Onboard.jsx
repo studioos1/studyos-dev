@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { PDF } from "@/lib/pdf";
 import { CI } from "@/lib/api";
-import { findMatchingCourse } from "@/lib/courses";
+import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
 import { iso } from "@/lib/time";
 import { DS, DF, CC } from "@/lib/constants";
-import { GYM0, getActiveTermAndSchool } from "@/lib/data";
+import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
 import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges";
 import { Sp, SecHead, CollegeAutocomplete, PdfDrop, DelBtn, DayPick } from "@/components/shared";
 
@@ -58,7 +58,7 @@ SCHEDULE:\n${t.slice(0,6000)}`);
     setProgress?.({label:"Looking up course difficulty...",detail:`${pSched.courses.length} class(es)`});
     const courses=await Promise.all(pSched.courses.filter(c=>c.name&&c.days).map(async(c,i)=>{
       const info=await CI(c.name,c.code);
-      return{id:Date.now()+i,termId:getActiveTermAndSchool(data).term?.id||null,name:c.name+(c.code?` (${c.code})`:""),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],color:CC[i%CC.length]};
+      return{id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,name:prettyCourseCode(c.code||c.name),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],color:CC[i%CC.length]};
     }));
     // Dedup by stable course code (e.g. "DSC10"), not full display name — AI wording varies between
     // calls, but the department+number code is the actual stable identity.
@@ -127,8 +127,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       // orphan string reference that can never be linked correctly later.
       const course=findMatchingCourse(data.courses,c.courseName);
       if(!course){unmatchedCourses++;return;}
-      (c.assignments||[]).forEach((a,i)=>{if(a.dueDate)nA.push({id:Date.now()+i,courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight||null,estimatedHours:a.estimatedHours||2,status:"not-started"});});
-      (c.exams||[]).forEach((e,i)=>{if(e.date)nE.push({id:Date.now()+100+i,courseId:course.id,date:e.date,topics:e.topics||"",weight:e.weight||null,prepDays:e.prepDays||7,title:e.title,status:"not-started"});});
+      (c.assignments||[]).forEach((a,i)=>{if(a.dueDate)nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight||null,estimatedHours:a.estimatedHours||2,status:"not-started"});});
+      (c.exams||[]).forEach((e,i)=>{if(e.date)nE.push({id:uid(),courseId:course.id,date:e.date,topics:e.topics||"",weight:e.weight||null,prepDays:e.prepDays||7,title:e.title,status:"not-started"});});
     });
     upd({assignments:[...data.assignments,...nA],exams:[...data.exams,...nE]});
     setSylImported(true);
@@ -281,7 +281,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   onClick={()=>{
                     if(!nc.name)return;
                     if(nc.format!=="async"&&!nc.days.length)return;
-                    upd({courses:[...data.courses,{...nc,id:Date.now(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[data.courses.length%CC.length]}]});
+                    upd({courses:[...data.courses,{...nc,id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[data.courses.length%CC.length]}]});
                     setNc({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}

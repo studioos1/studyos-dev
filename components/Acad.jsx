@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { iso, du } from "@/lib/time";
-import { courseNameFor, findMatchingCourse, norm } from "@/lib/courses";
-import { computeTermStatuses } from "@/lib/data";
+import { courseNameFor, findMatchingCourse, norm, prettyCourseCode } from "@/lib/courses";
+import { computeTermStatuses, uid } from "@/lib/data";
 import { calcGPA, letterFromPct } from "@/lib/grades";
 import {
   estimateDifficulty,
@@ -257,7 +257,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,na.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:na.dueDate},course,"homework");
-    upd({assignments:[...data.assignments,{id:Date.now(),courseId:course.id,title:na.title,dueDate:na.dueDate,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
+    upd({assignments:[...data.assignments,{id:uid(),courseId:course.id,title:na.title,dueDate:na.dueDate,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
     setNa({course:"",title:"",dueDate:"",estimatedHours:2,status:"not-started"});
     setShowAddAssign(false);toast2("Assignment added!");
   }
@@ -266,7 +266,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,ne.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:ne.date},course,"exam");
-    upd({exams:[...data.exams,{id:Date.now(),courseId:course.id,title:ne.title||"",date:ne.date,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
+    upd({exams:[...data.exams,{id:uid(),courseId:course.id,title:ne.title||"",date:ne.date,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
     setNe({course:"",date:"",topics:"",prepDays:7});
     setShowAddExam(false);toast2("Exam added!");
   }
@@ -416,9 +416,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         // syllabus is uploaded before the class schedule has been imported.
         const info=await CI(c.courseName);
         course={
-          id:Date.now()+Math.floor(Math.random()*1000),
+          id:uid(),
           termId:viewingTermId,
-          name:c.courseName,
+          name:prettyCourseCode(c.courseName),
           days:primary?.days||[],
           startTime:primary?.startTime||"09:00",
           endTime:primary?.endTime||"10:00",
@@ -447,7 +447,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         // Conservative first guess at project-type work — the student confirms/flips it with the
         // Homework⇄Project toggle in Study Preferences.
         const looksLikeProject=/\b(project|capstone|portfolio|thesis|dissertation|term paper|research paper|final paper)\b/i.test(a.title||"");
-        nA.push({id:Date.now()+i+Math.floor(Math.random()*1000),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
+        nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
       }
       for(const[i,e]of(c.exams||[]).entries()){
@@ -455,7 +455,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         const isDup=data.exams.find(x=>x.courseId===course.id&&x.date===e.date);
         if(isDup){skippedDuplicate++;continue;}
         const est=await computeEstimateFields(e,course,"exam");
-        nE.push({id:Date.now()+100+i+Math.floor(Math.random()*1000),courseId:course.id,title:e.title,date:e.date,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
+        nE.push({id:uid(),courseId:course.id,title:e.title,date:e.date,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
         added++;itemsByCourse[c.courseName].exams++;
       }
     }
@@ -635,7 +635,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               )}
 
               {active.length>0&&(
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
+               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
                       <th style={{width:28}}></th>
@@ -749,6 +750,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               })}
                   </tbody>
                 </table>
+               </div>
               )}
             </div>
           </div>
@@ -966,7 +968,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     {upcoming.length>0&&(
                       <>
                         <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,marginTop:4}}>Upcoming</div>
-                        <table style={{width:"100%",borderCollapse:"collapse",marginBottom:20}}>
+                        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",marginBottom:20}}>
+                        <table style={{width:"100%",minWidth:680,borderCollapse:"collapse"}}>
                           <thead>
                             <tr style={{borderBottom:"1px solid var(--b1)"}}>
                               <TableHead label="Class" col="class" sortBy={examSort} setSortBy={setExamSort}/>
@@ -982,6 +985,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                             {upcoming.map((e,i,arr)=>ExamRow(e,i,arr,false))}
                           </tbody>
                         </table>
+                        </div>
                       </>
                     )}
                     {completed.length>0&&(
@@ -1074,8 +1078,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 </div>
               </div>
               <div style={DIVIDER}/>
-              <div style={INNER}>
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <div style={{...INNER,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:520,borderCollapse:"collapse"}}>
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
                       <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Class</th>
@@ -1176,10 +1180,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 });
                 if(sorted.length===0)return <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>;
                 return(
-                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                 <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                  <table style={{width:"100%",minWidth:760,borderCollapse:"collapse"}}>
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Item</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Assignment</th>
                         <TableHead label="Class" col="class" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
                         <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
                         <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
@@ -1250,6 +1255,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       })}
                     </tbody>
                   </table>
+                 </div>
                 );
               })()}
             </div>
@@ -1394,7 +1400,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     if(!ncCourse.name)return;
                     if(ncCourse.format!=="async"&&!ncCourse.days.length)return;
                     if(findMatchingCourse(data.courses.filter(c=>c.termId===viewingTermId),ncCourse.name)){toast2("A course with that name already exists",true);return;}
-                    upd({courses:[...data.courses,{...ncCourse,id:Date.now(),termId:viewingTermId,color:CC[data.courses.length%CC.length]}]});
+                    upd({courses:[...data.courses,{...ncCourse,id:uid(),termId:viewingTermId,color:CC[data.courses.length%CC.length]}]});
                     setNcCourse({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
