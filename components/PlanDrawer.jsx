@@ -238,7 +238,24 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
           </div>
         ) : (
           <>
-            <SectionLabel>Analysis · today → {diag.horizon.end} ({diag.horizon.days} days)</SectionLabel>
+            <SectionLabel>Analysis · today → last deadline {diag.horizon.end} ({diag.horizon.days} days)</SectionLabel>
+
+            {diag.termEndWarning && (
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px", marginBottom: 14,
+                background: "var(--amber-bg)", color: "var(--amber)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.5,
+              }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  Your term end ({diag.termEndWarning.typedEnd}) is <b>{diag.termEndWarning.gapDays} day
+                  {diag.termEndWarning.gapDays !== 1 ? "s" : ""} {diag.termEndWarning.direction}</b> your last deadline
+                  ({diag.termEndWarning.lastDeadline}). The study plan is fine — it's anchored on the deadline — but
+                  Finals Week, holidays, and term status use the date you typed. If it's wrong, fix it in{" "}
+                  <b>School Info → edit the term (pencil icon)</b>.
+                </span>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
               <Stat label="Study demand" value={`${t.desiredH}h`} />
               <Stat label="Planned" value={`${t.plannedH}h`} />

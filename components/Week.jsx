@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
-import { GYM0, getTermRange } from "@/lib/data";
+import { GYM0 } from "@/lib/data";
+import { planningRange } from "@/lib/planningRange";
 import { weekHasBeenPlanned, realDayBlocks, weekStartOf } from "@/lib/calendar";
 import { Sp, SecHead, useConfirm, Timeline, WeekGrid } from "@/components/shared";
 import { PlanDrawer } from "@/components/PlanDrawer";
@@ -57,20 +58,10 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
     toast2(`Study plan cleared from today forward${toKeep>0?` — kept ${toKeep} edited block${toKeep!==1?"s":""}.`:"."} History was kept. Hit Replan to regenerate.`);
   }
 
-  // Build the list of Sunday-start weeks spanning the active term, if known.
-  // The range auto-extends to cover any exam or dated assignment already on record,
-  // so a mis-set Term End (e.g. instruction-end instead of finals-end) can never hide real deadlines.
-  const rawTermRange=getTermRange(p);
-  const termRange=(()=>{
-    if(!rawTermRange)return null;
-    let{start,end}=rawTermRange;
-    const allDates=[
-      ...data.exams.map(e=>e.date),
-      ...data.assignments.filter(a=>a.dueDate&&a.dueDate.length===10).map(a=>a.dueDate),
-    ].filter(Boolean);
-    allDates.forEach(d=>{if(d<start)start=d;if(d>end)end=d;});
-    return{start,end};
-  })();
+  // Sunday-start week list for the active term. Anchored on the real deadlines, not the typed
+  // term-end (see lib/planningRange.js) — so a mis-typed Term End can't hide a late final or
+  // tack on empty trailing weeks.
+  const termRange=planningRange(data);
   const termWeeks=(()=>{
     if(!termRange)return[];
     const out=[];
