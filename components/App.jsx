@@ -151,6 +151,17 @@ function App(){
     if(fix)upd(fix);
   },[data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
 
+  // Seed profile name / phone from what was collected at sign-up (stored in the Supabase user's
+  // metadata) the first time this account's data loads without them.
+  useEffect(()=>{
+    if(!data)return;
+    const m=session?.user?.user_metadata||{};
+    const patch={};
+    if(!data.profile.name&&m.full_name)patch.name=m.full_name;
+    if(!data.profile.phone&&m.phone)patch.phone=m.phone;
+    if(Object.keys(patch).length)updP(patch);
+  },[data?.profile?.name,data?.profile?.phone,session?.user?.id]); // eslint-disable-line
+
   // Collapse full AI course titles to canonical codes ("MATH 180A") so every account renders identically.
   useEffect(()=>{
     if(!data)return;
@@ -391,17 +402,10 @@ function App(){
             <span className="tt" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
-            {data.onboarded&&(
-              <button className="tt" data-tt="Account" onClick={()=>setShowAccount(true)}
-                style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
-                  color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-                <i className="ti ti-user-circle" style={{fontSize:16}}/>
-              </button>
-            )}
-            <button className="tt" data-tt={`Sign out (${session.user?.email||""})`} onClick={()=>supabase.auth.signOut()}
+            <button className="tt" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
               style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                 color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-              <i className="ti ti-logout" style={{fontSize:15}}/>
+              <i className="ti ti-user-circle" style={{fontSize:16}}/>
             </button>
           </div>
         </div>
@@ -434,7 +438,8 @@ function App(){
       </div>
       {toast&&<div className="toast" style={{background:toast.e?"var(--red-bg)":"var(--card2)",color:toast.e?"var(--red)":"var(--t2)"}}>{toast.m}</div>}
       {modalApp}
-      {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}/>}
+      {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
+        onSignOut={()=>supabase.auth.signOut()} userEmail={session.user?.email}/>}
     </div>
   );
 }

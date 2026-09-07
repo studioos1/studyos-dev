@@ -9,8 +9,10 @@ import { APP_VERSION } from "@/lib/version";
 // Views: "landing" (Log in / Sign up buttons) · "signin" · "signup" · "reset" (send reset email)
 // · "update" (set a new password — recoveryMode).
 export function Login({ recoveryMode = false, onDone }) {
-  const [view, setView] = useState(recoveryMode ? "update" : "landing");
+  const [view, setView] = useState(recoveryMode ? "update" : "signin");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,9 +35,14 @@ export function Login({ recoveryMode = false, onDone }) {
   }); };
 
   const signUp = e => { e.preventDefault(); run(async () => {
+    if (!fullName.trim()) throw new Error("Full name is required.");
+    if (!phone.trim()) throw new Error("Mobile phone is required.");
     if (!email || !password) throw new Error("Email and password are both required.");
     if (password.length < 8) throw new Error("Password must be at least 8 characters.");
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { full_name: fullName.trim(), phone: phone.trim() } },
+    });
     if (error) throw error;
     if (!data.session) { setNotice("Account created. Check your email for a confirmation link, then log in."); setView("signin"); }
   }); };
@@ -58,7 +65,6 @@ export function Login({ recoveryMode = false, onDone }) {
   }); };
 
   const heading = {
-    landing: "Your study term, planned.",
     signin: "Log in to your account",
     signup: "Create your account",
     reset: "Reset your password",
@@ -75,11 +81,10 @@ export function Login({ recoveryMode = false, onDone }) {
         onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
     </div>
   );
-  const backTo = (to, label) => (
-    <div style={{ textAlign: "center" }}>
-      <button className="btn btn-ghost btn-sm" type="button" onClick={() => go(to)} style={{ marginTop: 6 }}>
-        {label}
-      </button>
+  const switchRow = (prompt, to, label) => (
+    <div style={{ textAlign: "center", marginTop: 10, fontSize: 13, color: "var(--t3)" }}>
+      {prompt}{" "}
+      <button className="btn btn-ghost btn-sm" type="button" onClick={() => go(to)}>{label}</button>
     </div>
   );
 
@@ -106,56 +111,65 @@ export function Login({ recoveryMode = false, onDone }) {
           <div style={{ fontSize: 13, color: "var(--green)", background: "var(--green-bg)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>{notice}</div>
         )}
 
-        {view === "landing" && (
-          <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="btn btn-action" style={{ width: "100%" }} onClick={() => go("signin")}>Log in</button>
-            <button className="btn btn-ghost" style={{ width: "100%" }} onClick={() => go("signup")}>Sign up</button>
-          </div>
-        )}
-
         {view === "signin" && (
-          <form onSubmit={signIn} className="card">
-            {emailField}
-            <div style={{ marginBottom: 12 }}>
-              <label>Password</label>
-              <input type="password" value={password} autoComplete="current-password"
-                onChange={e => setPassword(e.target.value)} />
-            </div>
-            <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
-              {busy ? "Working…" : "Log in"}
-            </button>
-            <div style={{ textAlign: "center", marginTop: 12 }}>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => go("reset")}>
-                Forgot your password?
+          <>
+            <form onSubmit={signIn} className="card">
+              {emailField}
+              <div style={{ marginBottom: 8 }}>
+                <label>Password</label>
+                <input type="password" value={password} autoComplete="current-password"
+                  onChange={e => setPassword(e.target.value)} />
+              </div>
+              <div style={{ textAlign: "right", marginBottom: 14 }}>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => go("reset")}>
+                  Forgot your password?
+                </button>
+              </div>
+              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
+                {busy ? "Working…" : "Log in"}
               </button>
-            </div>
-            {backTo("landing", "← Back")}
-          </form>
+            </form>
+            {switchRow("Don't have an account?", "signup", "Sign up")}
+          </>
         )}
 
         {view === "signup" && (
-          <form onSubmit={signUp} className="card">
-            {emailField}
-            <div style={{ marginBottom: 12 }}>
-              <label>Password</label>
-              <input type="password" value={password} autoComplete="new-password"
-                onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
-            </div>
-            <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
-              {busy ? "Working…" : "Create account"}
-            </button>
-            {backTo("landing", "← Back")}
-          </form>
+          <>
+            <form onSubmit={signUp} className="card">
+              <div style={{ marginBottom: 12 }}>
+                <label>Full name</label>
+                <input type="text" value={fullName} autoComplete="name"
+                  onChange={e => setFullName(e.target.value)} placeholder="Jane Student" />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label>Mobile phone</label>
+                <input type="tel" value={phone} autoComplete="tel"
+                  onChange={e => setPhone(e.target.value)} placeholder="+1 555 123 4567" />
+              </div>
+              {emailField}
+              <div style={{ marginBottom: 14 }}>
+                <label>Password</label>
+                <input type="password" value={password} autoComplete="new-password"
+                  onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
+              </div>
+              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
+                {busy ? "Working…" : "Create account"}
+              </button>
+            </form>
+            {switchRow("Already have an account?", "signin", "Log in")}
+          </>
         )}
 
         {view === "reset" && (
-          <form onSubmit={sendReset} className="card">
-            {emailField}
-            <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
-              {busy ? "Working…" : "Send reset link"}
-            </button>
-            {backTo("signin", "← Back to log in")}
-          </form>
+          <>
+            <form onSubmit={sendReset} className="card">
+              {emailField}
+              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
+                {busy ? "Working…" : "Send reset link"}
+              </button>
+            </form>
+            {switchRow("Remembered it?", "signin", "Back to log in")}
+          </>
         )}
 
         {view === "update" && (

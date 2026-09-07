@@ -445,7 +445,7 @@ export function useConfirm(){
 // Unlike every other field in the app, this one deliberately does NOT auto-save on change: this
 // is sensitive personal data (now including username/password placeholders), and per explicit
 // instruction, updates here need a real, intentional Save action.
-export function AccountModal({data,updP,toast2,onClose}){
+export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
   const p=data.profile;
   const {confirm,modal}=useConfirm();
   const [draft,setDraft]=useState(()=>({
@@ -505,6 +505,14 @@ export function AccountModal({data,updP,toast2,onClose}){
         <button className={dirty?"btn btn-action":"btn btn-ghost"} style={{width:"100%"}} onClick={save} disabled={!dirty}>
           <i className="ti ti-device-floppy" style={{marginRight:6}}/>{dirty?"Save":"No changes to save"}
         </button>
+        {onSignOut&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            {userEmail&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Signed in as {userEmail}</div>}
+            <button className="btn btn-del" style={{width:"100%"}} onClick={onSignOut}>
+              <i className="ti ti-logout" style={{marginRight:6}}/>Sign out
+            </button>
+          </div>
+        )}
       </div>
       {modal}
     </div>
