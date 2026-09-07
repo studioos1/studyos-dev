@@ -211,7 +211,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
           <div style={{width:9,height:9,background:"#c04020",transform:"rotate(45deg)",borderRadius:2,flexShrink:0}}/>
           <span style={{fontSize:12,color:"var(--t2)"}}>Assignment Due</span>
         </div>
-        {[["exam","Exam"],["class","Class"],["homework","HW Prep"],["study","Study"]].map(([type,label])=>(
+        {[["exam","Exam"],["class","Class"],["homework","HW Prep"],["project","Project"],["study","Study"]].map(([type,label])=>(
           <div key={type} style={{display:"flex",alignItems:"center",gap:6}}>
             <div style={{width:22,height:5,borderRadius:2,background:tc(type).line}}/>
             <span style={{fontSize:12,color:"var(--t2)"}}>{label}</span>

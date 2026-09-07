@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.41.0 — 2026-09-07
+
+**Project-type assignments + two-day exam run-ins**
+
+*Projects.* An assignment can now be typed as a **Project** (Homework⇄Project toggle in Study Preferences; syllabus sync guesses from the title). A project is planned differently from homework:
+- Schedulable the whole term (`PROJECT_START_WINDOW_DAYS`), not just its last 5 days.
+- Steady **even-pace** work: each day it takes `remaining ÷ days-to-(due − ~15% finish buffer)`, a low self-correcting rate — skip a day and the rate ticks up.
+- Aims to finish a few days early (min 3), leaving the tail clear for polish/overrun.
+- Runs after near-term homework/exam prep, before generic regular study, and keeps going through finals week (unlike regular study, which is suppressed there) — but not on an exam's reserved run-in day.
+- Its own indigo block colour + "Project" legend entry; a `PROJECT` badge and row tint in the Study Preferences table.
+
+*Exam run-ins.* Rule A now reserves the exam's last **two consecutive** free days (D-1 and D-2), not just the eve — each exclusively that exam's, off-limits to other courses' prep, homework, projects and regular study. Claimed nearest-exam-first, so across a finals cluster the run-in days fall in exam order; the first exam in a tight cluster gets both days, later exams get their eve plus whatever earlier shared days they can (their D-2 is usually the previous exam's date). Same-day exams break ties by difficulty then weight, so the harder one gets the earlier slot. Run-in days may be packed to 7h (`EXAM_EVE_CAP`); ordinary prep days stay at 3.5h.
+
+*Study Preferences table.* "AI Estimate"/"Student Estimate" → "AI Planning"/"Student Planning" (two-line headers); Due, Weight and both planning columns are centred; the Student Planning dropdown is narrowed to roughly match the AI column; a "Type" column carries the Homework⇄Project toggle; exam rows show an `EXAM` badge with a red row tint.
+
+**Validation:** 42 unit tests pass (`projects.test.js` adds 4: early start, finish buffer, homework still window-bound, keeps going through finals; `examPrepass.test.js` adds 1 for the two-day consecutive run-in). `npm run build` succeeds. Browser-verified against the Fall 2026 finals: MMW gets Oct 31 + Nov 1 as consecutive dedicated days, each eve is single-course, exam days and the post-term day are clear.
+
 ## v2.40.0 — 2026-09-07
 
 **Study-hours estimate is now driven by the difficulty band — changing the rating moves the hours**

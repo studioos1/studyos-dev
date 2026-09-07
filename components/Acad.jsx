@@ -108,7 +108,8 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
         }
         const userValue=a.userValue||null;
         const aiHours=estimateStudyHours(a,course,"homework",userValue||estimatorValue);
-        next[key]={kind:"assignment",id:a.id,courseId:a.courseId,courseName:course?.name||"(unknown)",title:a.title,
+        next[key]={kind:"assignment",type:a.type==="project"?"project":"homework",
+          id:a.id,courseId:a.courseId,courseName:course?.name||"(unknown)",title:a.title,
           weight:a.weight,dueDate:a.dueDate,estimatorValue,userValue,aiHours,userHours:a.userHours??null};
         if(a.estimatorValue==null||aiHours!==a.aiHours)freshA[a.id]={estimatorValue,aiHours};
       }
@@ -157,6 +158,16 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // the final committed value. No per-keystroke involvement here at all.
   function setHoursOverride(key,value){
     setDiffRatings(r=>({...r,[key]:{...r[key],userHours:value}}));
+  }
+  // Homework ⇄ Project. This is a structural classification (it changes HOW the planner schedules
+  // the item — projects get steady early work, not a last-few-days sprint), not a tunable estimate,
+  // so it persists immediately rather than waiting for the Save button, and marks the plan stale.
+  function setItemType(key,rawId,newType){
+    setDiffRatings(r=>({...r,[key]:{...r[key],type:newType}}));
+    upd({
+      assignments:data.assignments.map(a=>a.id===rawId?{...a,type:newType==="project"?"project":undefined}:a),
+      planStale:true,
+    });
   }
   const diffDirty=diffRatings&&diffBaseline!==null&&JSON.stringify(Object.fromEntries(Object.entries(diffRatings).map(([k,r])=>[k,{u:r.userValue,h:r.userHours}])))!==diffBaseline;
 
@@ -433,7 +444,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
         if(isDup){skippedDuplicate++;continue;}
         const est=await computeEstimateFields(a,course,"homework");
-        nA.push({id:Date.now()+i+Math.floor(Math.random()*1000),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...est});
+        // Conservative first guess at project-type work — the student confirms/flips it with the
+        // Homework⇄Project toggle in Study Preferences.
+        const looksLikeProject=/\b(project|capstone|portfolio|thesis|dissertation|term paper|research paper|final paper)\b/i.test(a.title||"");
+        nA.push({id:Date.now()+i+Math.floor(Math.random()*1000),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
       }
       for(const[i,e]of(c.exams||[]).entries()){
@@ -1167,28 +1181,49 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Item</th>
                         <TableHead label="Class" col="class" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>AI Estimate</th>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Student Estimate</th>
+                        <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
+                        <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Type</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600}}>AI Planning</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600,width:104}}>Student Planning</th>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Hours</th>
                         <TableHead label="Priority" col="priority" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map(item=>(
-                        <tr key={item.key} style={{borderBottom:"1px solid var(--b1)"}}>
+                      {sorted.map(item=>{
+                        const isExam=item.kind==="exam";
+                        const isProject=item.type==="project";
+                        const accent=isExam?"var(--red)":isProject?"#6a5acd":"transparent";
+                        return(
+                        <tr key={item.key} style={{borderBottom:"1px solid var(--b1)",
+                          borderLeft:`3px solid ${accent}`,
+                          background:isExam?"var(--red-bg)":isProject?"rgba(106,90,205,0.09)":undefined}}>
                           <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>
-                            <i className={`ti ${item.kind==="exam"?"ti-file-text":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
+                            <i className={`ti ${isExam?"ti-file-text":isProject?"ti-folders":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
                             {item.title}
+                            {isExam&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"var(--red)",background:"var(--red-bg)",padding:"2px 6px",borderRadius:4}}>EXAM</span>}
+                            {isProject&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"#a89cf0",background:"rgba(106,90,205,0.18)",padding:"2px 6px",borderRadius:4}}>PROJECT</span>}
                           </td>
                           <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.courseName}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.dueDate||"—"}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.weight!=null?item.weight+"%":"—"}</td>
-                          <td style={{padding:"9px 8px"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
+                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.dueDate||"—"}</td>
+                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.weight!=null?item.weight+"%":"—"}</td>
                           <td style={{padding:"9px 8px"}}>
+                            {isExam
+                              ?<span style={{fontSize:12,color:"var(--t3)"}}>Exam</span>
+                              :<select value={item.type||"homework"} onChange={e=>setItemType(item.key,item.id,e.target.value)}
+                                 title="Projects get steady work across the whole term instead of a last-few-days sprint"
+                                 style={{fontSize:12,padding:"4px 7px",width:110,
+                                   borderColor:isProject?"#6a5acd":undefined,
+                                   color:isProject?"#a89cf0":undefined,fontWeight:isProject?600:400}}>
+                                 <option value="homework">Homework</option>
+                                 <option value="project">Project</option>
+                               </select>}
+                          </td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>
                             <select value={item.userValue||""} onChange={e=>setDiffOverride(item.key,e.target.value||null)}
-                              style={{fontSize:12,padding:"4px 7px",width:130,
+                              style={{fontSize:12,padding:"4px 6px",width:98,
                                 borderColor:item.userValue?"var(--amber)":undefined,
                                 fontWeight:item.userValue?600:400,
                                 color:item.userValue?"var(--amber)":undefined}}>
@@ -1211,7 +1246,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                           </td>
                           <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)"}}>{item.priority}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 );

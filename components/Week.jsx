@@ -123,7 +123,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
   const weekDatesForBalance=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return iso(d);});
   const weekPlacedAll=weekDatesForBalance.flatMap(ds=>data.studyPlan?.weeks?.[weekStartOf(ds)]?.days?.[ds]||[]);
   const studyH=weekPlacedAll.filter(b=>b.kind==="study").reduce((s,b)=>s+(b.e-b.s),0)/60;
-  const homeworkH=weekPlacedAll.filter(b=>b.kind==="homework").reduce((s,b)=>s+(b.e-b.s),0)/60;
+  const homeworkH=weekPlacedAll.filter(b=>b.kind==="homework"||b.kind==="project").reduce((s,b)=>s+(b.e-b.s),0)/60;
   const classH=data.courses.reduce((s,c)=>{const[sh,sm]=c.startTime.split(":").map(Number);const[eh,em]=c.endTime.split(":").map(Number);return s+((c.days||[]).length*((eh*60+em-sh*60-sm)/60));},0);
   const gymH=gymD.reduce((s,g)=>s+(t2m(g.e)-t2m(g.s))/60,0);
   const funH=(p.funWD*5)+(p.funWE*2);
