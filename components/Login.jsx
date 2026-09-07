@@ -96,7 +96,10 @@ export function Login({ recoveryMode = false, onDone }) {
     }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ fontSize: 12, color: "var(--t3)", letterSpacing: "0.04em", marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={{
+            fontSize: 15, fontWeight: 500, color: "var(--t1)", lineHeight: 1.5,
+            marginBottom: 12, maxWidth: 300, marginLeft: "auto", marginRight: "auto",
+          }}>
             Get things done, on time — a personal assistant for students
           </div>
           <span style={{
