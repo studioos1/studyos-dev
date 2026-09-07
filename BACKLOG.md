@@ -200,7 +200,7 @@ zero courses and the study plan came out empty/stale — while Avishai's hand-tu
 fine. Root cause is onboarding creating school/term/courses out of order. Grouped so the two live
 bugs ship first:
 
-**Group 1 — UI fixes (built, branch `fix/mba13-ui-and-planner`):**
+**Group 1 — UI fixes — ✅ DONE (merged, PR #12):**
 - Course names collapse to their canonical code ("MATH 180A") everywhere — at creation + a
   one-time `normalizeCourseNamesIfNeeded` migration. Fixes the Difficulty table overflowing its
   card (was rendering 35-char AI titles).
@@ -210,7 +210,7 @@ bugs ship first:
   screen instead of blowing out the page.
 - Difficulty tab: "Item" → "Assignment".
 
-**Group 2 — account-integrity repair (built, same branch):**
+**Group 2 — account-integrity repair — ✅ DONE (merged, PR #12):**
 - `repairTermLinkageIfNeeded` — runs on load, idempotent. (1) fills a dateless term from
   `profile.termStart/termEnd`; (2) links every orphan course (termId null, or pointing at a
   deleted term) to the current term. Existing broken accounts self-heal — no re-upload.
@@ -223,13 +223,20 @@ bugs ship first:
 - Step 3 — Upload Syllabus.
 - Existing user creating a new term → routed into the School screen → **(+) New term** → continue.
 
-**Group 4 — login / signup / account (depends on B-11 for the reset email):**
-- Sign up: mandatory fields — full name, mobile phone, email.
-- **"Forgot your password"** flow — needs Supabase password-reset email actually delivering (B-11).
-- Consolidate the two top-right icons: move **Sign out** into the **User Account** menu/modal so
-  it's one icon, not two.
+**Group 4 — login / signup / account — ✅ DONE (branch `fix/login-landing-forgot-password`, v2.42.0):**
+- Login screen is the standard form: email + password + **Log in**, **Forgot your password?** link,
+  **Sign up** switch below. Plus a two-line tagline above the wordmark.
+- Sign up: mandatory **full name** + **mobile phone** (+ email + password); stored in Supabase user
+  metadata, seeded into `profile.name`/`phone` on first load.
+- **Forgot-password** flow: email → `resetPasswordForEmail` → after the link, a set-new-password
+  screen via the `PASSWORD_RECOVERY` event. *Reliable delivery still needs B-11.*
+- One account icon: standalone header sign-out removed; **Sign out** (+ signed-in email) now in
+  the Account modal.
 
-Order: Group 1 → Group 2 (both quick, both fix live bugs) → Group 3 → B-11 → Group 4.
+**Group 3 — onboarding flow redesign — still to do** (also fixes the ordering that caused Group 2
+in the first place).
+
+Order done: Group 1 → Group 2 → Group 4. Remaining: Group 3, then B-11 for reliable reset emails.
 
 ---
 
