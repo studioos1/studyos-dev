@@ -16,6 +16,7 @@ import {
   isFin,
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
+  dedupeItemIdsIfNeeded,
   syncActiveTermToProfilePatch,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
@@ -134,6 +135,13 @@ function App(){
     const migration=migrateLegacyTermIfNeeded(data);
     if(migration)upd(migration);
   },[data?.terms?.length,data?.profile.schoolName]); // eslint-disable-line
+
+  // One-time repair for colliding assignment/exam ids from earlier builds (see dedupeItemIdsIfNeeded).
+  useEffect(()=>{
+    if(!data)return;
+    const fix=dedupeItemIdsIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields
