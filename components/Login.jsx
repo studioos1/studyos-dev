@@ -101,7 +101,7 @@ export function Login({ recoveryMode = false, onDone }) {
               Get things done, on time
             </div>
             <div style={{ fontSize: 15, fontWeight: 500, color: "var(--t1)" }}>
-              a personal assistant for students
+              A personal assistant for students
             </div>
           </div>
           <span style={{
