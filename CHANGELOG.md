@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.39.0 — 2026-09-07
+
+**Exam-prep pre-pass — final-week study is decided globally, back-loaded, and de-conflicted (rules A–H)**
+
+The old per-day planner scheduled exam prep too early and let it split across subjects the night before a final (e.g. Math prep on the eve of the MMW final). Exam prep is now decided in a single global pass (`buildExamPrepPlan` in `lib/planner/schedule.js`) *before* day-by-day placement, so it can pack toward each exam and be prioritised across exams — things a greedy per-day pass can't do.
+
+- **B — back-loaded fill.** Prep packs from the eve (D-1) backward. The eve is filled as full as the day allows (`EXAM_EVE_CAP` = 7h), every earlier prep day stays capped at `EXAM_DAILY_CAP` = 3.5h.
+- **A — exclusive eve.** The day before exam X carries only X's prep (plus fixed events and genuinely can't-wait, due-tomorrow homework). The nearest exam claims its eve first (`claimedEves`), so a later exam can't spill onto it.
+- **C — nearest deadline wins scarce days.** Exams are processed soonest-first and share a running per-day capacity budget, so the closest exam gets first call on tight near-term time; contention surfaces as the *later* exam's shortfall.
+- **D / G — spacing by stakes.** Each exam is spread over ≥2 distinct days, ≥3 when it's high-stakes (grade weight ≥25% or difficulty "High").
+- **E — no regular study in the finals stretch.** When ≥2 exams fall within 14 days, Tier-2 per-course "regular study" is suppressed from the first exam's eve through the last exam.
+- **F — exam day = rest.** No study of any kind is scheduled on a day an exam falls on.
+- **H — eve label.** D-1 sessions read "<course> exam — final review" instead of "exam prep (Nd left)".
+
+`planDayV2`, `preflightRiskCheck`, and `planHorizon` take an optional `examPrep` argument; exam-prep shortfalls flow through the same risk channel as everything else, so nothing is silently dropped. Builds on the earlier "no study demand after a course's last deadline" (D1) and "anchor the horizon on the last real deadline, not the typed term-end" (D2) planner changes in this same branch.
+
+**Validation:** 30 unit tests pass (`lib/planner/examPrepass.test.js` adds 8 covering rules A/B/C/E/F/H and the multi-exam eve de-confliction; the 22 existing planner/range tests still pass). `npm run build` succeeds. Browser-verified against the real Fall 2026 finals cluster (MMW 11/2, MATH 11/4, DSC 11/6): each eve carries only its own exam's prep, exam days and the post-term day are clear, and no regular study appears in the stretch.
+
 ## v2.38.0 — 2026-09-04
 
 **Migrated to Next.js — build tooling replaced, app logic untouched (roadmap step A4)**
