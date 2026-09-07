@@ -29,6 +29,7 @@ No need to order the whole list up front.
 | — | B-14 | Conversational AI query over all your data + app help | AI assistant | L | Backlog |
 | — | B-15 | New-user Site Tour / guided walkthrough | Onboarding | M | Backlog |
 | — | B-16 | In-app planner assistant — command-driven plan edits (no external LLM) | AI assistant | M–L | Parked |
+| **2** | B-17 | Onboarding + account-integrity hardening (surfaced testing Itay's new account) | Onboarding / Infra | L | In progress |
 
 ## Details
 
@@ -191,6 +192,44 @@ Feasibility spike (2026-09, no design done):
   those too (B-01's deterministic difficulty research would replace one of them).
 
 Parked pending more thought on scope and whether the value clears the bar vs. other work.
+
+### B-17 · Onboarding + account-integrity hardening
+Surfaced testing Itay's account as a genuine new user (2026-09). His account onboarded with a
+**dateless term and courses not linked to it**, so `termScopedForPlanning` scoped the planner to
+zero courses and the study plan came out empty/stale — while Avishai's hand-tuned account looked
+fine. Root cause is onboarding creating school/term/courses out of order. Grouped so the two live
+bugs ship first:
+
+**Group 1 — UI fixes (built, branch `fix/mba13-ui-and-planner`):**
+- Course names collapse to their canonical code ("MATH 180A") everywhere — at creation + a
+  one-time `normalizeCourseNamesIfNeeded` migration. Fixes the Difficulty table overflowing its
+  card (was rendering 35-char AI titles).
+- `uid()` + `dedupeItemIdsIfNeeded` — the old `Date.now()+i+random` id generator collided, so one
+  checkbox / edit / prioritise hit every record sharing the id (the "checkbox marks 3" bug).
+- All Academics tables wrapped in `overflow-x:auto` so they scroll inside their card on a small
+  screen instead of blowing out the page.
+- Difficulty tab: "Item" → "Assignment".
+
+**Group 2 — account-integrity repair (built, same branch):**
+- `repairTermLinkageIfNeeded` — runs on load, idempotent. (1) fills a dateless term from
+  `profile.termStart/termEnd`; (2) links every orphan course (termId null, or pointing at a
+  deleted term) to the current term. Existing broken accounts self-heal — no re-upload.
+
+**Group 3 — onboarding flow redesign:**
+- Multi-step, **save before advancing** each step (also fixes the ordering that causes Group 2).
+- Step 1 — Select School: mandatory *School name*.
+- Step 2 — Select Term: mandatory *Term Name, Start, End*. Buttons **Continue** (save + next) /
+  **Save & Continue Later**.
+- Step 3 — Upload Syllabus.
+- Existing user creating a new term → routed into the School screen → **(+) New term** → continue.
+
+**Group 4 — login / signup / account (depends on B-11 for the reset email):**
+- Sign up: mandatory fields — full name, mobile phone, email.
+- **"Forgot your password"** flow — needs Supabase password-reset email actually delivering (B-11).
+- Consolidate the two top-right icons: move **Sign out** into the **User Account** menu/modal so
+  it's one icon, not two.
+
+Order: Group 1 → Group 2 (both quick, both fix live bugs) → Group 3 → B-11 → Group 4.
 
 ---
 
