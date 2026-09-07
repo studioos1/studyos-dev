@@ -140,15 +140,16 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     return()=>{cancelled=true;};
   },[]);
 
-  // Changing the difficulty band re-derives the hours suggestion on the spot (aiHours), so the
-  // student sees "Mid→High ⇒ 3h→5h" immediately. A hours value the student typed themselves
-  // (userHours) is left alone — that always wins for planning; they can hit the ↺ chip to drop it.
+  // Changing the difficulty band is a fresh statement that the current hours aren't right — so it
+  // re-derives the suggestion (aiHours) AND drops any hours the student had typed, letting the new
+  // (usually higher) suggestion become the demand the planner uses. They can still type a new
+  // number afterward if they want more than the suggestion.
   function setDiffOverride(key,value){
     setDiffRatings(r=>{
       const row=r[key];
       const course=data.courses.find(c=>c.id===row.courseId);
       const aiHours=estimateStudyHours({weight:row.weight},course,row.kind==="exam"?"exam":"homework",value||row.estimatorValue);
-      return{...r,[key]:{...row,userValue:value,aiHours}};
+      return{...r,[key]:{...row,userValue:value,aiHours,userHours:null}};
     });
   }
   // Receives an already-parsed number|null from HoursInput's commit (blur/Enter) — HoursInput
@@ -1224,7 +1225,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               sections={[
                 {heading:"",body:"We use AI to estimate two things for every assignment and exam:"},
                 {heading:"Difficulty",body:"A Low / Mid / High / Very High band for each item, from how hard the course tends to be plus how much this item counts toward your grade. Very High is for cumulative finals and big projects."},
-                {heading:"Hours",body:"Read straight off the difficulty band (Very High takes the most), then nudged a little by grade weight %. Change an item's band and the suggested hours move with it. This is what gets blocked off on your calendar."},
+                {heading:"Hours",body:"Read straight off the difficulty band (Very High takes the most), then nudged a little by grade weight %. Changing an item's band resets its hours to the new suggestion — that's the point of changing it. This is what gets blocked off on your calendar."},
                 {heading:"Your inputs always win",body:"Type your own hours to override the suggestion — that number is what the planner uses, and the ↺ chip drops back to the suggestion. Over time we'll use your edits to personalize future estimates to you specifically."},
                 {heading:"Save vs. Save & Replan",body:"Save just saves. Save & Replan also updates your calendar right away."},
               ]}
