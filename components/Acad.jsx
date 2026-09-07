@@ -8,6 +8,7 @@ import {
   estimateStudyHours,
   computeEstimateFields,
   computePriorityScore,
+  DIFFICULTY_BANDS,
 } from "@/lib/planner";
 import { CI } from "@/lib/api";
 import { PDF } from "@/lib/pdf";
@@ -91,37 +92,39 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     let cancelled=false;
     (async()=>{
       const next={};
-      const freshA={},freshE={}; // items with no prior estimate — cache their computed values back to data
+      // Cache back to data when a value is newly computed OR the hours suggestion has drifted
+      // (e.g. the estimator formula changed) — so the planner reads current numbers without
+      // needing a Save. estimateStudyHours is a cheap sync lookup, so we always refresh it from
+      // the item's EFFECTIVE rating (student override if any, else the AI rating); estimateDifficulty
+      // (async, may hit the network later) still only runs for items that have never had a rating.
+      const freshA={},freshE={};
       for(const a of data.assignments){
         if(a.status==="done")continue;
         const course=data.courses.find(c=>c.id===a.courseId);
         const key=`a_${a.id}`;
-        if(a.estimatorValue!=null){
-          next[key]={kind:"assignment",id:a.id,courseId:a.courseId,courseName:course?.name||"(unknown)",title:a.title,
-            weight:a.weight,dueDate:a.dueDate,estimatorValue:a.estimatorValue,userValue:a.userValue||null,
-            aiHours:a.aiHours??a.estimatedHours??2,userHours:a.userHours??null};
-        }else{
-          const r=await estimateDifficulty(a,course);
-          const aiHours=estimateStudyHours(a,course,"homework");
-          next[key]={kind:"assignment",id:a.id,courseId:a.courseId,courseName:course?.name||"(unknown)",title:a.title,
-            weight:a.weight,dueDate:a.dueDate,estimatorValue:r.value,userValue:null,aiHours,userHours:null};
-          freshA[a.id]={estimatorValue:r.value,aiHours};
+        let estimatorValue=a.estimatorValue;
+        if(estimatorValue==null){
+          estimatorValue=(await estimateDifficulty(a,course)).value;
         }
+        const userValue=a.userValue||null;
+        const aiHours=estimateStudyHours(a,course,"homework",userValue||estimatorValue);
+        next[key]={kind:"assignment",type:a.type==="project"?"project":"homework",
+          id:a.id,courseId:a.courseId,courseName:course?.name||"(unknown)",title:a.title,
+          weight:a.weight,dueDate:a.dueDate,estimatorValue,userValue,aiHours,userHours:a.userHours??null};
+        if(a.estimatorValue==null||aiHours!==a.aiHours)freshA[a.id]={estimatorValue,aiHours};
       }
       for(const e of data.exams){
         const course=data.courses.find(c=>c.id===e.courseId);
         const key=`e_${e.id}`;
-        if(e.estimatorValue!=null){
-          next[key]={kind:"exam",id:e.id,courseId:e.courseId,courseName:course?.name||"(unknown)",title:e.title||"Exam",
-            weight:e.weight,dueDate:e.date,estimatorValue:e.estimatorValue,userValue:e.userValue||null,
-            aiHours:e.aiHours??e.estimatedHours??4,userHours:e.userHours??null};
-        }else{
-          const r=await estimateDifficulty(e,course);
-          const aiHours=estimateStudyHours(e,course,"exam");
-          next[key]={kind:"exam",id:e.id,courseId:e.courseId,courseName:course?.name||"(unknown)",title:e.title||"Exam",
-            weight:e.weight,dueDate:e.date,estimatorValue:r.value,userValue:null,aiHours,userHours:null};
-          freshE[e.id]={estimatorValue:r.value,aiHours};
+        let estimatorValue=e.estimatorValue;
+        if(estimatorValue==null){
+          estimatorValue=(await estimateDifficulty(e,course)).value;
         }
+        const userValue=e.userValue||null;
+        const aiHours=estimateStudyHours(e,course,"exam",userValue||estimatorValue);
+        next[key]={kind:"exam",id:e.id,courseId:e.courseId,courseName:course?.name||"(unknown)",title:e.title||"Exam",
+          weight:e.weight,dueDate:e.date,estimatorValue,userValue,aiHours,userHours:e.userHours??null};
+        if(e.estimatorValue==null||aiHours!==e.aiHours)freshE[e.id]={estimatorValue,aiHours};
       }
       if(!cancelled){
         setDiffRatings(next);
@@ -138,14 +141,33 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     return()=>{cancelled=true;};
   },[]);
 
+  // Changing the difficulty band is a fresh statement that the current hours aren't right — so it
+  // re-derives the suggestion (aiHours) AND drops any hours the student had typed, letting the new
+  // (usually higher) suggestion become the demand the planner uses. They can still type a new
+  // number afterward if they want more than the suggestion.
   function setDiffOverride(key,value){
-    setDiffRatings(r=>({...r,[key]:{...r[key],userValue:value}}));
+    setDiffRatings(r=>{
+      const row=r[key];
+      const course=data.courses.find(c=>c.id===row.courseId);
+      const aiHours=estimateStudyHours({weight:row.weight},course,row.kind==="exam"?"exam":"homework",value||row.estimatorValue);
+      return{...r,[key]:{...row,userValue:value,aiHours,userHours:null}};
+    });
   }
   // Receives an already-parsed number|null from HoursInput's commit (blur/Enter) — HoursInput
   // handles all typing/parsing/validation itself via its own local state, so this just stores
   // the final committed value. No per-keystroke involvement here at all.
   function setHoursOverride(key,value){
     setDiffRatings(r=>({...r,[key]:{...r[key],userHours:value}}));
+  }
+  // Homework ⇄ Project. This is a structural classification (it changes HOW the planner schedules
+  // the item — projects get steady early work, not a last-few-days sprint), not a tunable estimate,
+  // so it persists immediately rather than waiting for the Save button, and marks the plan stale.
+  function setItemType(key,rawId,newType){
+    setDiffRatings(r=>({...r,[key]:{...r[key],type:newType}}));
+    upd({
+      assignments:data.assignments.map(a=>a.id===rawId?{...a,type:newType==="project"?"project":undefined}:a),
+      planStale:true,
+    });
   }
   const diffDirty=diffRatings&&diffBaseline!==null&&JSON.stringify(Object.fromEntries(Object.entries(diffRatings).map(([k,r])=>[k,{u:r.userValue,h:r.userHours}])))!==diffBaseline;
 
@@ -422,7 +444,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
         if(isDup){skippedDuplicate++;continue;}
         const est=await computeEstimateFields(a,course,"homework");
-        nA.push({id:Date.now()+i+Math.floor(Math.random()*1000),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...est});
+        // Conservative first guess at project-type work — the student confirms/flips it with the
+        // Homework⇄Project toggle in Study Preferences.
+        const looksLikeProject=/\b(project|capstone|portfolio|thesis|dissertation|term paper|research paper|final paper)\b/i.test(a.title||"");
+        nA.push({id:Date.now()+i+Math.floor(Math.random()*1000),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
       }
       for(const[i,e]of(c.exams||[]).entries()){
@@ -1156,45 +1181,73 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Item</th>
                         <TableHead label="Class" col="class" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>AI Estimate</th>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Student Estimate</th>
+                        <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
+                        <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Type</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600}}>AI Planning</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600,width:104}}>Student Planning</th>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Hours</th>
                         <TableHead label="Priority" col="priority" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map(item=>(
-                        <tr key={item.key} style={{borderBottom:"1px solid var(--b1)"}}>
+                      {sorted.map(item=>{
+                        const isExam=item.kind==="exam";
+                        const isProject=item.type==="project";
+                        const accent=isExam?"var(--red)":isProject?"#6a5acd":"transparent";
+                        return(
+                        <tr key={item.key} style={{borderBottom:"1px solid var(--b1)",
+                          borderLeft:`3px solid ${accent}`,
+                          background:isExam?"var(--red-bg)":isProject?"rgba(106,90,205,0.09)":undefined}}>
                           <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>
-                            <i className={`ti ${item.kind==="exam"?"ti-file-text":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
+                            <i className={`ti ${isExam?"ti-file-text":isProject?"ti-folders":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
                             {item.title}
+                            {isExam&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"var(--red)",background:"var(--red-bg)",padding:"2px 6px",borderRadius:4}}>EXAM</span>}
+                            {isProject&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"#a89cf0",background:"rgba(106,90,205,0.18)",padding:"2px 6px",borderRadius:4}}>PROJECT</span>}
                           </td>
                           <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.courseName}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.dueDate||"—"}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.weight!=null?item.weight+"%":"—"}</td>
-                          <td style={{padding:"9px 8px"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
+                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.dueDate||"—"}</td>
+                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.weight!=null?item.weight+"%":"—"}</td>
                           <td style={{padding:"9px 8px"}}>
+                            {isExam
+                              ?<span style={{fontSize:12,color:"var(--t3)"}}>Exam</span>
+                              :<select value={item.type||"homework"} onChange={e=>setItemType(item.key,item.id,e.target.value)}
+                                 title="Projects get steady work across the whole term instead of a last-few-days sprint"
+                                 style={{fontSize:12,padding:"4px 7px",width:110,
+                                   borderColor:isProject?"#6a5acd":undefined,
+                                   color:isProject?"#a89cf0":undefined,fontWeight:isProject?600:400}}>
+                                 <option value="homework">Homework</option>
+                                 <option value="project">Project</option>
+                               </select>}
+                          </td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>
                             <select value={item.userValue||""} onChange={e=>setDiffOverride(item.key,e.target.value||null)}
-                              style={{fontSize:12,padding:"4px 7px",width:120,
+                              style={{fontSize:12,padding:"4px 6px",width:98,
                                 borderColor:item.userValue?"var(--amber)":undefined,
                                 fontWeight:item.userValue?600:400,
                                 color:item.userValue?"var(--amber)":undefined}}>
                               <option value="">— none —</option>
-                              <option value="Low">Low</option>
-                              <option value="Mid">Mid</option>
-                              <option value="High">High</option>
+                              {DIFFICULTY_BANDS.map(b=><option key={b} value={b}>{b}</option>)}
                             </select>
                           </td>
-                          <td style={{padding:"9px 8px"}}>
+                          <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                             <HoursInput value={item.userHours??item.aiHours} isOverridden={item.userHours!=null}
                               onCommit={v=>setHoursOverride(item.key,v)}/>
                             <span style={{fontSize:11,color:"var(--t3)",marginLeft:4}}>h</span>
+                            {item.userHours!=null&&item.userHours!==item.aiHours&&(
+                              <button onClick={()=>setHoursOverride(item.key,null)}
+                                title={`Reset to suggested ${item.aiHours}h`}
+                                style={{marginLeft:6,fontSize:11,color:"var(--t3)",background:"none",border:"none",
+                                  cursor:"pointer",padding:0}}>
+                                ↺ {item.aiHours}h
+                              </button>
+                            )}
                           </td>
                           <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)"}}>{item.priority}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 );
@@ -1207,9 +1260,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               onClose={()=>setShowDiffHelp(false)}
               sections={[
                 {heading:"",body:"We use AI to estimate two things for every assignment and exam:"},
-                {heading:"Difficulty",body:"We research how hard the course actually is (drawing on student feedback and course history), combined with how much this item counts toward your grade."},
-                {heading:"Hours",body:"Based on the difficulty and grade weight %, our AI estimates how long it'll take to prep HW or study for exams. This is what gets blocked off on your calendar."},
-                {heading:"Your inputs always win",body:"You always have the option to edit these estimates based on your own experience. Your input is what gets used to plan — never the AI's original estimate. Over time, we'll use your edits to personalize future estimates to you specifically."},
+                {heading:"Difficulty",body:"A Low / Mid / High / Very High band for each item, from how hard the course tends to be plus how much this item counts toward your grade. Very High is for cumulative finals and big projects."},
+                {heading:"Hours",body:"Read straight off the difficulty band (Very High takes the most), then nudged a little by grade weight %. Changing an item's band resets its hours to the new suggestion — that's the point of changing it. This is what gets blocked off on your calendar."},
+                {heading:"Your inputs always win",body:"Type your own hours to override the suggestion — that number is what the planner uses, and the ↺ chip drops back to the suggestion. Over time we'll use your edits to personalize future estimates to you specifically."},
                 {heading:"Save vs. Save & Replan",body:"Save just saves. Save & Replan also updates your calendar right away."},
               ]}
             />

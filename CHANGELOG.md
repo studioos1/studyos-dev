@@ -1,5 +1,57 @@
 # StudyOS Changelog
 
+## v2.41.0 — 2026-09-07
+
+**Project-type assignments + two-day exam run-ins**
+
+*Projects.* An assignment can now be typed as a **Project** (Homework⇄Project toggle in Study Preferences; syllabus sync guesses from the title). A project is planned differently from homework:
+- Schedulable the whole term (`PROJECT_START_WINDOW_DAYS`), not just its last 5 days.
+- Steady **even-pace** work: each day it takes `remaining ÷ days-to-(due − ~15% finish buffer)`, a low self-correcting rate — skip a day and the rate ticks up.
+- Aims to finish a few days early (min 3), leaving the tail clear for polish/overrun.
+- Runs after near-term homework/exam prep, before generic regular study, and keeps going through finals week (unlike regular study, which is suppressed there) — but not on an exam's reserved run-in day.
+- Its own indigo block colour + "Project" legend entry; a `PROJECT` badge and row tint in the Study Preferences table.
+
+*Exam run-ins.* Each exam gets two dedicated days — an **eve** (D-1) and a **lead-in**. Exams are grouped into clusters (chains within `FINALS_STRETCH_MAX_SPAN` of each other), so a midterm week and finals week are handled separately. Within a cluster of ≥2 exams the lead-in days are the block of free days before the cluster's earliest eve, handed out **in exam order** — soonest exam gets the earliest lead-in day. So a MMW 11/2 / MATH 11/4 / DSC 11/6 cluster produces: 10/29 MMW, 10/30 MATH, 10/31 DSC (lead-ins), then 11/1 MMW, 11/3 MATH, 11/5 DSC (eves), exam days and 11/7 clear. A lone exam gets its eve plus the day before it.
+
+The **eve** is exclusive — that exam's prep plus only can't-wait homework, no projects, no regular study. The **lead-in** is lighter (exam prep pencilled in at 3.5h, not 7h) and **still takes homework that's due around then** — a Problem Set due the week of finals is no longer dropped to make room for exam prep. Only projects and Tier-2 regular study are held off the lead-in. Time per exam is its estimated (difficulty-driven) hours: the eve carries ~60%, capped at 7h; only a genuinely large demand spills onto earlier shared days at 3.5h.
+
+If an exam would still come up short after all that, its lead-in day's leftover time (after due homework) is filled with more of its own prep rather than left idle — up to a full 7h day. A fully-covered exam's lead-in stays light.
+
+*Study Preferences table.* "AI Estimate"/"Student Estimate" → "AI Planning"/"Student Planning" (two-line headers); Due, Weight and both planning columns are centred; the Student Planning dropdown is narrowed to roughly match the AI column; a "Type" column carries the Homework⇄Project toggle; exam rows show an `EXAM` badge with a red row tint.
+
+**Validation:** 43 unit tests pass (`projects.test.js` adds 4; `examPrepass.test.js` covers the eve + lead-in structure, lead-ins in exam order, two dedicated days with spill only when large, a lone midterm's exclusive eve, and homework not dropped on a lead-in). `npm run build` succeeds. Browser-verified against the Fall 2026 finals: the run-up reads 10/29 MMW, 10/30 MATH, 10/31 DSC, 11/1 MMW, 11/3 MATH, 11/5 DSC — each day one course, prep filling the evenings while the finals are short, due homework alongside — exam days and 11/7 clear. Plan-status shortfall fell from 22.6h to 5.9h across these two refinements.
+
+## v2.40.0 — 2026-09-07
+
+**Study-hours estimate is now driven by the difficulty band — changing the rating moves the hours**
+
+The old `estimateStudyHours` looked only at the course's numeric difficulty (1–10) and grade weight — it never consulted the item's Low/Mid/High rating. So overriding an item M→H in Study Preferences left the suggested hours (and the plan) unchanged, which is exactly backwards from what the control implies.
+
+- **`estimateStudyHours(item, course, kind, rating)`** is now a plain lookup: `STUDY_HOURS_BY_RATING[kind][rating] × a ±30% weight nudge`, rounded to the half-hour. The table (`lib/planner/estimate.js`, marked "TUNE HERE"): homework 1.5 / 3 / 5 / 7h, exam 4 / 7 / 11 / 16h for Low / Mid / High / Very High. No double-count — the band already folds in course difficulty (that's what `estimateDifficulty` does), so the course multiplier is gone from the hours formula.
+- **New "Very High" band** for cumulative finals and capstone projects — deliberately rare (a heavy item in a genuinely hard course). Added to `estimateDifficulty`'s bucketing, `DIFFICULTY_WEIGHT` (→ priority), the exam pre-pass `highStakes` test (→ 3-day spread), the `DiffPill`, and the Study Preferences dropdown.
+- **Study Preferences table**: changing an item's band recomputes the suggested hours on the spot (no Save needed). A number you typed yourself still wins for planning; a "↺ Nh" chip next to the field drops your override back to the suggestion. On tab open, every item's hours suggestion is refreshed from its effective rating and cached back, so the planner reads current numbers.
+- Not touched: research-backed difficulty (`webDifficultySignal`, still a stub) and the personalization loop (learning from your edits) — both remain the next steps.
+
+**Validation:** 37 unit tests pass (`estimate.test.js` rewritten for the band-driven model + `computeEstimateFields` consistency; planner/prepass/range suites unchanged). `npm run build` succeeds. Browser-verified: a DSC exam at Mid shows 7h; switching it to High moves it to 11h and its priority 30→45 live; the ↺ chip restores the suggestion.
+
+## v2.39.0 — 2026-09-07
+
+**Exam-prep pre-pass — final-week study is decided globally, back-loaded, and de-conflicted (rules A–H)**
+
+The old per-day planner scheduled exam prep too early and let it split across subjects the night before a final (e.g. Math prep on the eve of the MMW final). Exam prep is now decided in a single global pass (`buildExamPrepPlan` in `lib/planner/schedule.js`) *before* day-by-day placement, so it can pack toward each exam and be prioritised across exams — things a greedy per-day pass can't do.
+
+- **B — back-loaded fill.** Prep packs from the eve (D-1) backward. The eve is filled as full as the day allows (`EXAM_EVE_CAP` = 7h), every earlier prep day stays capped at `EXAM_DAILY_CAP` = 3.5h.
+- **A — exclusive eve.** The day before exam X carries only X's prep (plus fixed events and genuinely can't-wait, due-tomorrow homework). The nearest exam claims its eve first (`claimedEves`), so a later exam can't spill onto it.
+- **C — nearest deadline wins scarce days.** Exams are processed soonest-first and share a running per-day capacity budget, so the closest exam gets first call on tight near-term time; contention surfaces as the *later* exam's shortfall.
+- **D / G — spacing by stakes.** Each exam is spread over ≥2 distinct days, ≥3 when it's high-stakes (grade weight ≥25% or difficulty "High").
+- **E — no regular study in the finals stretch.** When ≥2 exams fall within 14 days, Tier-2 per-course "regular study" is suppressed from the first exam's eve through the last exam.
+- **F — exam day = rest.** No study of any kind is scheduled on a day an exam falls on.
+- **H — eve label.** D-1 sessions read "<course> exam — final review" instead of "exam prep (Nd left)".
+
+`planDayV2`, `preflightRiskCheck`, and `planHorizon` take an optional `examPrep` argument; exam-prep shortfalls flow through the same risk channel as everything else, so nothing is silently dropped. Builds on the earlier "no study demand after a course's last deadline" (D1) and "anchor the horizon on the last real deadline, not the typed term-end" (D2) planner changes in this same branch.
+
+**Validation:** 30 unit tests pass (`lib/planner/examPrepass.test.js` adds 8 covering rules A/B/C/E/F/H and the multi-exam eve de-confliction; the 22 existing planner/range tests still pass). `npm run build` succeeds. Browser-verified against the real Fall 2026 finals cluster (MMW 11/2, MATH 11/4, DSC 11/6): each eve carries only its own exam's prep, exam days and the post-term day are clear, and no regular study appears in the stretch.
+
 ## v2.38.0 — 2026-09-04
 
 **Migrated to Next.js — build tooling replaced, app logic untouched (roadmap step A4)**

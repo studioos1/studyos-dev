@@ -14,7 +14,7 @@ import { DF } from "@/lib/constants";
 import { Sp, DiffBadge, DelBtn, Timeline } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
-export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning}){
+export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab}){
   // Scoped to the current term — otherwise Deadline Awareness, Today's Classes, and everything
   // else here would consider every course/assignment/exam ever created, including years-old
   // completed terms kept for history. Safe: this component never writes directly to
@@ -192,6 +192,19 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           )}
         </div>
       </div>
+
+      {/* Daily check-in nudge — keeps overdue items from piling up unnoticed. */}
+      {!(data.dailyLogs||[]).some(l=>l.date===iso())&&(
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:16,
+          background:"var(--amber-bg)",color:"var(--amber)",borderRadius:10,fontSize:13.5}}>
+          <i className="ti ti-checkbox" style={{fontSize:16,flexShrink:0}}/>
+          Evening check-in not done yet — mark off what you finished so tomorrow's plan is accurate.
+          <button className="btn btn-sm" style={{marginLeft:"auto",background:"var(--amber)",color:"#1a0e00"}}
+            onClick={()=>setTab?.("prog")}>
+            Open check-in
+          </button>
+        </div>
+      )}
 
       {/* ── TOP THINGS TO KEEP IN MIND — first content block ── */}
       {brief&&(

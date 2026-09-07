@@ -25,6 +25,14 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 ## Core architecture
 
 ### The planner (two-phase)
+- **PRINCIPLE — all planner logic is generalized and non-term-specific.** No rule branches on
+  course names, specific dates, exam counts, or an assumed term shape (quarter vs semester). Logic
+  acts only on `data` and the derived horizon. Tuned default constants (`EXAM_EVE_CAP`,
+  `FINALS_STRETCH_MAX_SPAN`, `STUDY_HOURS_BY_RATING`, band thresholds, …) are fine but must be
+  universal defaults, centralized at the top of their module, never conditioned on which
+  term/course. Structural devices (clusters, run-in days, finals stretch) must scale to 1, 2, N
+  exams and any spacing — verify with a lone exam and a non-final mid-term cluster, not just the
+  3-final case. Real course names/dates in code only ever appear inside explanatory comments.
 - **Phase 1 (Estimate & Prioritize):** `estimateDifficulty()`/`estimateStudyHours()` — combines
   course difficulty rating with an item's grade weight. Student overrides (`userValue`/`userHours`)
   always take precedence over AI estimates, permanently, per item.
@@ -79,6 +87,12 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Established UI conventions
 
+- **"Activated" state = amber text.** A control that reflects a *state* rather than firing an
+  action (a selected tab/segment, the currently-viewed item, a toggle that's "on", a button
+  that's now relevant) is shown by turning its **text/icon colour to `var(--amber)`** — same as
+  the Academics sub-tabs, the Weekly view segmented toggle, the current-week dropdown, and
+  "Save" buttons when there's something to save. Not-activated / not-relevant is muted
+  (`var(--t3)`) or disabled. Apply this by default for any new state-reflecting control.
 - Every content section uses the same `BOX`/`TITLE_ROW`/`TITLE_LEFT`/`TITLE_ICON`/`TITLE_TEXT`/
   `DIVIDER`/`INNER` style-constant pattern (each top-level tab component redefines these locally —
   `Today`, `Acad`, `Sett`, `SchoolInfo` etc. all have their own copies). New sections should match
