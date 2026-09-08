@@ -9,8 +9,22 @@ import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges
 import { Sp, SecHead, CollegeAutocomplete, PdfDrop, DelBtn, DayPick } from "@/components/shared";
 
 // ── ONBOARDING ───────────────────────────────────────────────────────────────
+// Wizard steps, keyed so navigation reads by name and inserting a step never means renumbering
+// every setStep() call. Order is the flow order.
+const STEPS=[
+  {k:"welcome", l:"Welcome",   i:"ti-user"},
+  {k:"school",  l:"School",    i:"ti-building"},
+  {k:"term",    l:"Term",      i:"ti-calendar-event"},
+  {k:"schedule",l:"Schedule",  i:"ti-file-upload"},
+  {k:"syllabi", l:"Syllabi",   i:"ti-files"},
+  {k:"lifestyle",l:"Lifestyle",i:"ti-heart"},
+  {k:"study",   l:"Study",     i:"ti-brain"},
+  {k:"done",    l:"Done",      i:"ti-rocket"},
+];
+const IDX=Object.fromEntries(STEPS.map((s,i)=>[s.k,i]));
+
 export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
-  const [step,setStep]=useState(0);
+  const [step,setStep]=useState(()=>Math.min(data.profile.onboardStep||0,STEPS.length-1));
   const [sPdf,setSPdf]=useState([]);
   const [sylPdfs,setSylPdfs]=useState([]);
   const [parsing,setParsing]=useState(false);
@@ -21,6 +35,11 @@ export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
   const [nc,setNc]=useState({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
   const [collegeLookup,setCollegeLookup]=useState("idle"); // idle | loading | done | error
   const p=data.profile;
+
+  // Every step advance persists the resume point, so closing the tab (or "Save & Continue Later")
+  // picks up on the same step. Profile edits within a step already auto-save via updP.
+  const go=n=>{const s=Math.max(0,Math.min(STEPS.length-1,n));setStep(s);updP({onboardStep:s});};
+  const saveLater=()=>{updP({onboardStep:step});toast2("Progress saved — close this any time and pick up right here.");};
 
   async function handleCollegeSelected(schoolName){
     setCollegeLookup("loading");
@@ -137,7 +156,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       : `${nA.length} assignments + ${nE.length} exams imported!`);
   }
 
-  const STEPS=[{l:"Welcome",i:"ti-user"},{l:"School",i:"ti-building"},{l:"Schedule",i:"ti-file-upload"},{l:"Syllabi",i:"ti-files"},{l:"Lifestyle",i:"ti-heart"},{l:"Study",i:"ti-brain"},{l:"Done",i:"ti-rocket"}];
+  // Small helper row reused at the bottom of the School and Term steps.
+  const navRow=(backTo,onNext,nextDisabled,nextLabel="Continue")=>(
+    <div className="row" style={{marginTop:14}}>
+      {backTo!=null&&<button className="btn btn-ghost" onClick={()=>go(backTo)}><i className="ti ti-arrow-left"/></button>}
+      <button className="btn btn-action" style={{flex:1}} onClick={onNext} disabled={nextDisabled}>{nextLabel} <i className="ti ti-arrow-right"/></button>
+      <button className="btn btn-ghost btn-sm" onClick={saveLater}>Save &amp; Continue Later</button>
+    </div>
+  );
 
   return(
     <div className="fade" style={{maxWidth:560,margin:"0 auto"}}>
@@ -154,7 +180,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         <span style={{fontSize:11,color:"var(--t3)",marginLeft:6}}>{STEPS[step]?.l} · {step+1}/{STEPS.length}</span>
       </div>
 
-      {step===0&&(
+      {step===IDX.welcome&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>Set up your assistant</h2>
           <p style={{marginBottom:16,fontSize:14}}>Upload your schedule PDF and syllabi — AI does the rest. About 3 minutes.</p>
@@ -168,14 +194,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           <div style={{background:"var(--blue-bg)",borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:13,color:"var(--blue)",display:"flex",gap:8}}>
             <i className="ti ti-shield-check" style={{fontSize:14,flexShrink:0}}/>PDFs read locally — only extracted text goes to AI
           </div>
-          <button className="btn btn-action" onClick={()=>setStep(1)} disabled={!p.name} style={{width:"100%"}}>Continue <i className="ti ti-arrow-right"/></button>
+          <button className="btn btn-action" onClick={()=>go(IDX.school)} disabled={!p.name} style={{width:"100%"}}>Continue <i className="ti ti-arrow-right"/></button>
         </div>
       )}
 
-      {step===1&&(
+      {step===IDX.school&&(
         <div className="fade">
-          <h2 style={{marginBottom:8}}>Your school</h2>
-          <p style={{marginBottom:16,fontSize:14}}>School name and term dates are required — everything else in the app depends on knowing your actual term. Picking a school from the list auto-fills the rest when it can; otherwise fill in manually below.</p>
+          <h2 style={{marginBottom:8}}>Select your school</h2>
+          <p style={{marginBottom:16,fontSize:14}}>School name is required. Picking a school from the list auto-fills its address — and pre-fills the term dates on the next step — when it can.</p>
           <div className="card">
             <div className="g2" style={{marginBottom:12}}>
               <div>
@@ -185,7 +211,21 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
               <div><label>Schedule type <span style={{color:"var(--red)"}}>*</span></label><select value={p.schoolType} onChange={e=>updP({schoolType:e.target.value})}><option value="quarter">Quarter</option><option value="semester">Semester</option></select></div>
             </div>
-            <div style={{marginBottom:12}}><label>School address <span style={{color:"var(--t3)",fontWeight:400}}>(optional)</span></label><input value={p.schoolAddress} onChange={e=>updP({schoolAddress:e.target.value})} placeholder="21250 Stevens Creek Blvd, Cupertino, CA"/></div>
+            <div><label>School address <span style={{color:"var(--t3)",fontWeight:400}}>(optional)</span></label><input value={p.schoolAddress} onChange={e=>updP({schoolAddress:e.target.value})} placeholder="21250 Stevens Creek Blvd, Cupertino, CA"/></div>
+          </div>
+          {navRow(IDX.welcome,()=>go(IDX.term),!p.schoolName)}
+        </div>
+      )}
+
+      {step===IDX.term&&(
+        <div className="fade">
+          <h2 style={{marginBottom:8}}>Select your term</h2>
+          <p style={{marginBottom:16,fontSize:14}}>Name, start and end are all required — everything else in the app is scoped to your active term.</p>
+          <div className="card">
+            <div style={{marginBottom:12}}>
+              <label>Term name <span style={{color:"var(--red)"}}>*</span></label>
+              <input value={p.termName} onChange={e=>updP({termName:e.target.value})} placeholder={p.schoolType==="semester"?"e.g. Fall 2026":"e.g. Fall 2026 (Quarter)"}/>
+            </div>
             <div className="g2">
               <div><label>Term start <span style={{color:"var(--red)"}}>*</span></label><input type="date" value={p.termStart} onChange={e=>updP({termStart:e.target.value})}/></div>
               <div>
@@ -195,14 +235,15 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             </div>
           </div>
-          <div className="row">
-            <button className="btn btn-ghost" onClick={()=>setStep(0)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>setStep(2)} disabled={!p.schoolName||!p.termStart||!p.termEnd}>Continue <i className="ti ti-arrow-right"/></button>
-          </div>
+          {navRow(
+            IDX.school,
+            ()=>{setStep(IDX.schedule);updP({onboardTermSaved:true,onboardStep:IDX.schedule});},
+            !p.termName?.trim()||!p.termStart||!p.termEnd,
+          )}
         </div>
       )}
 
-      {step===2&&(
+      {step===IDX.schedule&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>Upload your class schedule</h2>
           <p style={{marginBottom:14,fontSize:14,lineHeight:1.6}}>
@@ -292,14 +333,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             </div>
           </details>
           <div className="row" style={{marginTop:14}}>
-            <button className="btn btn-ghost" onClick={()=>setStep(1)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>setStep(3)} disabled={!data.courses.length&&!sImported}>Continue <i className="ti ti-arrow-right"/></button>
-            <button className="btn btn-ghost btn-sm" onClick={()=>setStep(3)}>Skip</button>
+            <button className="btn btn-ghost" onClick={()=>go(IDX.term)}><i className="ti ti-arrow-left"/></button>
+            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.syllabi)} disabled={!data.courses.length&&!sImported}>Continue <i className="ti ti-arrow-right"/></button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>go(IDX.syllabi)}>Skip</button>
           </div>
         </div>
       )}
 
-      {step===3&&(
+      {step===IDX.syllabi&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>Upload your syllabi</h2>
           <p style={{marginBottom:14,fontSize:14}}>Up to 6 PDFs — AI extracts every exam and deadline.</p>
@@ -325,14 +366,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           )}
           {sylImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"var(--green)"}}><i className="ti ti-circle-check"/> Deadlines imported!</div>}
           <div className="row" style={{marginTop:14}}>
-            <button className="btn btn-ghost" onClick={()=>setStep(2)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>setStep(4)}>Continue <i className="ti ti-arrow-right"/></button>
-            <button className="btn btn-ghost btn-sm" onClick={()=>setStep(4)}>Skip</button>
+            <button className="btn btn-ghost" onClick={()=>go(IDX.schedule)}><i className="ti ti-arrow-left"/></button>
+            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.lifestyle)}>Continue <i className="ti ti-arrow-right"/></button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>go(IDX.lifestyle)}>Skip</button>
           </div>
         </div>
       )}
 
-      {step===4&&(
+      {step===IDX.lifestyle&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>Your daily life</h2>
           <p style={{marginBottom:14,fontSize:14}}>Meals, gym, fun time — protected blocks the AI never overrides.</p>
@@ -370,13 +411,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             </div>
           </div>
           <div className="row" style={{marginTop:8}}>
-            <button className="btn btn-ghost" onClick={()=>setStep(3)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>setStep(5)}>Continue <i className="ti ti-arrow-right"/></button>
+            <button className="btn btn-ghost" onClick={()=>go(IDX.syllabi)}><i className="ti ti-arrow-left"/></button>
+            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.study)}>Continue <i className="ti ti-arrow-right"/></button>
           </div>
         </div>
       )}
 
-      {step===5&&(
+      {step===IDX.study&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>How you study best</h2>
           <div className="card">
@@ -399,13 +440,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             </div>
           </div>
           <div className="row" style={{marginTop:8}}>
-            <button className="btn btn-ghost" onClick={()=>setStep(4)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>setStep(6)}>Almost done <i className="ti ti-arrow-right"/></button>
+            <button className="btn btn-ghost" onClick={()=>go(IDX.lifestyle)}><i className="ti ti-arrow-left"/></button>
+            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.done)}>Almost done <i className="ti ti-arrow-right"/></button>
           </div>
         </div>
       )}
 
-      {step===6&&(
+      {step===IDX.done&&(
         <div className="fade" style={{textAlign:"center",paddingTop:28}}>
           <div style={{fontSize:52,marginBottom:14}}>🎓</div>
           <h2 style={{marginBottom:10}}>You're all set, {p.name}!</h2>
@@ -423,7 +464,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             ))}
           </div>
-          <button className="btn btn-action" style={{padding:"12px 28px",fontSize:15}} onClick={()=>{upd({onboarded:true});setTab("today");}}>
+          <button className="btn btn-action" style={{padding:"12px 28px",fontSize:15}} onClick={()=>{upd({onboarded:true,profile:{...p,onboardStep:0}});setTab("today");}}>
             <i className="ti ti-rocket"/> Launch StudyOS
           </button>
         </div>

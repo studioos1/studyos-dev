@@ -142,7 +142,7 @@ function App(){
     if(!data)return;
     const migration=migrateLegacyTermIfNeeded(data);
     if(migration)upd(migration);
-  },[data?.terms?.length,data?.profile.schoolName]); // eslint-disable-line
+  },[data?.terms?.length,data?.profile.schoolName,data?.profile.termName,data?.profile.termStart,data?.profile.termEnd]); // eslint-disable-line
 
   // One-time repair for colliding assignment/exam ids from earlier builds (see dedupeItemIdsIfNeeded).
   useEffect(()=>{

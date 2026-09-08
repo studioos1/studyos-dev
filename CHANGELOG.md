@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.43.0 — 2026-09-07
+
+**Onboarding: School and Term are separate steps (B-17 group 3)**
+
+- The old combined step is split into **Select your school** (school name required) and **Select your term** — with a new mandatory **Term name** field alongside start and end. Everything in the app is scoped to the active term, so the term now gets its own deliberate step.
+- **Every step advance persists a resume point** (`profile.onboardStep`). Close the tab mid-setup — or hit the new **Save & Continue Later** button on the School / Term steps — and you come back to the same step instead of restarting at Welcome.
+- Wizard steps are keyed by name internally, so inserting the Term step didn't mean renumbering every navigation call.
+- `migrateLegacyTermIfNeeded` now waits for the Term step to be **saved** (`profile.onboardTermSaved`) before synthesising `schools[]`/`terms[]`, so a school-autocomplete auto-fill can't lock in a term the user hasn't confirmed. Already-onboarded legacy accounts still migrate on load. The synthesised term uses `profile.termName`; `syncActiveTermToProfilePatch` mirrors the active term's name back to the profile.
+- Picking a school from the list now also pre-fills **Term name** on the next step (via `applyCollegeCalendarResult`).
+- Existing users add a new term the same way as before — **School Info → Add term** (already has its own Term name / dates form).
+
+**Validation:** 62 tests pass (9 in `terms.test.js`, incl. new coverage for the onboarding-save gate), `npm run build` clean.
+
 ## v2.42.1 — 2026-09-07
 
 **Login layout polish**
