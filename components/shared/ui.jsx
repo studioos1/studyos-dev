@@ -150,6 +150,10 @@ export function PdfDrop({label,hint,onFiles,files=[],multi=false}){
         <div style={{fontSize:11,color:"var(--t3)",marginTop:4}}>Drag &amp; drop or click to browse</div>
         <input ref={ref} type="file" accept=".pdf,application/pdf" {...(multi?{multiple:true}:{})} style={{display:"none"}} onChange={e=>{handle(Array.from(e.target.files));e.target.value="";}}/>
       </div>
+      <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"7px 11px",background:"var(--amber-bg)",borderRadius:7,marginBottom:8,fontSize:12,color:"var(--amber)",lineHeight:1.5}}>
+        <i className="ti ti-robot" style={{fontSize:14,flexShrink:0,marginTop:1}}/>
+        <span>We read this with AI, which can misread a PDF. Check the extracted results on the next screen — if something's off, re-upload to run it again.</span>
+      </div>
       {rejected>0&&(
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 11px",background:"var(--red-bg)",borderRadius:7,marginBottom:5}}>
           <i className="ti ti-alert-triangle" style={{color:"var(--red)",fontSize:14}}/>
@@ -185,6 +189,34 @@ export function StatCard({label,value,sub,col,icon}){
       {icon&&<i className={`ti ${icon}`} style={{fontSize:18,color:col,display:"block",marginBottom:5}}/>}
       <div style={{fontSize:11,color:"var(--t3)",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
       <div style={{fontSize:24,color:col,lineHeight:1}}>{value}<span style={{fontSize:12,color:"var(--t3)"}}>{sub}</span></div>
+    </div>
+  );
+}
+
+// Renders the output of checkScheduleExtraction / checkSyllabusExtraction — a list of
+// deterministic sanity-check findings on an AI-parsed PDF, shown before import. Nothing to show
+// when the list is empty (the common, clean case). `onReupload`, when given, adds a button that
+// clears the picked files so the student can drop the PDF again and re-run the extraction.
+export function ExtractionIssues({issues=[],onReupload}){
+  if(!issues.length)return null;
+  const hasError=issues.some(i=>i.level==="error");
+  const col=hasError?"var(--red)":"var(--amber)";
+  const bg=hasError?"var(--red-bg)":"var(--amber-bg)";
+  return(
+    <div style={{background:bg,borderRadius:9,padding:"11px 13px",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:600,color:col,marginBottom:6}}>
+        <i className={`ti ${hasError?"ti-alert-triangle":"ti-alert-circle"}`} style={{fontSize:15}}/>
+        {hasError?"This extraction looks wrong":"Check these before importing"}
+      </div>
+      <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"var(--t2)",lineHeight:1.6}}>
+        {issues.map((it,i)=><li key={i}>{it.msg}</li>)}
+      </ul>
+      {onReupload&&(
+        <button className="btn btn-sm" onClick={onReupload}
+          style={{marginTop:9,background:col,color:"#1a1206",border:"none"}}>
+          <i className="ti ti-upload" style={{marginRight:5}}/>Re-upload &amp; run again
+        </button>
+      )}
     </div>
   );
 }

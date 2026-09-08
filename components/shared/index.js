@@ -12,6 +12,7 @@ export {
   PdfDrop,
   DayPick,
   StatCard,
+  ExtractionIssues,
 } from "./ui";
 export { CollegeAutocomplete } from "./CollegeAutocomplete";
 export {

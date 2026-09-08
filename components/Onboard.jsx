@@ -6,7 +6,8 @@ import { iso } from "@/lib/time";
 import { DS, DF, CC } from "@/lib/constants";
 import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
 import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges";
-import { Sp, SecHead, CollegeAutocomplete, PdfDrop, DelBtn, DayPick } from "@/components/shared";
+import { checkScheduleExtraction, checkSyllabusExtraction } from "@/lib/syllabus";
+import { Sp, SecHead, CollegeAutocomplete, PdfDrop, DelBtn, DayPick, ExtractionIssues } from "@/components/shared";
 
 // ── ONBOARDING ───────────────────────────────────────────────────────────────
 // Wizard steps, keyed so navigation reads by name and inserting a step never means renumbering
@@ -32,6 +33,8 @@ export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
   const [pSyl,setPSyl]=useState(null);
   const [sImported,setSImported]=useState(false);
   const [sylImported,setSylImported]=useState(false);
+  const [schedIssues,setSchedIssues]=useState([]); // deterministic sanity-check findings on the parsed schedule
+  const [sylIssues,setSylIssues]=useState([]);     // …and on the parsed syllabi
   const [nc,setNc]=useState({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
   const [collegeLookup,setCollegeLookup]=useState("idle"); // idle | loading | done | error
   const p=data.profile;
@@ -66,7 +69,12 @@ export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
 {"studentName":null,"quarter":"Spring 2026","courses":[{"name":"Calculus II","code":"MATH 1D","units":5,"professor":"Smith","days":[1,3],"startTime":"09:30","endTime":"10:45","room":"S10"}]}
 Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
 SCHEDULE:\n${t.slice(0,6000)}`);
-      if(r){const parsed=JSON.parse(r.replace(/```json|```/g,"").trim());setPSched(parsed);if(parsed.studentName&&!p.name)updP({name:parsed.studentName.split(" ")[0]});}
+      if(r){
+        const parsed=JSON.parse(r.replace(/```json|```/g,"").trim());
+        setPSched(parsed);
+        setSchedIssues(checkScheduleExtraction(parsed).issues);
+        if(parsed.studentName&&!p.name)updP({name:parsed.studentName.split(" ")[0]});
+      }
     }catch{toast2("Couldn't parse — try manual entry",true);}
     setParsing(false);
     setProgress?.(null);
@@ -130,7 +138,11 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
 SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
-      if(r)setPSyl(JSON.parse(r.replace(/```json|```/g,"").trim()));
+      if(r){
+        const parsed=JSON.parse(r.replace(/```json|```/g,"").trim());
+        setPSyl(parsed);
+        setSylIssues(checkSyllabusExtraction(parsed,{courses:data.courses,termStart:p.termStart,termEnd:p.termEnd}).issues);
+      }
     }catch{toast2("Couldn't parse",true);}
     setParsing(false);
     setProgress?.(null);
@@ -257,6 +269,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           )}
           {pSched&&!sImported&&(
             <div className="fade">
+              <ExtractionIssues issues={schedIssues} onReupload={()=>{setPSched(null);setSPdf([]);setSchedIssues([]);}}/>
               <div className="card" style={{marginBottom:10}}>
                 <SecHead icon="ti-list" title={`Found ${pSched.courses?.length||0} classes`}/>
                 {pSched.courses?.map((c,i)=>(
@@ -273,7 +286,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <button className="btn btn-action" style={{flex:1}} onClick={importSched} disabled={busy}>
                   {busy?<><Sp/> Looking up difficulty...</>:<><i className="ti ti-download"/> Import all classes</>}
                 </button>
-                <button className="btn btn-ghost" onClick={()=>{setPSched(null);setSPdf([]);}}>Retry</button>
+                <button className="btn btn-ghost" onClick={()=>{setPSched(null);setSPdf([]);setSchedIssues([]);}}>Retry</button>
               </div>
             </div>
           )}
@@ -348,6 +361,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           {sylPdfs.length>0&&!pSyl&&<button className="btn btn-action" style={{width:"100%",marginBottom:10}} onClick={parseSyl} disabled={parsing||busy}>{parsing||busy?<><Sp/> Reading {sylPdfs.length} file(s)...</>:<><i className="ti ti-sparkles"/> Extract deadlines</>}</button>}
           {pSyl&&!sylImported&&(
             <div className="fade">
+              <ExtractionIssues issues={sylIssues} onReupload={()=>{setPSyl(null);setSylPdfs([]);setSylIssues([]);}}/>
               <div className="card" style={{marginBottom:10}}>
                 <SecHead icon="ti-list" title={`Found across ${pSyl.courses?.length||0} course(s)`}/>
                 {pSyl.courses?.map((c,ci)=>(
@@ -360,7 +374,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
               <div className="row">
                 <button className="btn btn-action" style={{flex:1}} onClick={importSyl}><i className="ti ti-download"/> Import all</button>
-                <button className="btn btn-ghost" onClick={()=>{setPSyl(null);setSylPdfs([]);}}>Retry</button>
+                <button className="btn btn-ghost" onClick={()=>{setPSyl(null);setSylPdfs([]);setSylIssues([]);}}>Retry</button>
               </div>
             </div>
           )}

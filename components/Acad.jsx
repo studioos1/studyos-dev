@@ -1421,6 +1421,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         <ExtractionVerifyModal
           parsed={pendingVerify.parsed}
           courses={data.courses}
+          termStart={data.profile?.termStart}
+          termEnd={data.profile?.termEnd}
           onConfirm={correctedParsed=>finalizeSync(correctedParsed,pendingVerify.fileNames)}
           onCancel={()=>{setPendingVerify(null);setSylPdfs([]);}}
         />

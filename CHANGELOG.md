@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.44.0 — 2026-09-07
+
+**Sanity checks on AI-extracted PDFs**
+
+The AI that reads a schedule or syllabus PDF is generative and occasionally returns nonsense — a section heading mistaken for a course, a due date with the wrong year, a course "name" that's a whole sentence. Two additions so a bad read gets caught instead of silently saved:
+
+- **Upload-time note.** Every PDF drop zone now carries a line: *"We read this with AI, which can misread a PDF. Check the extracted results on the next screen — if something's off, re-upload to run it again."*
+- **Deterministic checks** (`checkScheduleExtraction` / `checkSyllabusExtraction` in `lib/syllabus.js`, no second AI call) run on the parsed result before import and surface findings in the review step:
+  - **error** (re-upload strongly suggested): nothing extracted; a course with no recognizable code (`MATH 20C`-style), rejecting headings like "Week 1" / "Fall 2026".
+  - **warn** (check before importing): reversed/unreadable class times, missing class days, duplicate course codes, a syllabus course not among your imported classes, due dates outside the term (wrong year), unreadable dates, grade weights summing well over 100%, a course with more "exams" than makes sense (quizzes mislabeled), out-of-range weights.
+- Findings render as an `ExtractionIssues` panel in both onboarding review steps and the Academics **Verify What We Found** modal, each with a **Re-upload & run again** button that clears the files so you can drop the PDF again.
+
+Complements the existing `reclassifyMisplacedQuizzes` safety net. **73 tests pass** (16 new in `lib/syllabus.test.js`), `npm run build` clean.
+
 ## v2.43.0 — 2026-09-07
 
 **Onboarding: School and Term are separate steps (B-17 group 3)**
