@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.42.1 — 2026-09-07
+
+**Login layout polish**
+
+- **StudyOS** wordmark now sits on top, tagline ("Get things done, on time" / "A personal assistant for students") beneath it; the whole block is nudged higher up the page.
+- The view heading ("Log in to your account" / "Create your account" / …) moved **inside the card** as its title, so the card stays put between the log-in and sign-up states.
+- The **"Don't have an account? Sign up"** switch row is right-aligned under the card, with more space between the prompt text and the button.
+
 ## v2.42.0 — 2026-09-07
 
 **Login / signup / account cleanup (B-17 group 4)**
