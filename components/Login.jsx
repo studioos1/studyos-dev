@@ -71,6 +71,14 @@ export function Login({ recoveryMode = false, onDone }) {
     update: "Set a new password",
   }[view];
 
+  // The heading lives INSIDE the card as its title — the card itself stays put between the
+  // "log in" and "sign up" states, only its title and fields change.
+  const cardTitle = (
+    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 14 }}>
+      {heading}
+    </div>
+  );
+
   // NB: field markup is written inline in each view rather than via a helper component — a
   // component defined inside Login() gets a fresh identity every render, which would remount the
   // <input> on each keystroke and drop focus.
@@ -82,8 +90,11 @@ export function Login({ recoveryMode = false, onDone }) {
     </div>
   );
   const switchRow = (prompt, to, label) => (
-    <div style={{ textAlign: "center", marginTop: 10, fontSize: 13, color: "var(--t3)" }}>
-      {prompt}{" "}
+    <div style={{
+      display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14,
+      marginTop: 12, fontSize: 13, color: "var(--t3)",
+    }}>
+      <span>{prompt}</span>
       <button className="btn btn-ghost btn-sm" type="button" onClick={() => go(to)}>{label}</button>
     </div>
   );
@@ -91,12 +102,18 @@ export function Login({ recoveryMode = false, onDone }) {
   return (
     <div style={{
       minHeight: "100vh", background: "var(--bg)", color: "var(--t1)",
-      fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center",
+      fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "flex-start",
       justifyContent: "center", padding: 20,
+      paddingTop: "clamp(48px, 12vh, 130px)",
     }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
-        <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ marginBottom: 12, lineHeight: 1.45 }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <span style={{
+            fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
+            background: "linear-gradient(120deg,var(--blue),var(--teal))",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+          }}>StudyOS</span>
+          <div style={{ marginTop: 10, lineHeight: 1.4 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
               Get things done, on time
             </div>
@@ -104,12 +121,6 @@ export function Login({ recoveryMode = false, onDone }) {
               A personal assistant for students
             </div>
           </div>
-          <span style={{
-            fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 700,
-            background: "linear-gradient(120deg,var(--blue),var(--teal))",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          }}>StudyOS</span>
-          <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 4 }}>{heading}</div>
         </div>
 
         {error && (
@@ -122,6 +133,7 @@ export function Login({ recoveryMode = false, onDone }) {
         {view === "signin" && (
           <>
             <form onSubmit={signIn} className="card">
+              {cardTitle}
               {emailField}
               <div style={{ marginBottom: 8 }}>
                 <label>Password</label>
@@ -144,6 +156,7 @@ export function Login({ recoveryMode = false, onDone }) {
         {view === "signup" && (
           <>
             <form onSubmit={signUp} className="card">
+              {cardTitle}
               <div style={{ marginBottom: 12 }}>
                 <label>Full name</label>
                 <input type="text" value={fullName} autoComplete="name"
@@ -171,6 +184,7 @@ export function Login({ recoveryMode = false, onDone }) {
         {view === "reset" && (
           <>
             <form onSubmit={sendReset} className="card">
+              {cardTitle}
               {emailField}
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
                 {busy ? "Working…" : "Send reset link"}
@@ -182,6 +196,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "update" && (
           <form onSubmit={updatePassword} className="card">
+            {cardTitle}
             <div style={{ marginBottom: 12 }}>
               <label>New password</label>
               <input type="password" value={password} autoComplete="new-password"
