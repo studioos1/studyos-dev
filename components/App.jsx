@@ -128,6 +128,10 @@ function App(){
   const [planMsg,setPlanMsg]=useState("");
   const {confirm:confirmApp,modal:modalApp}=useConfirm();
   const [showAccount,setShowAccount]=useState(false);
+  // App is the root component and never unmounts — the render gates below just swap in <Login/>.
+  // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
+  // would still be open on the next login. Force it shut whenever there's no session.
+  useEffect(()=>{if(!session)setShowAccount(false);},[session]);
   const [planDrawerOpen,setPlanDrawerOpen]=useState(false); // Weekly-tab Plan status drawer — lifted here so a replan can auto-open it on a shortfall
 
   function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}

@@ -1,5 +1,11 @@
 # StudyOS Changelog
 
+## v2.44.1 — 2026-09-07
+
+**Fix: Account modal reappeared right after logging back in**
+
+`Sign out` now lives inside the Account modal, and `App` (the root component) never unmounts — the render gates just swap in `<Login/>`. So `showAccount` stayed `true` through the sign-out, and the modal was already open the instant the next login rendered the app. Now forced shut whenever there's no session.
+
 ## v2.44.0 — 2026-09-07
 
 **Sanity checks on AI-extracted PDFs**
