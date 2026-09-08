@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
-import { Sp } from "./ui";
+import { checkSyllabusExtraction } from "@/lib/syllabus";
+import { Sp, ExtractionIssues } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
 // data.assignments/data.exams. Gives the student one place to catch and fix any misclassified
 // item (e.g. a quiz the AI called an exam) or wrong date/weight, rather than discovering it
 // later in a cluttered calendar. A single "Looks good, save all" button confirms everything as-is
 // for the common case; per-row editing is only needed when something's actually wrong.
-export function ExtractionVerifyModal({parsed,courses,onConfirm,onCancel}){
+export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfirm,onCancel}){
   const [saving,setSaving]=useState(false);
+  // Deterministic sanity check on the raw AI output — surfaces misreads (a heading taken for a
+  // course, a wrong-year date) up front so the student can re-upload instead of hand-fixing rows.
+  const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd});
   // Flatten into one editable list, tagging each row with its course + a stable local key.
   const [rows,setRows]=useState(()=>{
     const out=[];
@@ -70,6 +74,11 @@ export function ExtractionVerifyModal({parsed,courses,onConfirm,onCancel}){
           </div>
         </div>
         <div style={{padding:"0 24px",overflowY:"auto",flex:1}}>
+          {issues.length>0&&(
+            <div style={{marginTop:16}}>
+              <ExtractionIssues issues={issues} onReupload={onCancel}/>
+            </div>
+          )}
           {rows.length===0?(
             <div style={{color:"var(--t3)",padding:"20px 0"}}>Nothing was found to import.</div>
           ):(
