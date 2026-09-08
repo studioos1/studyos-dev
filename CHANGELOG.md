@@ -11,7 +11,7 @@
 - Picking a school from the list now also pre-fills **Term name** on the next step (via `applyCollegeCalendarResult`).
 - Existing users add a new term the same way as before — **School Info → Add term** (already has its own Term name / dates form).
 
-**Validation:** 62 tests pass (9 in `terms.test.js`, incl. new coverage for the onboarding-save gate), `npm run build` clean.
+**Validation:** 57 tests pass (9 in `terms.test.js`, incl. new coverage for the onboarding-save gate), `npm run build` clean.
 
 ## v2.42.1 — 2026-09-07
 
