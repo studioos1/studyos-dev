@@ -483,6 +483,22 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
   const DIVIDER={borderTop:"1px solid var(--b1)",margin:"10px 20px 0 20px"};
   const INNER={padding:"14px 20px 18px 20px"};
 
+  // One set of column widths shared by the Active and Completed assignment tables so their
+  // columns line up exactly (both sit in the same 20px-inset card). table-layout:fixed makes
+  // these authoritative. The Assignment column has no width, so it absorbs all the slack and the
+  // action icons sit flush right instead of floating in a wide empty column.
+  const ASSIGN_COLS=(
+    <colgroup>
+      <col style={{width:36}}/>{/* status box */}
+      <col style={{width:118}}/>{/* class */}
+      <col/>{/* assignment title */}
+      <col style={{width:104}}/>{/* due */}
+      <col style={{width:70}}/>{/* weight */}
+      <col style={{width:132}}/>{/* grade */}
+      <col style={{width:88}}/>{/* actions */}
+    </colgroup>
+  );
+
   const VIEWS=[
     {id:"courses",    l:"Courses"},
     {id:"assignments",l:"Assignments",warn:missing.length>0},
@@ -636,16 +652,17 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
               {active.length>0&&(
                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
+                <table style={{width:"100%",minWidth:680,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {ASSIGN_COLS}
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
-                      <th style={{width:28}}></th>
+                      <th></th>
                       <TableHead label="Class" col="class" sortBy={assignSort} setSortBy={setAssignSort}/>
                       <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Assignment</th>
                       <TableHead label="Due" col="due" sortBy={assignSort} setSortBy={setAssignSort}/>
                       <TableHead label="Weight" col="weight" sortBy={assignSort} setSortBy={setAssignSort}/>
                       <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Grade</th>
-                      <th style={{width:170}}></th>
+                      <th style={{padding:"0 6px 8px"}}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -655,7 +672,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
                 if(isEditing) return(
                   <tr key={a.id}>
-                    <td colSpan={8} style={{padding:0}}>
+                    <td colSpan={7} style={{padding:0}}>
                     <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",
                       margin:"6px 0"}}>
                     <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {a.title}</div>
@@ -700,7 +717,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                         onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--t3)";e.currentTarget.style.background="var(--card2)";e.currentTarget.style.color="transparent";e.currentTarget.textContent="";}}
                       />
                     </td>
-                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{courseNameFor(data.courses,a.courseId)}</td>
+                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{courseNameFor(data.courses,a.courseId)}</td>
                     <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>{a.title}</td>
                     <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                       {d===null?(
@@ -727,7 +744,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     <td style={{padding:"6px 8px"}}>
                       <GradeInput value={a.grade} onChange={v=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
                     </td>
-                    <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+                    <td style={{padding:"9px 6px",whiteSpace:"nowrap",textAlign:"right"}}>
                       <button
                         className="tt" data-tt="Edit this assignment"
                         onClick={()=>startEdit(a)}
@@ -768,23 +785,26 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 </div>
               </div>
               <div style={{padding:"4px 20px 14px 20px"}}>
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
+               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:680,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {ASSIGN_COLS}
                   <tbody>
                 {done.map((a,i,arr)=>(
                   <tr key={a.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
-                    <td style={{padding:"9px 8px",width:28}}>
+                    <td style={{padding:"9px 8px"}}>
                       <div style={{width:20,height:20,borderRadius:6,background:"var(--green)",
                         flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                         <i className="ti ti-check" style={{fontSize:12,color:"#052e16",fontWeight:700}}/>
                       </div>
                     </td>
-                    <td style={{padding:"9px 8px",fontSize:14,color:"var(--t2)"}}>{a.title}</td>
-                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap"}}>{courseNameFor(data.courses,a.courseId)}</td>
+                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{courseNameFor(data.courses,a.courseId)}</td>
+                    <td style={{padding:"9px 8px",fontSize:14,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis"}}>{a.title}</td>
                     <td style={{padding:"9px 8px",fontSize:12,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.dueDate?new Date(a.dueDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—"}</td>
+                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.weight!=null?a.weight+"%":"—"}</td>
                     <td style={{padding:"6px 8px"}}>
                       <GradeInput value={a.grade} onChange={v=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
                     </td>
-                    <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+                    <td style={{padding:"9px 6px",whiteSpace:"nowrap",textAlign:"right"}}>
                       <button
                         className="tt" data-tt="Move back to active"
                         onClick={()=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"not-started"}:x)})}
@@ -806,6 +826,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 ))}
                   </tbody>
                 </table>
+               </div>
               </div>
             </div>
           )}

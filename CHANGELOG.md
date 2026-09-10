@@ -1,5 +1,11 @@
 # StudyOS Changelog
 
+## v2.44.2 — 2026-09-09
+
+**Assignments tab: Active and Completed tables now line up**
+
+The two tables had different column orders (Completed put the title before the class, and had no Weight column) and no shared widths, so nothing aligned between them. Both now use one shared `<colgroup>` + `table-layout: fixed`: **Class · Assignment · Due · Weight · Grade · actions**, identical widths in both. The action-icon column shrank from 170px to ~88px and is right-aligned, so the edit/delete/restore icons sit at the card edge instead of floating with a big empty gap — the freed width goes to the Assignment column.
+
 ## v2.44.1 — 2026-09-07
 
 **Fix: Account modal reappeared right after logging back in**
