@@ -1,5 +1,11 @@
 # StudyOS Changelog
 
+## v2.44.3 — 2026-09-10
+
+**Login: show/hide password toggle**
+
+Every password field on the auth screen (log in, sign up, set-new-password ×2) now has an eye icon to reveal the typed value. Implemented as a module-scope `PasswordInput` so it keeps a stable identity across renders (a component defined in `Login`'s body would remount the input on each keystroke and drop focus).
+
 ## v2.44.2 — 2026-09-09
 
 **Assignments tab: Active and Completed tables now line up**
