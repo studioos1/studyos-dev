@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
+import { supabase } from "@/lib/supabase";
 import { Sp, ExtractionIssues } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
@@ -454,7 +455,7 @@ export function useConfirm(){
 // Unlike every other field in the app, this one deliberately does NOT auto-save on change: this
 // is sensitive personal data (now including username/password placeholders), and per explicit
 // instruction, updates here need a real, intentional Save action.
-export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
+export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEmail}){
   const p=data.profile;
   const {confirm,modal}=useConfirm();
   const [draft,setDraft]=useState(()=>({
@@ -479,6 +480,29 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
       if(!ok)return;
     }
     onClose();
+  }
+
+  // "Reset all data" — moved here from Preferences and hardened with two real gates: the account
+  // password (re-verified via signInWithPassword — Supabase has no separate "check password"
+  // call, so re-authenticating IS the check) before the destructive action is even offered, then
+  // the usual are-you-sure with an explicit description of what's erased. Resets data only — the
+  // Supabase account/login itself is untouched, so a wrong click can't lock anyone out.
+  const [resetOpen,setResetOpen]=useState(false);
+  const [resetPw,setResetPw]=useState("");
+  const [resetErr,setResetErr]=useState("");
+  const [resetBusy,setResetBusy]=useState(false);
+  async function verifyAndReset(){
+    if(!resetPw){setResetErr("Enter your password");return;}
+    setResetBusy(true);setResetErr("");
+    const{error}=await supabase.auth.signInWithPassword({email:userEmail,password:resetPw});
+    setResetBusy(false);
+    if(error){setResetErr("Incorrect password");return;}
+    setResetPw("");setResetOpen(false);
+    const ok=await confirm(
+      "This permanently erases ALL your data — courses, assignments, exams, grades, study plan, preferences, and history — and sends you back through onboarding. Your login stays active; only your data is erased. This cannot be undone.",
+      {confirmLabel:"Erase everything",confirmIcon:"ti-trash"}
+    );
+    if(ok){onReset?.();toast2("All data erased");onClose();}
   }
 
   return(
@@ -520,6 +544,36 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
             <button className="btn btn-del" style={{width:"100%"}} onClick={onSignOut}>
               <i className="ti ti-logout" style={{marginRight:6}}/>Sign out
             </button>
+          </div>
+        )}
+        {onReset&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            <div style={{fontSize:11,color:"var(--red)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:9,fontWeight:600}}>
+              Danger zone
+            </div>
+            {!resetOpen?(
+              <button className="btn btn-del" style={{width:"100%"}} onClick={()=>{setResetOpen(true);setResetErr("");}}>
+                <i className="ti ti-trash" style={{marginRight:6}}/>Reset all data
+              </button>
+            ):(
+              <div>
+                <p style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.5}}>
+                  Confirm your password to continue — this erases all your data, courses, and plan.
+                </p>
+                <input type="password" value={resetPw} autoFocus
+                  onChange={e=>{setResetPw(e.target.value);setResetErr("");}}
+                  onKeyDown={e=>{if(e.key==="Enter")verifyAndReset();}}
+                  placeholder="Your password" style={{marginBottom:6}}/>
+                {resetErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{resetErr}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1}}
+                    onClick={()=>{setResetOpen(false);setResetPw("");setResetErr("");}}>Cancel</button>
+                  <button className="btn btn-del btn-sm" style={{flex:1}} onClick={verifyAndReset} disabled={resetBusy||!resetPw}>
+                    {resetBusy?"Verifying...":"Continue"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

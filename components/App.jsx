@@ -443,7 +443,7 @@ function App(){
       {toast&&<div className="toast" style={{background:toast.e?"var(--red-bg)":"var(--card2)",color:toast.e?"var(--red)":"var(--t2)"}}>{toast.m}</div>}
       {modalApp}
       {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
-        onSignOut={()=>supabase.auth.signOut()} userEmail={session.user?.email}/>}
+        onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}
     </div>
   );
 }

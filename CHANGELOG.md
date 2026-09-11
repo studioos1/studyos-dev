@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.45.2 — 2026-09-11
+
+**"Reset all data" moved to Account, now password + are-you-sure gated**
+
+Was a plain button at the bottom of Preferences with a single confirm dialog — too easy to hit by accident given what it does (wipes courses, assignments, exams, grades, plan, history, and preferences back to a blank slate).
+
+- Moved into the **Account modal**, under a new **Danger zone** section below Sign out.
+- **Two real gates**: (1) re-enter your account password — checked via `signInWithPassword` (Supabase has no separate "verify password" call, so re-authenticating *is* the check); wrong password stops it right there. (2) An explicit are-you-sure naming exactly what gets erased.
+- Resets data only — the Supabase login/account itself is never touched, so this can't lock anyone out.
+
+**Validation:** 73 tests pass, `npm run build` clean. Browser-verified: button gone from Preferences, present in Account's Danger zone, wrong password correctly rejected before anything happens (didn't test a real erase against the live account).
+
 ## v2.45.1 — 2026-09-11
 
 **SMS opt-in compliance (A2P 10DLC) + Terms of Service / Privacy Policy pages**
