@@ -1,30 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { APP_VERSION } from "@/lib/version";
-
-// Password input with a show/hide eye toggle. Module-scope (not defined inside Login) so it keeps
-// a stable identity across Login's re-renders — a component declared in the render body would
-// remount its <input> on every keystroke and drop focus.
-function PasswordInput({ value, onChange, autoComplete, placeholder }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div style={{ position: "relative" }}>
-      <input type={show ? "text" : "password"} value={value} autoComplete={autoComplete}
-        placeholder={placeholder} onChange={onChange}
-        style={{ width: "100%", paddingRight: 40 }} />
-      <button type="button" onClick={() => setShow(s => !s)}
-        aria-label={show ? "Hide password" : "Show password"}
-        className="tt" data-tt={show ? "Hide password" : "Show password"}
-        style={{
-          position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)",
-          background: "none", border: "none", cursor: "pointer", padding: 6,
-          color: "var(--t3)", display: "flex", alignItems: "center", lineHeight: 0,
-        }}>
-        <i className={`ti ${show ? "ti-eye-off" : "ti-eye"}`} style={{ fontSize: 16 }} />
-      </button>
-    </div>
-  );
-}
+import { PasswordInput } from "@/components/shared";
 
 // Auth gate shown by components/App.jsx whenever there's no active session (and, in recoveryMode,
 // even with one — App renders this to let the user set a new password after a reset-email link).

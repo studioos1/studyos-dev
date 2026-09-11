@@ -13,6 +13,7 @@ export {
   DayPick,
   StatCard,
   ExtractionIssues,
+  PasswordInput,
 } from "./ui";
 export { CollegeAutocomplete } from "./CollegeAutocomplete";
 export {

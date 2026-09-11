@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.45.3 — 2026-09-11
+
+**Change password, in Account**
+
+- New **"Change password"** action in the Account modal: current password (re-verified via `signInWithPassword`, same trick used for the reset-data gate — Supabase has no separate password-check call), new password (min 8 chars), confirm — then `updateUser({password})`.
+- `PasswordInput` (the show/hide eye-toggle field from Login) is now a shared component (`components/shared/ui.jsx`) instead of living only inside `Login.jsx`, so the Account modal reuses the exact same field.
+
+**Validation:** 73 tests pass, `npm run build` clean. Browser-verified: form renders in the right place (between account details and Sign out), eye toggle works, Login screen unaffected by the refactor.
+
 ## v2.45.2 — 2026-09-11
 
 **"Reset all data" moved to Account, now password + are-you-sure gated**

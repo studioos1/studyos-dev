@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
-import { Sp, ExtractionIssues } from "./ui";
+import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
 // data.assignments/data.exams. Gives the student one place to catch and fix any misclassified
@@ -482,6 +482,29 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
     onClose();
   }
 
+  // Change password — verifies the CURRENT password (same signInWithPassword trick as the reset
+  // flow below) before calling updateUser, so someone at an already-open session can't change the
+  // password without knowing it.
+  const [pwOpen,setPwOpen]=useState(false);
+  const [curPw,setCurPw]=useState("");
+  const [newPw,setNewPw]=useState("");
+  const [newPw2,setNewPw2]=useState("");
+  const [pwErr,setPwErr]=useState("");
+  const [pwBusy,setPwBusy]=useState(false);
+  function closePwForm(){setPwOpen(false);setCurPw("");setNewPw("");setNewPw2("");setPwErr("");}
+  async function changePassword(){
+    if(newPw.length<8){setPwErr("New password must be at least 8 characters");return;}
+    if(newPw!==newPw2){setPwErr("The two new passwords don't match");return;}
+    setPwBusy(true);setPwErr("");
+    const{error:verifyErr}=await supabase.auth.signInWithPassword({email:userEmail,password:curPw});
+    if(verifyErr){setPwBusy(false);setPwErr("Current password is incorrect");return;}
+    const{error}=await supabase.auth.updateUser({password:newPw});
+    setPwBusy(false);
+    if(error){setPwErr(error.message);return;}
+    closePwForm();
+    toast2("Password updated");
+  }
+
   // "Reset all data" — moved here from Preferences and hardened with two real gates: the account
   // password (re-verified via signInWithPassword — Supabase has no separate "check password"
   // call, so re-authenticating IS the check) before the destructive action is even offered, then
@@ -538,6 +561,42 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
         <button className={dirty?"btn btn-action":"btn btn-ghost"} style={{width:"100%"}} onClick={save} disabled={!dirty}>
           <i className="ti ti-device-floppy" style={{marginRight:6}}/>{dirty?"Save":"No changes to save"}
         </button>
+        {userEmail&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            {!pwOpen?(
+              <button className="btn btn-ghost" style={{width:"100%"}} onClick={()=>{setPwOpen(true);setPwErr("");}}>
+                <i className="ti ti-lock" style={{marginRight:6}}/>Change password
+              </button>
+            ):(
+              <div>
+                <div style={{fontSize:13,color:"var(--t1)",fontWeight:600,marginBottom:10}}>Change password</div>
+                <div style={{marginBottom:8}}>
+                  <label>Current password</label>
+                  <PasswordInput value={curPw} autoComplete="current-password"
+                    onChange={e=>{setCurPw(e.target.value);setPwErr("");}}/>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <label>New password</label>
+                  <PasswordInput value={newPw} autoComplete="new-password" placeholder="At least 8 characters"
+                    onChange={e=>{setNewPw(e.target.value);setPwErr("");}}/>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <label>Confirm new password</label>
+                  <PasswordInput value={newPw2} autoComplete="new-password"
+                    onChange={e=>{setNewPw2(e.target.value);setPwErr("");}}/>
+                </div>
+                {pwErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{pwErr}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={closePwForm}>Cancel</button>
+                  <button className="btn btn-action btn-sm" style={{flex:1}} onClick={changePassword}
+                    disabled={pwBusy||!curPw||!newPw||!newPw2}>
+                    {pwBusy?"Updating...":"Update password"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {onSignOut&&(
           <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
             {userEmail&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Signed in as {userEmail}</div>}

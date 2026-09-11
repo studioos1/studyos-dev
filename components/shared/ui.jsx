@@ -3,6 +3,31 @@ import { DS } from "@/lib/constants";
 
 export function Sp({sz=15}){return <div className="spin" style={{width:sz,height:sz}}/>;}
 
+// Password input with a show/hide eye toggle. Used on the Login screen and in the Account modal's
+// change-password flow. Module-scope-stable (a component declared inside a render body would get
+// a fresh identity every render and remount its <input>, dropping focus on each keystroke) —
+// exported here so every caller shares that same stable identity rather than each re-declaring it.
+export function PasswordInput({value,onChange,autoComplete,placeholder}){
+  const [show,setShow]=useState(false);
+  return (
+    <div style={{position:"relative"}}>
+      <input type={show?"text":"password"} value={value} autoComplete={autoComplete}
+        placeholder={placeholder} onChange={onChange}
+        style={{width:"100%",paddingRight:40}}/>
+      <button type="button" onClick={()=>setShow(s=>!s)}
+        aria-label={show?"Hide password":"Show password"}
+        className="tt" data-tt={show?"Hide password":"Show password"}
+        style={{
+          position:"absolute",right:4,top:"50%",transform:"translateY(-50%)",
+          background:"none",border:"none",cursor:"pointer",padding:6,
+          color:"var(--t3)",display:"flex",alignItems:"center",lineHeight:0,
+        }}>
+        <i className={`ti ${show?"ti-eye-off":"ti-eye"}`} style={{fontSize:16}}/>
+      </button>
+    </div>
+  );
+}
+
 // Small pill badge for a Low/Mid/High difficulty rating.
 export function TableHead({label,col,sortBy,setSortBy,align}){
   const isActive=sortBy===col;
