@@ -572,7 +572,7 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
                 <div style={{fontSize:13,color:"var(--t1)",fontWeight:600,marginBottom:10}}>Change password</div>
                 <div style={{marginBottom:8}}>
                   <label>Current password</label>
-                  <PasswordInput value={curPw} autoComplete="current-password"
+                  <PasswordInput value={curPw} autoFocus autoComplete="current-password"
                     onChange={e=>{setCurPw(e.target.value);setPwErr("");}}/>
                 </div>
                 <div style={{marginBottom:8}}>
@@ -583,7 +583,8 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
                 <div style={{marginBottom:8}}>
                   <label>Confirm new password</label>
                   <PasswordInput value={newPw2} autoComplete="new-password"
-                    onChange={e=>{setNewPw2(e.target.value);setPwErr("");}}/>
+                    onChange={e=>{setNewPw2(e.target.value);setPwErr("");}}
+                    onKeyDown={e=>{if(e.key==="Enter")changePassword();}}/>
                 </div>
                 {pwErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{pwErr}</div>}
                 <div style={{display:"flex",gap:8}}>
@@ -607,9 +608,6 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
         )}
         {onReset&&(
           <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
-            <div style={{fontSize:11,color:"var(--red)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:9,fontWeight:600}}>
-              Danger zone
-            </div>
             {!resetOpen?(
               <button className="btn btn-del" style={{width:"100%"}} onClick={()=>{setResetOpen(true);setResetErr("");}}>
                 <i className="ti ti-trash" style={{marginRight:6}}/>Reset all data
@@ -617,12 +615,14 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
             ):(
               <div>
                 <p style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.5}}>
-                  Confirm your password to continue — this erases all your data, courses, and plan.
+                  This erases all your data, courses, and plan. Confirm your password to continue.
                 </p>
-                <input type="password" value={resetPw} autoFocus
-                  onChange={e=>{setResetPw(e.target.value);setResetErr("");}}
-                  onKeyDown={e=>{if(e.key==="Enter")verifyAndReset();}}
-                  placeholder="Your password" style={{marginBottom:6}}/>
+                <div style={{marginBottom:8}}>
+                  <label>Password</label>
+                  <PasswordInput value={resetPw} autoFocus autoComplete="current-password"
+                    onChange={e=>{setResetPw(e.target.value);setResetErr("");}}
+                    onKeyDown={e=>{if(e.key==="Enter")verifyAndReset();}}/>
+                </div>
                 {resetErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{resetErr}</div>}
                 <div style={{display:"flex",gap:8}}>
                   <button className="btn btn-ghost btn-sm" style={{flex:1}}

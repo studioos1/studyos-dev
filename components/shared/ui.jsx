@@ -7,12 +7,12 @@ export function Sp({sz=15}){return <div className="spin" style={{width:sz,height
 // change-password flow. Module-scope-stable (a component declared inside a render body would get
 // a fresh identity every render and remount its <input>, dropping focus on each keystroke) —
 // exported here so every caller shares that same stable identity rather than each re-declaring it.
-export function PasswordInput({value,onChange,autoComplete,placeholder}){
+export function PasswordInput({value,onChange,onKeyDown,autoComplete,placeholder,autoFocus}){
   const [show,setShow]=useState(false);
   return (
     <div style={{position:"relative"}}>
-      <input type={show?"text":"password"} value={value} autoComplete={autoComplete}
-        placeholder={placeholder} onChange={onChange}
+      <input type={show?"text":"password"} value={value} autoComplete={autoComplete} autoFocus={autoFocus}
+        placeholder={placeholder} onChange={onChange} onKeyDown={onKeyDown}
         style={{width:"100%",paddingRight:40}}/>
       <button type="button" onClick={()=>setShow(s=>!s)}
         aria-label={show?"Hide password":"Show password"}

@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.45.4 — 2026-09-11
+
+**Account modal: minimal, unified styling**
+
+- Removed the "Danger zone" uppercase label above Reset all data — it was the only section in the modal with that kind of heading; Change password and Sign out sit as plain bordered sections with no label, so Reset now matches.
+- Reset's password field was a bare `<input type="password">` sitting right below Change Password's eye-toggle fields — swapped it for the same `PasswordInput` component, plus a `<label>` matching the Change Password fields' formatting.
+- Added Enter-to-submit on both password flows' last field (`PasswordInput` now forwards `onKeyDown`/`autoFocus`).
+
+**Validation:** 73 tests pass, `npm run build` clean, browser-verified.
+
 ## v2.45.3 — 2026-09-11
 
 **Change password, in Account**
