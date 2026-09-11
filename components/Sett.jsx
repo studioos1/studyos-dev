@@ -60,6 +60,14 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   // SMS reminders (B-11 Phase 1) — this "send now" call proves the pipe works end-to-end; the
   // scheduled 8:30/12:00/18:00 sends are a separate server-side cron job (Phase 2), not this route.
   const [smsBusy,setSmsBusy]=useState(false);
+  const [smsConsent,setSmsConsent]=useState(false); // the opt-in checkbox — always starts unchecked, never persisted
+  function enableSms(){
+    if(!p.phone||!smsConsent)return;
+    updP({smsEnabled:true,smsConsentAt:new Date().toISOString()});
+    setSmsConsent(false);
+    toast2("SMS reminders on");
+  }
+  function disableSms(){updP({smsEnabled:false});toast2("SMS reminders off");}
   async function sendTestSms(){
     if(!p.phone){toast2("Add a phone number first",true);return;}
     setSmsBusy(true);
@@ -345,45 +353,63 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           <div className="card" style={{marginBottom:12}}>
             <SecHead icon="ti-message-2" title="SMS Reminders"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
-              Text reminders to your phone — a daily summary, a nudge for anything overdue, and a countdown as exams and projects approach.
+              Text reminders to your phone: a daily summary, a nudge for anything overdue, an exam/project countdown, and any custom reminders you add below.
             </p>
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
               <input type="tel" value={p.phone} onChange={e=>mk(()=>updP({phone:e.target.value}))} placeholder="+1 555 123 4567"/>
             </div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:p.smsEnabled?12:14}}>
-              <div style={{fontSize:14,color:"var(--t1)"}}>SMS reminders</div>
-              <div className="toggle-group">
-                <button className={`toggle-opt${p.smsEnabled?" on":""}`} onClick={()=>{mk(()=>updP({smsEnabled:true}));toast2("SMS reminders on");}}>On</button>
-                <button className={`toggle-opt${!p.smsEnabled?" on":""}`} onClick={()=>{mk(()=>updP({smsEnabled:false}));toast2("SMS reminders off");}}>Off</button>
-              </div>
-            </div>
-            {p.smsEnabled&&(
-              <div style={{marginBottom:14}}>
-                {[
-                  ["notifyDailySummary","Daily summary","8:30am — today's plan"],
-                  ["notifyPastDueNudge","Past-due nudge","6:00pm — anything overdue, not marked done"],
-                  ["notifyExamCountdown","Exam / project countdown","12:00pm — starting 7 days out"],
-                ].map(([key,label,sub])=>(
-                  <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
-                    <div>
-                      <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
-                      <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
-                    </div>
-                    <div className="toggle-group">
-                      <button className={`toggle-opt${p[key]!==false?" on":""}`} onClick={()=>mk(()=>updP({[key]:true}))}>On</button>
-                      <button className={`toggle-opt${p[key]===false?" on":""}`} onClick={()=>mk(()=>updP({[key]:false}))}>Off</button>
-                    </div>
+
+            {!p.smsEnabled?(
+              <>
+                <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.7,background:"var(--card2)",borderRadius:9,padding:"11px 13px",marginBottom:14}}>
+                  Message frequency varies — typically up to a few texts a day. Message and data rates may apply. Reply <strong>STOP</strong> to any text to cancel, <strong>HELP</strong> for help. See our{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:"var(--blue)"}}>Terms of Service</a>{" "}
+                  and <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"var(--blue)"}}>Privacy Policy</a>.
+                </div>
+                <label style={{display:"flex",alignItems:"flex-start",gap:9,marginBottom:14,cursor:"pointer"}}>
+                  <input type="checkbox" checked={smsConsent} onChange={e=>setSmsConsent(e.target.checked)}
+                    style={{width:16,height:16,marginTop:2,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:"var(--t2)",lineHeight:1.5}}>I agree to receive SMS text messages from StudyOS at the number above.</span>
+                </label>
+                <button className="btn btn-action" style={{width:"100%"}} onClick={enableSms} disabled={!p.phone||!smsConsent}>
+                  <i className="ti ti-message-2"/> Yes, text me reminders
+                </button>
+              </>
+            ):(
+              <>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--green-bg)",borderRadius:9,marginBottom:12}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:"var(--green)"}}>
+                    <i className="ti ti-circle-check"/> SMS reminders are on
                   </div>
-                ))}
-              </div>
+                  <button className="btn btn-ghost btn-sm" onClick={disableSms}>Turn off</button>
+                </div>
+                <div style={{marginBottom:14}}>
+                  {[
+                    ["notifyDailySummary","Daily summary","8:30am — today's plan"],
+                    ["notifyPastDueNudge","Past-due nudge","6:00pm — anything overdue, not marked done"],
+                    ["notifyExamCountdown","Exam / project countdown","12:00pm — starting 7 days out"],
+                  ].map(([key,label,sub])=>(
+                    <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
+                      <div>
+                        <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
+                        <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
+                      </div>
+                      <div className="toggle-group">
+                        <button className={`toggle-opt${p[key]!==false?" on":""}`} onClick={()=>mk(()=>updP({[key]:true}))}>On</button>
+                        <button className={`toggle-opt${p[key]===false?" on":""}`} onClick={()=>mk(()=>updP({[key]:false}))}>Off</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn btn-ghost" style={{width:"100%"}} onClick={sendTestSms} disabled={smsBusy}>
+                  {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
+                </button>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
+                  The 8:30/12:00/6:00 sends are scheduled server-side and go out automatically — this button just proves the connection works right now. Reply STOP to any text, or turn off above, any time.
+                </div>
+              </>
             )}
-            <button className="btn btn-ghost" style={{width:"100%"}} onClick={sendTestSms} disabled={smsBusy||!p.phone}>
-              {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
-            </button>
-            <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
-              The 8:30/12:00/6:00 sends are scheduled server-side and go out automatically once enabled — this button just proves the connection works right now.
-            </div>
           </div>
 
           <div className="card">

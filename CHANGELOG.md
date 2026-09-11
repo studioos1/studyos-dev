@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.45.1 — 2026-09-11
+
+**SMS opt-in compliance (A2P 10DLC) + Terms of Service / Privacy Policy pages**
+
+Twilio's Campaign registration requires the "Web Form" opt-in to include specific elements. The SMS Reminders card in Preferences now has them:
+
+- A **consent checkbox** ("I agree to receive SMS text messages from StudyOS at the number above"), unchecked by default — required before the phone number can be enabled.
+- Message-type description, **frequency** disclosure, **"message and data rates may apply"**, **STOP/HELP** instructions, and links to the new Terms of Service / Privacy Policy pages — all shown before the consent checkbox.
+- A clear-language submit action ("Yes, text me reminders") replaces the old bare On/Off toggle as the enabling step; once on, the card switches to a status view with a "Turn off" action and the existing per-type toggles.
+- New `smsConsentAt` profile field — timestamps the moment consent was actually given, separate from the `smsEnabled` state.
+- **`/terms`** and **`/privacy`** — new public, unauthenticated pages (plain Terms of Service and Privacy Policy, StudyOS-specific, covering SMS/email use and the third-party services involved: Supabase, Twilio, Resend, Anthropic).
+
+Since the opt-in itself lives behind login (Twilio can't crawl it), take a screenshot of the checked-consent state and host it somewhere public (Google Drive/OneDrive, link-sharing on) for the Campaign's Message Flow field.
+
+**Validation:** 73 tests pass, `npm run build` clean (`/terms`, `/privacy` build as static pages), full flow browser-tested against the real account (checkbox → enable → sub-toggles → turn off; verified both new pages load without auth) and reverted afterward.
+
 ## v2.45.0 — 2026-09-11
 
 **SMS reminders — Phase 1 (B-11): send pipe + Preferences UI**
