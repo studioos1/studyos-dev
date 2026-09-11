@@ -335,7 +335,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   onClick={()=>{
                     if(!nc.name)return;
                     if(nc.format!=="async"&&!nc.days.length)return;
-                    upd({courses:[...data.courses,{...nc,id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[data.courses.length%CC.length]}]});
+                    upd({courses:[...data.courses,{...nc,name:prettyCourseCode(nc.name),id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[data.courses.length%CC.length]}]});
                     setNc({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}

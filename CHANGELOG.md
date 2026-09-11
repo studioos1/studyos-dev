@@ -1,5 +1,11 @@
 # StudyOS Changelog
 
+## v2.44.4 — 2026-09-11
+
+**Normalize manually-typed course names too**
+
+`prettyCourseCode()` collapses a long course title to its short code ("MATH 180A") and was already applied to every AI-imported course, but not to the two manual "Add class" forms (onboarding and Academics → Courses). A hand-typed long name could still overflow the table the same way the original AI-title bug did. Now applied at both manual-entry points.
+
 ## v2.44.3 — 2026-09-10
 
 **Login: show/hide password toggle**
