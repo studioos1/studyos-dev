@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { t2m, f12 } from "@/lib/time";
+import { t2m, f12, iso } from "@/lib/time";
 import { DS, DF } from "@/lib/constants";
-import { GYM0, CHORE_PRESETS, ED } from "@/lib/data";
+import { GYM0, CHORE_PRESETS, ED, uid } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
 import { useConfirm, SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
@@ -54,6 +55,34 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     setNotifPerm(perm);
     if(perm==="granted"){updP({remindersOn:true});toast2("Notifications enabled! 🔔");}
     else{toast2("Permission denied — enable it in your browser's site settings",true);}
+  }
+
+  // SMS reminders (B-11 Phase 1) — this "send now" call proves the pipe works end-to-end; the
+  // scheduled 8:30/12:00/18:00 sends are a separate server-side cron job (Phase 2), not this route.
+  const [smsBusy,setSmsBusy]=useState(false);
+  async function sendTestSms(){
+    if(!p.phone){toast2("Add a phone number first",true);return;}
+    setSmsBusy(true);
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      const res=await fetch("/api/sms/send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.access_token||""}`},
+        body:JSON.stringify({to:p.phone,message:"StudyOS test message — SMS reminders are working! 🎓"}),
+      });
+      const j=await res.json();
+      if(!res.ok||j.error)throw new Error(j.error||"Couldn't send the test text");
+      toast2("Test text sent — check your phone!");
+    }catch(err){toast2(err.message,true);}
+    setSmsBusy(false);
+  }
+
+  const [ncReminder,setNcReminder]=useState({text:"",date:"",time:"09:00"});
+  function addCustomReminder(){
+    if(!ncReminder.text||!ncReminder.date)return;
+    updP({customReminders:[...(p.customReminders||[]),{...ncReminder,id:uid(),sent:false}]});
+    setNcReminder({text:"",date:"",time:"09:00"});
+    toast2("Reminder added");
   }
 
   return(
@@ -311,6 +340,81 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
               </div>
             )}
+          </div>
+
+          <div className="card" style={{marginBottom:12}}>
+            <SecHead icon="ti-message-2" title="SMS Reminders"/>
+            <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
+              Text reminders to your phone — a daily summary, a nudge for anything overdue, and a countdown as exams and projects approach.
+            </p>
+            <div style={{marginBottom:14}}>
+              <label>Phone number</label>
+              <input type="tel" value={p.phone} onChange={e=>mk(()=>updP({phone:e.target.value}))} placeholder="+1 555 123 4567"/>
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:p.smsEnabled?12:14}}>
+              <div style={{fontSize:14,color:"var(--t1)"}}>SMS reminders</div>
+              <div className="toggle-group">
+                <button className={`toggle-opt${p.smsEnabled?" on":""}`} onClick={()=>{mk(()=>updP({smsEnabled:true}));toast2("SMS reminders on");}}>On</button>
+                <button className={`toggle-opt${!p.smsEnabled?" on":""}`} onClick={()=>{mk(()=>updP({smsEnabled:false}));toast2("SMS reminders off");}}>Off</button>
+              </div>
+            </div>
+            {p.smsEnabled&&(
+              <div style={{marginBottom:14}}>
+                {[
+                  ["notifyDailySummary","Daily summary","8:30am — today's plan"],
+                  ["notifyPastDueNudge","Past-due nudge","6:00pm — anything overdue, not marked done"],
+                  ["notifyExamCountdown","Exam / project countdown","12:00pm — starting 7 days out"],
+                ].map(([key,label,sub])=>(
+                  <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
+                    <div>
+                      <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
+                      <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
+                    </div>
+                    <div className="toggle-group">
+                      <button className={`toggle-opt${p[key]!==false?" on":""}`} onClick={()=>mk(()=>updP({[key]:true}))}>On</button>
+                      <button className={`toggle-opt${p[key]===false?" on":""}`} onClick={()=>mk(()=>updP({[key]:false}))}>Off</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="btn btn-ghost" style={{width:"100%"}} onClick={sendTestSms} disabled={smsBusy||!p.phone}>
+              {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
+            </button>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
+              The 8:30/12:00/6:00 sends are scheduled server-side and go out automatically once enabled — this button just proves the connection works right now.
+            </div>
+          </div>
+
+          <div className="card">
+            <SecHead icon="ti-alarm" title="Custom reminders"/>
+            <p style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.6}}>
+              One-off texts for anything specific — fires once at the date/time you set, then stays here marked "sent." Needs SMS reminders on and a phone number above.
+            </p>
+            {(p.customReminders||[]).length>0&&(
+              <div style={{marginBottom:14}}>
+                {(p.customReminders||[]).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(r=>(
+                  <div key={r.id} className="list-item">
+                    <div style={{flex:1}}>
+                      <div className="list-item-title" style={{textDecoration:r.sent?"line-through":"none",color:r.sent?"var(--t3)":"var(--t1)"}}>{r.text}</div>
+                      <div className="list-item-sub">{r.date} · {f12(r.time)}{r.sent?" · sent":""}</div>
+                    </div>
+                    <DelBtn onClick={()=>updP({customReminders:p.customReminders.filter(x=>x.id!==r.id)})}/>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{marginBottom:10}}>
+              <label>Remind me about...</label>
+              <input value={ncReminder.text} onChange={e=>setNcReminder(r=>({...r,text:e.target.value}))} placeholder="e.g. Bring lab notebook to discussion section"/>
+            </div>
+            <div className="g2" style={{marginBottom:12}}>
+              <div><label>Date</label><input type="date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/></div>
+              <div><label>Time</label><input type="time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/></div>
+            </div>
+            <button className="btn btn-action" style={{width:"100%"}} onClick={addCustomReminder} disabled={!ncReminder.text||!ncReminder.date}>
+              <i className="ti ti-plus"/> Add reminder
+            </button>
           </div>
         </div>
       )}

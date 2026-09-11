@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.45.0 — 2026-09-11
+
+**SMS reminders — Phase 1 (B-11): send pipe + Preferences UI**
+
+First half of SMS notifications (Twilio). This phase proves the delivery pipe end-to-end and gets the profile/UI in place; the scheduled 8:30/12:00/6:00 sends are Phase 2.
+
+- **`/api/sms/send`**: server-side Twilio sender. Requires a valid Supabase session (verified server-side against the auth token) — this is a paid, abusable action (arbitrary phone + message), so unlike `/api/ai` it's never left open to anonymous callers. Validates phone format and message length before calling Twilio.
+- **Preferences → Notifications** now has an **SMS Reminders** card: phone number (reuses `profile.phone`), a master On/Off, three sub-toggles — **Daily summary** (8:30am), **Past-due nudge** (6:00pm), **Exam/project countdown** (12:00pm, starting 7 days out) — default **ON**, and a **"Send me a test text"** button that exercises the real pipe right now.
+- **Custom reminders**: a small add/list UI — "remind me about X" at a date + time, sorted, shows sent/pending state, deletable. Not yet wired into a scheduler (Phase 3).
+- New profile fields: `smsEnabled`, `notifyDailySummary`, `notifyPastDueNudge`, `notifyExamCountdown`, `customReminders[]`.
+- `.env.template` documents the three server-only Twilio vars (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`) — not set yet, so the test button currently (correctly) reports "SMS isn't configured on the server yet."
+
+**Validation:** 73 tests pass, `npm run build` clean, full UI flow browser-tested (toggle on/off, add/delete custom reminder, test-send reaches Twilio's config check).
+
 ## v2.44.4 — 2026-09-11
 
 **Normalize manually-typed course names too**
