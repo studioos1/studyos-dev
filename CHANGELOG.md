@@ -1,5 +1,47 @@
 # StudyOS Changelog
 
+## v2.45.1 — 2026-09-11
+
+**SMS opt-in compliance (A2P 10DLC) + Terms of Service / Privacy Policy pages**
+
+Twilio's Campaign registration requires the "Web Form" opt-in to include specific elements. The SMS Reminders card in Preferences now has them:
+
+- A **consent checkbox** ("I agree to receive SMS text messages from StudyOS at the number above"), unchecked by default — required before the phone number can be enabled.
+- Message-type description, **frequency** disclosure, **"message and data rates may apply"**, **STOP/HELP** instructions, and links to the new Terms of Service / Privacy Policy pages — all shown before the consent checkbox.
+- A clear-language submit action ("Yes, text me reminders") replaces the old bare On/Off toggle as the enabling step; once on, the card switches to a status view with a "Turn off" action and the existing per-type toggles.
+- New `smsConsentAt` profile field — timestamps the moment consent was actually given, separate from the `smsEnabled` state.
+- **`/terms`** and **`/privacy`** — new public, unauthenticated pages (plain Terms of Service and Privacy Policy, StudyOS-specific, covering SMS/email use and the third-party services involved: Supabase, Twilio, Resend, Anthropic).
+
+Since the opt-in itself lives behind login (Twilio can't crawl it), take a screenshot of the checked-consent state and host it somewhere public (Google Drive/OneDrive, link-sharing on) for the Campaign's Message Flow field.
+
+**Validation:** 73 tests pass, `npm run build` clean (`/terms`, `/privacy` build as static pages), full flow browser-tested against the real account (checkbox → enable → sub-toggles → turn off; verified both new pages load without auth) and reverted afterward.
+
+## v2.45.0 — 2026-09-11
+
+**SMS reminders — Phase 1 (B-11): send pipe + Preferences UI**
+
+First half of SMS notifications (Twilio). This phase proves the delivery pipe end-to-end and gets the profile/UI in place; the scheduled 8:30/12:00/6:00 sends are Phase 2.
+
+- **`/api/sms/send`**: server-side Twilio sender. Requires a valid Supabase session (verified server-side against the auth token) — this is a paid, abusable action (arbitrary phone + message), so unlike `/api/ai` it's never left open to anonymous callers. Validates phone format and message length before calling Twilio.
+- **Preferences → Notifications** now has an **SMS Reminders** card: phone number (reuses `profile.phone`), a master On/Off, three sub-toggles — **Daily summary** (8:30am), **Past-due nudge** (6:00pm), **Exam/project countdown** (12:00pm, starting 7 days out) — default **ON**, and a **"Send me a test text"** button that exercises the real pipe right now.
+- **Custom reminders**: a small add/list UI — "remind me about X" at a date + time, sorted, shows sent/pending state, deletable. Not yet wired into a scheduler (Phase 3).
+- New profile fields: `smsEnabled`, `notifyDailySummary`, `notifyPastDueNudge`, `notifyExamCountdown`, `customReminders[]`.
+- `.env.template` documents the three server-only Twilio vars (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`) — not set yet, so the test button currently (correctly) reports "SMS isn't configured on the server yet."
+
+**Validation:** 73 tests pass, `npm run build` clean, full UI flow browser-tested (toggle on/off, add/delete custom reminder, test-send reaches Twilio's config check).
+
+## v2.44.4 — 2026-09-11
+
+**Normalize manually-typed course names too**
+
+`prettyCourseCode()` collapses a long course title to its short code ("MATH 180A") and was already applied to every AI-imported course, but not to the two manual "Add class" forms (onboarding and Academics → Courses). A hand-typed long name could still overflow the table the same way the original AI-title bug did. Now applied at both manual-entry points.
+
+## v2.44.3 — 2026-09-10
+
+**Login: show/hide password toggle**
+
+Every password field on the auth screen (log in, sign up, set-new-password ×2) now has an eye icon to reveal the typed value. Implemented as a module-scope `PasswordInput` so it keeps a stable identity across renders (a component defined in `Login`'s body would remount the input on each keystroke and drop focus).
+
 ## v2.44.2 — 2026-09-09
 
 **Assignments tab: Active and Completed tables now line up**

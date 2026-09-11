@@ -1421,7 +1421,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     if(!ncCourse.name)return;
                     if(ncCourse.format!=="async"&&!ncCourse.days.length)return;
                     if(findMatchingCourse(data.courses.filter(c=>c.termId===viewingTermId),ncCourse.name)){toast2("A course with that name already exists",true);return;}
-                    upd({courses:[...data.courses,{...ncCourse,id:uid(),termId:viewingTermId,color:CC[data.courses.length%CC.length]}]});
+                    upd({courses:[...data.courses,{...ncCourse,name:prettyCourseCode(ncCourse.name),id:uid(),termId:viewingTermId,color:CC[data.courses.length%CC.length]}]});
                     setNcCourse({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
