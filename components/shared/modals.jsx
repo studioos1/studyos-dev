@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
-import { Sp, ExtractionIssues } from "./ui";
+import { supabase } from "@/lib/supabase";
+import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
 // data.assignments/data.exams. Gives the student one place to catch and fix any misclassified
@@ -454,7 +455,7 @@ export function useConfirm(){
 // Unlike every other field in the app, this one deliberately does NOT auto-save on change: this
 // is sensitive personal data (now including username/password placeholders), and per explicit
 // instruction, updates here need a real, intentional Save action.
-export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
+export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEmail}){
   const p=data.profile;
   const {confirm,modal}=useConfirm();
   const [draft,setDraft]=useState(()=>({
@@ -479,6 +480,52 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
       if(!ok)return;
     }
     onClose();
+  }
+
+  // Change password — verifies the CURRENT password (same signInWithPassword trick as the reset
+  // flow below) before calling updateUser, so someone at an already-open session can't change the
+  // password without knowing it.
+  const [pwOpen,setPwOpen]=useState(false);
+  const [curPw,setCurPw]=useState("");
+  const [newPw,setNewPw]=useState("");
+  const [newPw2,setNewPw2]=useState("");
+  const [pwErr,setPwErr]=useState("");
+  const [pwBusy,setPwBusy]=useState(false);
+  function closePwForm(){setPwOpen(false);setCurPw("");setNewPw("");setNewPw2("");setPwErr("");}
+  async function changePassword(){
+    if(newPw.length<8){setPwErr("New password must be at least 8 characters");return;}
+    if(newPw!==newPw2){setPwErr("The two new passwords don't match");return;}
+    setPwBusy(true);setPwErr("");
+    const{error:verifyErr}=await supabase.auth.signInWithPassword({email:userEmail,password:curPw});
+    if(verifyErr){setPwBusy(false);setPwErr("Current password is incorrect");return;}
+    const{error}=await supabase.auth.updateUser({password:newPw});
+    setPwBusy(false);
+    if(error){setPwErr(error.message);return;}
+    closePwForm();
+    toast2("Password updated");
+  }
+
+  // "Reset all data" — moved here from Preferences and hardened with two real gates: the account
+  // password (re-verified via signInWithPassword — Supabase has no separate "check password"
+  // call, so re-authenticating IS the check) before the destructive action is even offered, then
+  // the usual are-you-sure with an explicit description of what's erased. Resets data only — the
+  // Supabase account/login itself is untouched, so a wrong click can't lock anyone out.
+  const [resetOpen,setResetOpen]=useState(false);
+  const [resetPw,setResetPw]=useState("");
+  const [resetErr,setResetErr]=useState("");
+  const [resetBusy,setResetBusy]=useState(false);
+  async function verifyAndReset(){
+    if(!resetPw){setResetErr("Enter your password");return;}
+    setResetBusy(true);setResetErr("");
+    const{error}=await supabase.auth.signInWithPassword({email:userEmail,password:resetPw});
+    setResetBusy(false);
+    if(error){setResetErr("Incorrect password");return;}
+    setResetPw("");setResetOpen(false);
+    const ok=await confirm(
+      "This permanently erases ALL your data — courses, assignments, exams, grades, study plan, preferences, and history — and sends you back through onboarding. Your login stays active; only your data is erased. This cannot be undone.",
+      {confirmLabel:"Erase everything",confirmIcon:"ti-trash"}
+    );
+    if(ok){onReset?.();toast2("All data erased");onClose();}
   }
 
   return(
@@ -514,12 +561,78 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,userEmail}){
         <button className={dirty?"btn btn-action":"btn btn-ghost"} style={{width:"100%"}} onClick={save} disabled={!dirty}>
           <i className="ti ti-device-floppy" style={{marginRight:6}}/>{dirty?"Save":"No changes to save"}
         </button>
+        {userEmail&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            {!pwOpen?(
+              <button className="btn btn-ghost" style={{width:"100%"}} onClick={()=>{setPwOpen(true);setPwErr("");}}>
+                <i className="ti ti-lock" style={{marginRight:6}}/>Change password
+              </button>
+            ):(
+              <div>
+                <div style={{fontSize:13,color:"var(--t1)",fontWeight:600,marginBottom:10}}>Change password</div>
+                <div style={{marginBottom:8}}>
+                  <label>Current password</label>
+                  <PasswordInput value={curPw} autoFocus autoComplete="current-password"
+                    onChange={e=>{setCurPw(e.target.value);setPwErr("");}}/>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <label>New password</label>
+                  <PasswordInput value={newPw} autoComplete="new-password" placeholder="At least 8 characters"
+                    onChange={e=>{setNewPw(e.target.value);setPwErr("");}}/>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <label>Confirm new password</label>
+                  <PasswordInput value={newPw2} autoComplete="new-password"
+                    onChange={e=>{setNewPw2(e.target.value);setPwErr("");}}
+                    onKeyDown={e=>{if(e.key==="Enter")changePassword();}}/>
+                </div>
+                {pwErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{pwErr}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={closePwForm}>Cancel</button>
+                  <button className="btn btn-action btn-sm" style={{flex:1}} onClick={changePassword}
+                    disabled={pwBusy||!curPw||!newPw||!newPw2}>
+                    {pwBusy?"Updating...":"Update password"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {onSignOut&&(
           <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
             {userEmail&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Signed in as {userEmail}</div>}
             <button className="btn btn-del" style={{width:"100%"}} onClick={onSignOut}>
               <i className="ti ti-logout" style={{marginRight:6}}/>Sign out
             </button>
+          </div>
+        )}
+        {onReset&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            {!resetOpen?(
+              <button className="btn btn-del" style={{width:"100%"}} onClick={()=>{setResetOpen(true);setResetErr("");}}>
+                <i className="ti ti-trash" style={{marginRight:6}}/>Reset all data
+              </button>
+            ):(
+              <div>
+                <p style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.5}}>
+                  This erases all your data, courses, and plan. Confirm your password to continue.
+                </p>
+                <div style={{marginBottom:8}}>
+                  <label>Password</label>
+                  <PasswordInput value={resetPw} autoFocus autoComplete="current-password"
+                    onChange={e=>{setResetPw(e.target.value);setResetErr("");}}
+                    onKeyDown={e=>{if(e.key==="Enter")verifyAndReset();}}/>
+                </div>
+                {resetErr&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{resetErr}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1}}
+                    onClick={()=>{setResetOpen(false);setResetPw("");setResetErr("");}}>Cancel</button>
+                  <button className="btn btn-del btn-sm" style={{flex:1}} onClick={verifyAndReset} disabled={resetBusy||!resetPw}>
+                    {resetBusy?"Verifying...":"Continue"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

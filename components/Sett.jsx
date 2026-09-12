@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { t2m, f12, iso } from "@/lib/time";
 import { DS, DF } from "@/lib/constants";
-import { GYM0, CHORE_PRESETS, ED, uid } from "@/lib/data";
+import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
-import { useConfirm, SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
+import { SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
+// "Reset all data" moved to the Account modal (password + are-you-sure gated) — see AccountModal.
 export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,planning}){
-  const {confirm,modal}=useConfirm();
   const [sec,setSec]=useState("schedule");
   const [nc,setNc]=useState({n:"",e:"📋",days:[],time:"",dur:30});
   const p=data.profile;
@@ -445,12 +445,6 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
         </div>
       )}
 
-      <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
-        <button className="btn btn-sm" style={{color:"var(--red)",background:"transparent"}} onClick={async()=>{if(await confirm("Reset ALL data? Cannot be undone."))upd({...ED});}}>
-          <i className="ti ti-trash"/> Reset all data
-        </button>
-      </div>
-      {modal}
     </div>
   );
 }

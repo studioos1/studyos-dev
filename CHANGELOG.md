@@ -1,5 +1,49 @@
 # StudyOS Changelog
 
+## v2.45.5 — 2026-09-12
+
+**Public SMS opt-in evidence page, for A2P Campaign re-submission**
+
+Twilio rejected the Campaign for "issues verifying the Call to Action" — the Google Drive screenshot link given as evidence apparently couldn't be reliably verified. Replaced it with a same-domain page instead of a third-party file host.
+
+- **`/sms-optin`** — new public, unauthenticated page: describes the real in-app opt-in flow step by step, and embeds a screenshot of the live consent screen (phone field, frequency/rate disclosure, STOP/HELP, ToS/Privacy links, checked consent box, submit button). Links to `/terms` and `/privacy`, same as the flow itself does.
+- The screenshot uses a **placeholder phone number**, not the real account's — the original capture briefly showed the real number, caught before publishing and re-shot with `+15551234567` after temporarily swapping the field (restored to the real number immediately after, verified).
+
+**Next:** resubmit the Campaign with the CTA/consent-evidence field pointing to `https://www.studyos.io/sms-optin` instead of the Drive link.
+
+**Validation:** 73 tests pass, `npm run build` clean, page verified locally.
+
+## v2.45.4 — 2026-09-11
+
+**Account modal: minimal, unified styling**
+
+- Removed the "Danger zone" uppercase label above Reset all data — it was the only section in the modal with that kind of heading; Change password and Sign out sit as plain bordered sections with no label, so Reset now matches.
+- Reset's password field was a bare `<input type="password">` sitting right below Change Password's eye-toggle fields — swapped it for the same `PasswordInput` component, plus a `<label>` matching the Change Password fields' formatting.
+- Added Enter-to-submit on both password flows' last field (`PasswordInput` now forwards `onKeyDown`/`autoFocus`).
+
+**Validation:** 73 tests pass, `npm run build` clean, browser-verified.
+
+## v2.45.3 — 2026-09-11
+
+**Change password, in Account**
+
+- New **"Change password"** action in the Account modal: current password (re-verified via `signInWithPassword`, same trick used for the reset-data gate — Supabase has no separate password-check call), new password (min 8 chars), confirm — then `updateUser({password})`.
+- `PasswordInput` (the show/hide eye-toggle field from Login) is now a shared component (`components/shared/ui.jsx`) instead of living only inside `Login.jsx`, so the Account modal reuses the exact same field.
+
+**Validation:** 73 tests pass, `npm run build` clean. Browser-verified: form renders in the right place (between account details and Sign out), eye toggle works, Login screen unaffected by the refactor.
+
+## v2.45.2 — 2026-09-11
+
+**"Reset all data" moved to Account, now password + are-you-sure gated**
+
+Was a plain button at the bottom of Preferences with a single confirm dialog — too easy to hit by accident given what it does (wipes courses, assignments, exams, grades, plan, history, and preferences back to a blank slate).
+
+- Moved into the **Account modal**, under a new **Danger zone** section below Sign out.
+- **Two real gates**: (1) re-enter your account password — checked via `signInWithPassword` (Supabase has no separate "verify password" call, so re-authenticating *is* the check); wrong password stops it right there. (2) An explicit are-you-sure naming exactly what gets erased.
+- Resets data only — the Supabase login/account itself is never touched, so this can't lock anyone out.
+
+**Validation:** 73 tests pass, `npm run build` clean. Browser-verified: button gone from Preferences, present in Account's Danger zone, wrong password correctly rejected before anything happens (didn't test a real erase against the live account).
+
 ## v2.45.1 — 2026-09-11
 
 **SMS opt-in compliance (A2P 10DLC) + Terms of Service / Privacy Policy pages**
