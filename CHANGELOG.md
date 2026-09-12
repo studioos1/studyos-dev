@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.46.8 — 2026-09-12
+
+**Every row in the re-research modal now says explicitly "changed" or "no change"**
+
+- An unchanged Weekly hours/Exam prep row previously rendered as a single bare pill — same as a changed row's "new" pill, with nothing distinguishing "this is new" from "this didn't move." Now every unchanged row carries a small muted ✓ "no change" tag next to the pill, same treatment for Difficulty too, so all three rows explain their own result instead of only the changed ones speaking up.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.7 — 2026-09-12
 
 **Re-research modal cleanup + bigger, highlighted research button**

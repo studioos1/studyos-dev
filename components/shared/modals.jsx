@@ -376,7 +376,9 @@ export function ReResearchModal({course,info,onApplyAndReplan,onDiscard,planning
   const anyChanged=diffChanged||hoursChanged||prepChanged;
   // Every row renders as a pill (old, dimmed) → pill (new, amber only if it actually changed) —
   // Difficulty already had this look via DiffBadge; Weekly hours/Exam prep now match it instead of
-  // reading as plain text next to a badge.
+  // reading as plain text next to a badge. And every row explicitly says which case it is — a bare
+  // pill with no comparison read as "nothing to report" either way, so "no change" gets its own
+  // muted tag rather than silence.
   const Row=({label,changed,oldEl,newEl})=>(
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
       <span style={{fontSize:13,color:"var(--t2)",width:110,flexShrink:0}}>{label}</span>
@@ -384,9 +386,12 @@ export function ReResearchModal({course,info,onApplyAndReplan,onDiscard,planning
         <span style={{opacity:0.5}}>{oldEl}</span>
         <i className="ti ti-arrow-right" style={{fontSize:13,color:"var(--t3)"}}/>
         <span>{newEl}</span>
-      </>):(
+      </>):(<>
         <span>{newEl}</span>
-      )}
+        <span style={{fontSize:11,color:"var(--t3)",display:"flex",alignItems:"center",gap:3}}>
+          <i className="ti ti-check" style={{fontSize:11}}/>no change
+        </span>
+      </>)}
     </div>
   );
   return(
