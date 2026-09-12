@@ -220,6 +220,32 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     await refreshQuarterPlan();
   }
 
+  // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —
+  // courses created before that shipped, or ones a student just wants refreshed, have no
+  // confidence/rationale to show otherwise. Updates that one course in place; never touches its
+  // assignments/exams/grades.
+  const [researchingCourseId,setResearchingCourseId]=useState(null);
+  async function reResearchCourse(course){
+    setResearchingCourseId(course.id);
+    try{
+      const info=await CI(course.name,null,data.profile?.schoolName);
+      upd({courses:data.courses.map(c=>c.id===course.id?{...c,
+        difficulty:info.difficultyScore||c.difficulty,
+        difficultyLabel:info.difficultyLabel||c.difficultyLabel,
+        weeklyHours:info.weeklyStudyHours||c.weeklyHours,
+        startExamPrepDays:info.startExamPrepDays||c.startExamPrepDays,
+        description:info.description||c.description,
+        tips:info.tips?.length?info.tips:c.tips,
+        difficultyConfidence:info.confidence||"low",
+        difficultyRationale:info.rationale||"",
+      }:c)});
+      toast2(`${course.name} difficulty updated`);
+    }catch{
+      toast2("Couldn't research this course right now",true);
+    }
+    setResearchingCourseId(null);
+  }
+
 
   // Clears academic data only (courses/assignments/exams + cached briefing) — keeps profile, History, and all habit logs intact.
   async function resetAcademic(){
@@ -1095,6 +1121,12 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       <i className="ti ti-search" style={{fontSize:11}}/>{c.difficultyConfidence} confidence
                     </span>
                   )}
+                  <button className="tt" data-tt={c.difficultyConfidence?"Re-research this course's difficulty":"Research this course's difficulty online"}
+                    onClick={()=>reResearchCourse(c)} disabled={researchingCourseId===c.id}
+                    style={{width:22,height:22,borderRadius:"50%",border:"none",background:"var(--card2)",color:"var(--t3)",
+                      cursor:researchingCourseId===c.id?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                    {researchingCourseId===c.id?<Sp sz={11}/>:<i className="ti ti-refresh" style={{fontSize:12}}/>}
+                  </button>
                 </div>
                 {c.description&&<div style={{fontSize:13,color:"var(--t3)",fontStyle:"italic",marginBottom:c.tips?.length?4:0}}>{c.description}</div>}
                 {c.tips?.length>0&&<div style={{fontSize:13,color:"var(--a-study-t)"}}>💡 {c.tips[0]}</div>}
@@ -1177,7 +1209,35 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
       {/* ══════════════ REFRESH PLAN ══════════════ */}
       {/* ══════════════ SYNC SYLLABUS ══════════════ */}
-      {view==="difficulty"&&(
+      {view==="difficulty"&&(()=>{
+        const allItems=diffRatings?Object.entries(diffRatings).filter(([key,r])=>termCourseIds.has(r.courseId)).map(([key,r])=>({key,...r,
+          effectiveValue:r.userValue||r.estimatorValue,
+          effectiveHours:r.userHours??r.aiHours,
+          priority:computePriorityScore(r.dueDate,r.userValue||r.estimatorValue,r.weight)})):[];
+
+        // Same comparator drives both the row order WITHIN a class and the order of the class
+        // groups themselves (by that group's own top item) — grouping removes the repeated Class
+        // column, but "what's most urgent" still surfaces at a glance. Computed here, above the
+        // table, so the title-row Collapse/Expand-all button can see the same group list.
+        const itemCmp=(a,b)=>{
+          if(diffSortBy==="weight")return(b.weight??-1)-(a.weight??-1);
+          if(diffSortBy==="priority")return b.priority-a.priority;
+          return(a.dueDate||"9999").localeCompare(b.dueDate||"9999");
+        };
+        const byCourse=new Map();
+        allItems.forEach(it=>{
+          if(!byCourse.has(it.courseId))byCourse.set(it.courseId,{courseId:it.courseId,courseName:it.courseName,items:[]});
+          byCourse.get(it.courseId).items.push(it);
+        });
+        const groups=[...byCourse.values()].map(g=>{
+          const items=[...g.items].sort(itemCmp);
+          const course=termCourses.find(c=>c.id===g.courseId);
+          return{...g,items,color:course?.color?.border||"var(--t3)"};
+        }).sort((a,b)=>itemCmp(a.items[0],b.items[0]));
+        const allCourseIds=groups.map(g=>g.courseId);
+        const allFolded=allCourseIds.length>0&&allCourseIds.every(id=>foldedClasses.has(id));
+
+        return(
         <div>
           <div style={BOX}>
             <div style={TITLE_ROW}>
@@ -1198,6 +1258,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     display:"flex",alignItems:"center",justifyContent:"center",padding:0,opacity:diffComputing?0.5:1}}>
                   {planning?<Sp sz={13}/>:<i className="ti ti-sparkles" style={{fontSize:14}}/>}
                 </button>
+                {allCourseIds.length>0&&(
+                  <button className="tt" data-tt={allFolded?"Expand all classes":"Collapse all classes"} onClick={()=>setAllFolded(allCourseIds,!allFolded)}
+                    style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                      color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                    <i className={`ti ${allFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{fontSize:14}}/>
+                  </button>
+                )}
                 <button className="tt" data-tt="How this works" onClick={()=>setShowDiffHelp(true)}
                   style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                     color:"var(--t2)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",
@@ -1219,43 +1286,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"20px 0",color:"var(--t2)"}}>
                   <Sp/> Computing estimates...
                 </div>
-              ):(()=>{
-                const allItems=diffRatings?Object.entries(diffRatings).filter(([key,r])=>termCourseIds.has(r.courseId)).map(([key,r])=>({key,...r,
-                  effectiveValue:r.userValue||r.estimatorValue,
-                  effectiveHours:r.userHours??r.aiHours,
-                  priority:computePriorityScore(r.dueDate,r.userValue||r.estimatorValue,r.weight)})):[];
-                if(allItems.length===0)return <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>;
-
-                // Same comparator drives both the row order WITHIN a class and the order of the
-                // class groups themselves (by that group's own top item) — grouping removes the
-                // repeated Class column, but "what's most urgent" still surfaces at a glance.
-                const itemCmp=(a,b)=>{
-                  if(diffSortBy==="weight")return(b.weight??-1)-(a.weight??-1);
-                  if(diffSortBy==="priority")return b.priority-a.priority;
-                  return(a.dueDate||"9999").localeCompare(b.dueDate||"9999");
-                };
-                const byCourse=new Map();
-                allItems.forEach(it=>{
-                  if(!byCourse.has(it.courseId))byCourse.set(it.courseId,{courseId:it.courseId,courseName:it.courseName,items:[]});
-                  byCourse.get(it.courseId).items.push(it);
-                });
-                const groups=[...byCourse.values()].map(g=>{
-                  const items=[...g.items].sort(itemCmp);
-                  const course=termCourses.find(c=>c.id===g.courseId);
-                  return{...g,items,color:course?.color?.border||"var(--t3)"};
-                }).sort((a,b)=>itemCmp(a.items[0],b.items[0]));
-
-                const allCourseIds=groups.map(g=>g.courseId);
-                const allFolded=allCourseIds.length>0&&allCourseIds.every(id=>foldedClasses.has(id));
-
-                return(
+              ):allItems.length===0?(
+                <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>
+              ):(
                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-                    <button className="btn btn-ghost btn-sm" onClick={()=>setAllFolded(allCourseIds,!allFolded)}>
-                      <i className={`ti ${allFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{marginRight:5}}/>
-                      {allFolded?"Expand all":"Collapse all"}
-                    </button>
-                  </div>
                   <table style={{width:"100%",minWidth:680,borderCollapse:"collapse"}}>
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
@@ -1350,8 +1384,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     </tbody>
                   </table>
                  </div>
-                );
-              })()}
+              )}
             </div>
           </div>
           {showDiffHelp&&(
@@ -1368,7 +1401,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             />
           )}
         </div>
-      )}
+        );
+      })()}
 
       {view==="sync"&&(
         <div>

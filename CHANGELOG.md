@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.46.2 — 2026-09-12
+
+**Collapse-all moved into the title row (icon-only) + Re-research course button**
+
+Two follow-ups from the grouped Difficulty table:
+
+- **Collapse/Expand-all** was its own full-width row above the table — moved into the Study Preferences title row alongside Save/Save & Replan/Help, as an icon-only circular button (chevrons, `data-tt` tooltip: "Collapse all classes" / "Expand all classes"), matching that row's existing convention instead of introducing a new one.
+- **"Re-research this course" button** (Academics → Courses): a small icon next to each course's difficulty badges that re-runs the B-01 web-search lookup on an *existing* course and updates it in place — courses created before B-01 shipped (or anytime you want a refresh) get real confidence data without deleting/re-adding anything. Spinner while in flight, never touches assignments/exams/grades.
+
+**Validation:** 78 tests pass, `npm run build` clean. Browser-verified end-to-end, including a live re-research call: DSC 10's difficulty updated in place (6→5/10, 6h→8h/wk) with a new "medium confidence" badge and full rationale in the tooltip.
+
 ## v2.46.1 — 2026-09-12
 
 **Study Preferences (Difficulty tab): grouped by class, foldable**
