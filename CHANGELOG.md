@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.45.6 — 2026-09-12
+
+**Warn when a new/edited term overlaps the current one**
+
+`getActiveTermAndSchool()`/`termScopedForPlanning()` only ever treat ONE term as "current" — an overlap between two terms doesn't merge planning across both, it silently drops one term's courses. This is the same bug class that originally broke Itay's account (a dateless term), just via a different door.
+
+- **`datesOverlap()`** (`lib/data/terms.js`) — pure inclusive-range overlap check, 5 new tests.
+- **School Info → Add term / Edit term**: if the dates overlap the term currently driving the planner, a confirm dialog explains why before saving — worded differently for same-school (almost always a mistake) vs. cross-school (a real scenario like dual enrollment/study abroad, but one the planner can't actually schedule across yet). Not a hard block — "Continue anyway" still works, since the student may have a real reason.
+
+**Tabled for backlog:** true concurrent multi-term planning (scheduling two simultaneously-active terms together, e.g. dual enrollment) — a real, bigger feature, not a validation tweak.
+
+**Validation:** 78 tests pass, `npm run build` clean, full flow browser-tested (overlap warning fires correctly, Cancel aborts cleanly with form data preserved).
+
 ## v2.45.5 — 2026-09-12
 
 **Public SMS opt-in evidence page, for A2P Campaign re-submission**
