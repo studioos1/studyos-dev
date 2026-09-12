@@ -30,6 +30,59 @@ import {
   DayPick,
 } from "@/components/shared";
 
+// Inline preview of a pending re-research result (B-01) — a shaded strip (background only, no
+// border — this is deliberately not another bordered box) directly under the course's own badge
+// row. It bleeds edge-to-edge with the card via a negative margin that exactly cancels INNER's
+// 20px side padding, so once its own padding is added back, the first badge lands at the same x
+// position as the Difficulty badge in the row above — the new values sit exactly under the old
+// ones, same order, same gap. Line 1 is the values + actions; line 2 (when present) is the
+// rationale. A field only gets the amber highlight (background fill, not an outline) when it
+// actually changed — an unchanged field looks exactly like it already did above.
+function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
+  const newScore=info.difficultyScore||course.difficulty;
+  const newHours=info.weeklyStudyHours||course.weeklyHours;
+  const newPrep=info.startExamPrepDays||course.startExamPrepDays;
+  const newLabel=info.difficultyLabel||course.difficultyLabel;
+  const diffChanged=newScore!==course.difficulty||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
+  const hoursChanged=newHours!==course.weeklyHours;
+  const prepChanged=newPrep!==course.startExamPrepDays;
+  const anyChanged=diffChanged||hoursChanged||prepChanged;
+  return(
+    <div style={{background:"var(--card2)",margin:"2px -20px 10px",padding:"10px 20px"}}>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+        {diffChanged
+          ?<span className="badge badge-amber">{newLabel||"Lvl"} {newScore}/10</span>
+          :<DiffBadge score={newScore} label={newLabel}/>}
+        <span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk study</span>
+        <span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>prep {newPrep}d before exams</span>
+        {info.confidence&&(
+          <span className="tt" data-tt={`Web-researched, ${info.confidence} confidence.${info.rationale?` ${info.rationale}`:""}`}
+            style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--card)",color:"var(--t3)",cursor:"default"}}>
+            <i className="ti ti-search" style={{fontSize:11}}/>{info.confidence} confidence
+          </span>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+          {!anyChanged&&!planning&&<span style={{fontSize:11,color:"var(--t3)"}}>no replan needed</span>}
+          <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning}>
+            {planning?<><Sp sz={12}/> Planning...</>
+              :anyChanged?<><i className="ti ti-sparkles"/> Apply &amp; Replan</>
+              :<><i className="ti ti-check"/> Confirm</>}
+          </button>
+        </div>
+        <div style={{width:18}}/>
+        <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
+          style={{width:30,height:30,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
+            cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+          <i className="ti ti-x" style={{fontSize:18}}/>
+        </button>
+      </div>
+      {info.rationale&&(
+        <div style={{fontSize:11.5,color:"var(--t3)",lineHeight:1.5,marginTop:6}}>{info.rationale}</div>
+      )}
+    </div>
+  );
+}
+
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
 export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg}){
   const {confirm,modal}=useConfirm();
@@ -222,28 +275,56 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
 
   // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —
   // courses created before that shipped, or ones a student just wants refreshed, have no
-  // confidence/rationale to show otherwise. Updates that one course in place; never touches its
-  // assignments/exams/grades.
+  // confidence/rationale to show otherwise. Rather than overwriting the course silently, the
+  // fresh result is held for review (pendingResearch) and shown inline as a ResearchPreview right
+  // under that course's own badge row — old vs new, changed fields highlighted — so the student
+  // sees exactly what a "Save & Replan" would apply instead of having to notice the planStale dot
+  // afterward and guess what changed.
   const [researchingCourseId,setResearchingCourseId]=useState(null);
+  const [pendingResearch,setPendingResearch]=useState(null); // {course,info} awaiting review
   async function reResearchCourse(course){
     setResearchingCourseId(course.id);
     try{
       const info=await CI(course.name,null,data.profile?.schoolName);
-      upd({courses:data.courses.map(c=>c.id===course.id?{...c,
-        difficulty:info.difficultyScore||c.difficulty,
-        difficultyLabel:info.difficultyLabel||c.difficultyLabel,
-        weeklyHours:info.weeklyStudyHours||c.weeklyHours,
-        startExamPrepDays:info.startExamPrepDays||c.startExamPrepDays,
-        description:info.description||c.description,
-        tips:info.tips?.length?info.tips:c.tips,
-        difficultyConfidence:info.confidence||"low",
-        difficultyRationale:info.rationale||"",
-      }:c)});
-      toast2(`${course.name} difficulty updated`);
+      setPendingResearch({course,info});
     }catch{
       toast2("Couldn't research this course right now",true);
     }
     setResearchingCourseId(null);
+  }
+  // Writes the reviewed result onto the course; never touches assignments/exams/grades. Returns
+  // whether anything that actually feeds the planner changed, so callers can skip flagging
+  // planStale (and skip the "replan" step) when the search just confirmed the existing estimate.
+  function commitPendingResearch(){
+    const {course,info}=pendingResearch;
+    const changed=(info.difficultyScore&&info.difficultyScore!==course.difficulty)
+      ||(info.weeklyStudyHours&&info.weeklyStudyHours!==course.weeklyHours)
+      ||(info.startExamPrepDays&&info.startExamPrepDays!==course.startExamPrepDays);
+    upd({courses:data.courses.map(c=>c.id===course.id?{...c,
+      difficulty:info.difficultyScore||c.difficulty,
+      difficultyLabel:info.difficultyLabel||c.difficultyLabel,
+      weeklyHours:info.weeklyStudyHours||c.weeklyHours,
+      startExamPrepDays:info.startExamPrepDays||c.startExamPrepDays,
+      description:info.description||c.description,
+      tips:info.tips?.length?info.tips:c.tips,
+      difficultyConfidence:info.confidence||"low",
+      difficultyRationale:info.rationale||"",
+    }:c),...(changed?{planStale:true}:{})});
+    setPendingResearch(null);
+    return changed;
+  }
+  async function applyResearchAndReplan(){
+    const changed=commitPendingResearch();
+    if(changed){
+      await refreshQuarterPlan();
+      toast2("Difficulty updated and plan refreshed");
+    }else{
+      toast2("Estimate confirmed — nothing changed");
+    }
+  }
+  function discardResearch(){
+    setPendingResearch(null);
+    toast2("Kept the existing estimate");
   }
 
 
@@ -555,7 +636,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     {id:"assignments",l:"Assignments",warn:missing.length>0},
     {id:"exams",      l:"Exams"},
     {id:"grades",     l:"GPA"},
-    {id:"difficulty", l:"Difficulty",warn:diffDirty},
+    {id:"difficulty", l:"Difficulty",warn:diffDirty||data.planStale},
     {id:"sync",       l:"Update Syllabus"},
   ];
   const gpa=calcGPA(termCourses);
@@ -1123,11 +1204,15 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   )}
                   <button className="tt" data-tt={c.difficultyConfidence?"Re-research this course's difficulty":"Research this course's difficulty online"}
                     onClick={()=>reResearchCourse(c)} disabled={researchingCourseId===c.id}
-                    style={{width:22,height:22,borderRadius:"50%",border:"none",background:"var(--card2)",color:"var(--t3)",
+                    style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber)",
                       cursor:researchingCourseId===c.id?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-                    {researchingCourseId===c.id?<Sp sz={11}/>:<i className="ti ti-refresh" style={{fontSize:12}}/>}
+                    {researchingCourseId===c.id?<Sp sz={13}/>:<i className="ti ti-refresh" style={{fontSize:15}}/>}
                   </button>
                 </div>
+                {pendingResearch?.course.id===c.id&&(
+                  <ResearchPreview course={c} info={pendingResearch.info} planning={planning}
+                    onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
+                )}
                 {c.description&&<div style={{fontSize:13,color:"var(--t3)",fontStyle:"italic",marginBottom:c.tips?.length?4:0}}>{c.description}</div>}
                 {c.tips?.length>0&&<div style={{fontSize:13,color:"var(--a-study-t)"}}>💡 {c.tips[0]}</div>}
               </div>
@@ -1364,7 +1449,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                                 <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                                   <HoursInput value={item.userHours??item.aiHours} isOverridden={item.userHours!=null}
                                     onCommit={v=>setHoursOverride(item.key,v)}/>
-                                  <span style={{fontSize:11,color:"var(--t3)",marginLeft:4}}>h</span>
                                   {item.userHours!=null&&item.userHours!==item.aiHours&&(
                                     <button onClick={()=>setHoursOverride(item.key,null)}
                                       title={`Reset to suggested ${item.aiHours}h`}

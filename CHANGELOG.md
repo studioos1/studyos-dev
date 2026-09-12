@@ -1,5 +1,108 @@
 # StudyOS Changelog
 
+## v2.46.13 — 2026-09-12
+
+**Lighter `--blue` token for better contrast on dark card backgrounds**
+
+- `--blue` (#6aace0) had a measured contrast ratio of only ~2.9:1 against the `--card2` background (below WCAG AA's 3:1 floor even for large text/icons) and ~3.6:1 against `--card` — plain blue text/icons sitting directly on either surface (no own background chip, unlike `badge-blue`'s own dark `--blue-bg` pill) read as washed out, which is what showed up in the new re-research strip.
+- Lightened it to `#8ec4f0` — contrast improves to ~3.8:1 on `--card2` and ~4.8:1 on `--card` (now meets AA for large text/UI components), and `badge-blue` text-on-pill contrast rises from ~6.9:1 to ~9:1. One CSS variable, so every use (badge-blue, `.sec-title` icons, `.card-accent` left border, stat dots) picks it up automatically — no per-component changes.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.12 — 2026-09-12
+
+**Re-research: "Confirm" instead of "Apply & Replan" when nothing actually changed**
+
+- When a re-research comes back identical to the current estimate, the action button now reads **Confirm** (check icon) instead of **Apply & Replan** (sparkles), with a small "no replan needed" note beside it — since there's genuinely nothing for a replan to apply. `applyResearchAndReplan` already skipped the actual replan step in this case (v2.46.6); this just makes the button say what it's about to do.
+- Toast on confirming an unchanged estimate now reads "Estimate confirmed — nothing changed" instead of the generic "Difficulty updated."
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.11 — 2026-09-12
+
+**Re-research preview: full-bleed shaded strip, badges aligned under the row above, background-fill highlight**
+
+- `ResearchPreview` is now a shaded strip (background color only, no border) that bleeds edge-to-edge with the card — a negative margin exactly cancels the card's own side padding, so once the strip's own padding is added back, its first badge lands at the same x position as the Difficulty badge in the row above it. New values sit exactly under the old ones, same order, same gap.
+- Two lines: values + actions on line 1, the rationale sentence (when there is one) on line 2 underneath.
+- Changed-field highlight is now a **background fill** (switches the pill to the amber badge style, same as Weekly hours/Exam prep already did) instead of an outline ring — Difficulty gets the same treatment when it changes.
+- The **X** (cancel) now has more breathing room from **Apply & Replan** and is bigger (22px → 30px, 15px → 18px icon).
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.10 — 2026-09-12
+
+**Re-research preview: plain line instead of a nested box, badges mirror the row above exactly, X to cancel**
+
+- `ResearchPreview` no longer renders as a bordered/background panel ("a box in a box") — it's now a plain second line, same gap/wrap/alignment as the course's existing badge row directly above it, so the new Difficulty/Weekly-hours/Exam-prep badges sit exactly under the old ones.
+- Dropped the arrow-comparison and "no change" tags from v2.46.6–.8 — with the new row sitting directly under the old one, position alone shows old vs new; only fields that actually changed get an amber highlight ring, so the eye goes straight to what moved.
+- "Keep current estimate" text button replaced with a small **X** at the right, next to "Apply & Replan" — both actions now sit at the end of that one line.
+- Confidence + rationale moved into the confidence badge's tooltip, matching how the course's own confidence badge (row above) already works, instead of a separate caption line.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.9 — 2026-09-12
+
+**Re-research result now expands inline under the course, not a popup modal**
+
+- Replaced `ReResearchModal` (a centered popup) with `ResearchPreview` — an inline panel that expands directly under the course's own badge row in Academics → Courses, right where the Difficulty/Weekly-hours/Exam-prep badges it's about to update already are.
+- Same field order as the badges above it (Difficulty, Weekly hours, Exam prep), same old→new pill treatment and "no change" tag per field from v2.46.8 — just laid out inline instead of in a dialog.
+- Actions (**Keep current** / **Apply & Replan**) sit on the right of the panel, one line, no popup chrome or backdrop to dismiss.
+- Confidence + rationale now show as a caption line under the fields instead of a header/quote block.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.8 — 2026-09-12
+
+**Every row in the re-research modal now says explicitly "changed" or "no change"**
+
+- An unchanged Weekly hours/Exam prep row previously rendered as a single bare pill — same as a changed row's "new" pill, with nothing distinguishing "this is new" from "this didn't move." Now every unchanged row carries a small muted ✓ "no change" tag next to the pill, same treatment for Difficulty too, so all three rows explain their own result instead of only the changed ones speaking up.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.7 — 2026-09-12
+
+**Re-research modal cleanup + bigger, highlighted research button**
+
+- `ReResearchModal`: Weekly hours and Exam prep now render as pills (old dimmed, new colored — amber only when actually changed), matching the Difficulty row's badge treatment instead of plain colored text — all three parameters read consistently now.
+- Dropped the middle "Apply, replan later" option — just **Keep current estimate** and **Apply & Replan**, one line in the footer. (Apply & Replan now skips the actual replan step when nothing changed, since there'd be nothing for it to apply.)
+- Added an **X** close button top-right of the header — same effect as "Keep current estimate" (discards the fresh result, applies nothing).
+- The circular "Re-research this course's difficulty" button (Academics → Courses) was easy to miss — bumped from 22px to 28px and given an amber border/background so it reads as an available action, not a stray icon in the badge row.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.6 — 2026-09-12
+
+**Re-research now opens a review modal (old vs new, highlighted, Apply & Replan) instead of silently overwriting**
+
+- v2.46.5 made a re-research flag the plan stale so the student *could* notice something needed attention — but they still had to go find it. This goes further: "Re-research this course's difficulty" (Academics → Courses) no longer writes the new estimate straight onto the course. It fetches the fresh web-search result, then opens `ReResearchModal` for review before anything is saved:
+  - **Difficulty**, **Weekly hours**, and **Exam prep days** shown old → new, with an arrow and amber highlight only on whatever actually changed (a search that confirms the existing estimate shows no arrows and says so).
+  - The confidence pill and rationale sentence from the search are shown too, same content as the tooltip badge, but now with the numbers it's judging.
+  - Three ways to close it: **Keep current estimate** (discard the new numbers, nothing saved), **Apply, replan later** (saves it, flags `planStale` same as before), or **Apply & Replan** (saves it and immediately runs the full replan, mirroring the Sync-result modal's "Create study plan" flow).
+- If the search just confirms the existing numbers, applying doesn't flag `planStale` or suggest a replan — nothing actually changed for the planner to react to.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.5 — 2026-09-12
+
+**Re-researching a course now flags the plan stale, and it's visible in Difficulty + Weekly**
+
+- **Gap found**: clicking "Re-research this course's difficulty" (B-01) could change a course's weekly hours/difficulty estimate, but nothing signaled that the current plan was built on the old numbers — the student had to know to go hit Save & Replan on their own.
+- `reResearchCourse` (Academics → Courses) now sets `planStale:true` on a changed estimate, same flag `setHoursOverride`/`saveDifficulty` already use — so the existing machinery lights up for free:
+  - Academics → **Difficulty** tab's Save & Replan button (already amber-highlighted on `planStale`) and its "Current plan doesn't reflect your latest saved changes" banner now also trigger from a re-research, not just a manual hours edit.
+  - Academics tab bar: the small red dot on the **Difficulty** tab (previously only for unsaved draft edits) now also lights up when `planStale`.
+  - **Weekly view** (new): an amber dot on the "Plan status & diagnostics" stethoscope icon, and on the **Replan** button itself, when `planStale` — plus both tooltips explain why ("new estimates saved, not yet applied").
+- Toast on re-research now says "...Save & Replan to apply the new estimate" instead of just "...difficulty updated".
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
+## v2.46.4 — 2026-09-12
+
+**Remove redundant "h" unit label in Difficulty table's Hours column**
+
+- The Hours column of the Difficulty/Study Preferences table showed a small "h" after each hours input (e.g. "6 h") — redundant since the column header already reads "Hours". Removed it; the separate "↺ Xh" reset-to-suggested button (which needs the unit for context, since it stands alone next to the input) is unchanged.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.3 — 2026-09-12
 
 **Fix `.list-item` CSS (checkbox/title stacking) + generalize hardcoded "UCSD" labels**
