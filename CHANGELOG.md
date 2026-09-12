@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.46.1 — 2026-09-12
+
+**Study Preferences (Difficulty tab): grouped by class, foldable**
+
+The Class column repeated the same text on every row — wasted width, and directly worked against a mobile-friendly future. Replaced with foldable per-class sections.
+
+- **Class column removed.** Rows now sit under a class-header row (color dot + name + item count + next-due date), foldable by clicking it.
+- **Groups start fully expanded** on entering the tab; folding is a per-viewer, per-session preference (`sessionStorage`) — survives switching between tabs, resets to all-expanded on a fresh visit so a stale fold state from days ago never causes confusion.
+- **"Collapse all" / "Expand all"** control. Fully collapsed, the table is just N one-line class summaries — exactly the compact overview requested.
+- Fold indicator is both a chevron icon and small "See more"/"See less" text, not icon-only.
+- **Sorting still works globally, just reorganized**: the Due/Weight/Priority sort now orders each class's *rows*, and the *groups themselves* are ordered by their own most-urgent item under that same criterion — so "what needs attention first" still surfaces immediately, just grouped by class instead of interleaved row-by-row.
+
+**Validation:** 78 tests pass, `npm run build` clean. Browser-verified: grouping/folding/collapse-all all work, fold state survives a Today→Academics round-trip (sessionStorage), no console errors.
+
 ## v2.46.0 — 2026-09-12
 
 **B-01: web-researched course difficulty**
