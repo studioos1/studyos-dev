@@ -1364,7 +1364,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                                 <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                                   <HoursInput value={item.userHours??item.aiHours} isOverridden={item.userHours!=null}
                                     onCommit={v=>setHoursOverride(item.key,v)}/>
-                                  <span style={{fontSize:11,color:"var(--t3)",marginLeft:4}}>h</span>
                                   {item.userHours!=null&&item.userHours!==item.aiHours&&(
                                     <button onClick={()=>setHoursOverride(item.key,null)}
                                       title={`Reset to suggested ${item.aiHours}h`}

@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.46.4 — 2026-09-12
+
+**Remove redundant "h" unit label in Difficulty table's Hours column**
+
+- The Hours column of the Difficulty/Study Preferences table showed a small "h" after each hours input (e.g. "6 h") — redundant since the column header already reads "Hours". Removed it; the separate "↺ Xh" reset-to-suggested button (which needs the unit for context, since it stands alone next to the input) is unchanged.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.3 — 2026-09-12
 
 **Fix `.list-item` CSS (checkbox/title stacking) + generalize hardcoded "UCSD" labels**
