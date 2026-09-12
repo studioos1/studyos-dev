@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.46.11 — 2026-09-12
+
+**Re-research preview: full-bleed shaded strip, badges aligned under the row above, background-fill highlight**
+
+- `ResearchPreview` is now a shaded strip (background color only, no border) that bleeds edge-to-edge with the card — a negative margin exactly cancels the card's own side padding, so once the strip's own padding is added back, its first badge lands at the same x position as the Difficulty badge in the row above it. New values sit exactly under the old ones, same order, same gap.
+- Two lines: values + actions on line 1, the rationale sentence (when there is one) on line 2 underneath.
+- Changed-field highlight is now a **background fill** (switches the pill to the amber badge style, same as Weekly hours/Exam prep already did) instead of an outline ring — Difficulty gets the same treatment when it changes.
+- The **X** (cancel) now has more breathing room from **Apply & Replan** and is bigger (22px → 30px, 15px → 18px icon).
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.10 — 2026-09-12
 
 **Re-research preview: plain line instead of a nested box, badges mirror the row above exactly, X to cancel**

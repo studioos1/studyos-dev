@@ -30,41 +30,50 @@ import {
   DayPick,
 } from "@/components/shared";
 
-// Inline preview of a pending re-research result (B-01) — a second line directly under the
-// course's own badge row, in the exact same shape (same badge classes, same gap/wrap) as that row,
-// so the new values sit exactly under the old ones instead of living in a separate boxed panel.
-// Only fields that actually changed get an amber highlight; an unchanged field renders identically
-// to how it already looked above, since the vertical position is what says "this is the new one."
+// Inline preview of a pending re-research result (B-01) — a shaded strip (background only, no
+// border — this is deliberately not another bordered box) directly under the course's own badge
+// row. It bleeds edge-to-edge with the card via a negative margin that exactly cancels INNER's
+// 20px side padding, so once its own padding is added back, the first badge lands at the same x
+// position as the Difficulty badge in the row above — the new values sit exactly under the old
+// ones, same order, same gap. Line 1 is the values + actions; line 2 (when present) is the
+// rationale. A field only gets the amber highlight (background fill, not an outline) when it
+// actually changed — an unchanged field looks exactly like it already did above.
 function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
   const newScore=info.difficultyScore||course.difficulty;
   const newHours=info.weeklyStudyHours||course.weeklyHours;
   const newPrep=info.startExamPrepDays||course.startExamPrepDays;
+  const newLabel=info.difficultyLabel||course.difficultyLabel;
   const diffChanged=newScore!==course.difficulty||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
   const hoursChanged=newHours!==course.weeklyHours;
   const prepChanged=newPrep!==course.startExamPrepDays;
-  const Hi=({on,children})=>(
-    <span style={{display:"inline-flex",borderRadius:8,boxShadow:on?"0 0 0 2px var(--amber)":"none"}}>{children}</span>
-  );
   return(
-    <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginTop:2,marginBottom:6}}>
-      <span style={{fontSize:11,color:"var(--t3)"}}>New:</span>
-      <Hi on={diffChanged}><DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/></Hi>
-      <Hi on={hoursChanged}><span className="badge badge-blue">{newHours}h/wk study</span></Hi>
-      <Hi on={prepChanged}><span className="badge badge-teal">prep {newPrep}d before exams</span></Hi>
-      {info.confidence&&(
-        <span className="tt" data-tt={`Web-researched, ${info.confidence} confidence.${info.rationale?` ${info.rationale}`:""}`}
-          style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--card2)",color:"var(--t3)",cursor:"default"}}>
-          <i className="ti ti-search" style={{fontSize:11}}/>{info.confidence} confidence
-        </span>
+    <div style={{background:"var(--card2)",margin:"2px -20px 10px",padding:"10px 20px"}}>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+        {diffChanged
+          ?<span className="badge badge-amber">{newLabel||"Lvl"} {newScore}/10</span>
+          :<DiffBadge score={newScore} label={newLabel}/>}
+        <span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk study</span>
+        <span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>prep {newPrep}d before exams</span>
+        {info.confidence&&(
+          <span className="tt" data-tt={`Web-researched, ${info.confidence} confidence.${info.rationale?` ${info.rationale}`:""}`}
+            style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--card)",color:"var(--t3)",cursor:"default"}}>
+            <i className="ti ti-search" style={{fontSize:11}}/>{info.confidence} confidence
+          </span>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:18,marginLeft:"auto"}}>
+          <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning}>
+            {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
+          </button>
+          <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
+            style={{width:30,height:30,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
+              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+            <i className="ti ti-x" style={{fontSize:18}}/>
+          </button>
+        </div>
+      </div>
+      {info.rationale&&(
+        <div style={{fontSize:11.5,color:"var(--t3)",lineHeight:1.5,marginTop:6}}>{info.rationale}</div>
       )}
-      <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning} style={{marginLeft:"auto"}}>
-        {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
-      </button>
-      <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
-        style={{width:22,height:22,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
-          cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-        <i className="ti ti-x" style={{fontSize:15}}/>
-      </button>
     </div>
   );
 }
