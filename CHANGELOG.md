@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.46.3 — 2026-09-12
+
+**Fix `.list-item` CSS (checkbox/title stacking) + generalize hardcoded "UCSD" labels**
+
+- **Real bug found**: `.list-item` — the class used for every checkbox+title+badge row in Progress, History, Onboarding, and Preferences — had **no CSS definition anywhere**. Without `display:flex`, rows silently stacked in block flow (checkbox on its own line above the title) instead of sitting on one line. Added the missing rule (`app/globals.css`) once, fixing all four components' list rows at the source instead of patching each call site.
+- **Generalized 3 hardcoded "UCSD" strings** in `components/Prog.jsx` (a stat card label, a habit-score message, and the "Readiness" section title) to generic "College ready" / "College-ready" / "College Readiness" — the underlying milestones (study streak, check-ins, gym habit, completion rate, exam prep) were already 100% generic; only the copy was wrongly locked to one school. Matches the standing non-school-specific principle.
+
+**Validation:** 78 tests pass, `npm run build` clean. Browser-verified: Evening Check-in and College Readiness rows now sit on one line; Preferences → Gym Schedule rows (same CSS class) also confirmed fixed with no regression.
+
 ## v2.46.2 — 2026-09-12
 
 **Collapse-all moved into the title row (icon-only) + Re-research course button**
