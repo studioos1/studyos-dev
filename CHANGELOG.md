@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.46.7 — 2026-09-12
+
+**Re-research modal cleanup + bigger, highlighted research button**
+
+- `ReResearchModal`: Weekly hours and Exam prep now render as pills (old dimmed, new colored — amber only when actually changed), matching the Difficulty row's badge treatment instead of plain colored text — all three parameters read consistently now.
+- Dropped the middle "Apply, replan later" option — just **Keep current estimate** and **Apply & Replan**, one line in the footer. (Apply & Replan now skips the actual replan step when nothing changed, since there'd be nothing for it to apply.)
+- Added an **X** close button top-right of the header — same effect as "Keep current estimate" (discards the fresh result, applies nothing).
+- The circular "Re-research this course's difficulty" button (Academics → Courses) was easy to miss — bumped from 22px to 28px and given an amber border/background so it reads as an available action, not a stray icon in the badge row.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.6 — 2026-09-12
 
 **Re-research now opens a review modal (old vs new, highlighted, Apply & Replan) instead of silently overwriting**

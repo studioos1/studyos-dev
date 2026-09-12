@@ -260,14 +260,14 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     setPendingResearch(null);
     return changed;
   }
-  function applyResearch(){
-    const changed=commitPendingResearch();
-    toast2(changed?"Difficulty updated — Save & Replan to apply the new estimate":"Difficulty updated");
-  }
   async function applyResearchAndReplan(){
-    commitPendingResearch();
-    await refreshQuarterPlan();
-    toast2("Difficulty updated and plan refreshed");
+    const changed=commitPendingResearch();
+    if(changed){
+      await refreshQuarterPlan();
+      toast2("Difficulty updated and plan refreshed");
+    }else{
+      toast2("Difficulty updated");
+    }
   }
   function discardResearch(){
     setPendingResearch(null);
@@ -1151,9 +1151,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   )}
                   <button className="tt" data-tt={c.difficultyConfidence?"Re-research this course's difficulty":"Research this course's difficulty online"}
                     onClick={()=>reResearchCourse(c)} disabled={researchingCourseId===c.id}
-                    style={{width:22,height:22,borderRadius:"50%",border:"none",background:"var(--card2)",color:"var(--t3)",
+                    style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber)",
                       cursor:researchingCourseId===c.id?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-                    {researchingCourseId===c.id?<Sp sz={11}/>:<i className="ti ti-refresh" style={{fontSize:12}}/>}
+                    {researchingCourseId===c.id?<Sp sz={13}/>:<i className="ti ti-refresh" style={{fontSize:15}}/>}
                   </button>
                 </div>
                 {c.description&&<div style={{fontSize:13,color:"var(--t3)",fontStyle:"italic",marginBottom:c.tips?.length?4:0}}>{c.description}</div>}
@@ -1571,7 +1571,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       {modal}
       {pendingResearch&&(
         <ReResearchModal course={pendingResearch.course} info={pendingResearch.info} planning={planning}
-          onApply={applyResearch} onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
+          onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
       )}
       <SyncResultModal result={syncResult} planning={planning}
         onClose={()=>{const hadItems=syncResult?.added>0;setSyncResult(null);if(hadItems)setView("difficulty");}}

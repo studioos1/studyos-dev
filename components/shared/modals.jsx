@@ -365,7 +365,7 @@ export function SyncResultModal({result,onClose,onPlanNow,planning}){
 // the planStale dot. Puts old vs new side by side, highlights whatever actually changed, and offers
 // the replan step right here (same "Apply & Replan" idea as SyncResultModal's onPlanNow) instead of
 // relying on the student to remember to go do it in Study Preferences.
-export function ReResearchModal({course,info,onApply,onApplyAndReplan,onDiscard,planning}){
+export function ReResearchModal({course,info,onApplyAndReplan,onDiscard,planning}){
   if(!course||!info)return null;
   const oldScore=course.difficulty,newScore=info.difficultyScore||oldScore;
   const oldHours=course.weeklyHours,newHours=info.weeklyStudyHours||oldHours;
@@ -374,6 +374,9 @@ export function ReResearchModal({course,info,onApply,onApplyAndReplan,onDiscard,
   const hoursChanged=newHours!==oldHours;
   const prepChanged=newPrep!==oldPrep;
   const anyChanged=diffChanged||hoursChanged||prepChanged;
+  // Every row renders as a pill (old, dimmed) → pill (new, amber only if it actually changed) —
+  // Difficulty already had this look via DiffBadge; Weekly hours/Exam prep now match it instead of
+  // reading as plain text next to a badge.
   const Row=({label,changed,oldEl,newEl})=>(
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
       <span style={{fontSize:13,color:"var(--t2)",width:110,flexShrink:0}}>{label}</span>
@@ -390,9 +393,12 @@ export function ReResearchModal({course,info,onApply,onApplyAndReplan,onDiscard,
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:"var(--card)",borderRadius:14,maxWidth:480,width:"100%",maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
         <div style={{padding:"20px 24px",borderBottom:"1px solid var(--b1)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <i className="ti ti-refresh" style={{fontSize:20,color:"var(--amber)"}}/>
-            <span style={{fontSize:17,fontWeight:600}}>New estimate for {course.name}</span>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <i className="ti ti-refresh" style={{fontSize:20,color:"var(--amber)"}}/>
+              <span style={{fontSize:17,fontWeight:600}}>New estimate for {course.name}</span>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={onDiscard}><i className="ti ti-x"/></button>
           </div>
           {info.confidence&&(
             <div style={{fontSize:12,color:"var(--t3)",marginTop:6,display:"flex",alignItems:"center",gap:5}}>
@@ -408,29 +414,24 @@ export function ReResearchModal({course,info,onApply,onApplyAndReplan,onDiscard,
             oldEl={<DiffBadge score={oldScore} label={course.difficultyLabel}/>}
             newEl={<DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/>}/>
           <Row label="Weekly hours" changed={hoursChanged}
-            oldEl={<span style={{fontSize:13}}>{oldHours}h/week</span>}
-            newEl={<span style={{fontSize:13,fontWeight:hoursChanged?600:400,color:hoursChanged?"var(--amber)":"var(--t1)"}}>{newHours}h/week</span>}/>
+            oldEl={<span className="badge badge-blue">{oldHours}h/wk</span>}
+            newEl={<span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk</span>}/>
           <Row label="Exam prep" changed={prepChanged}
-            oldEl={<span style={{fontSize:13}}>{oldPrep}d before</span>}
-            newEl={<span style={{fontSize:13,fontWeight:prepChanged?600:400,color:prepChanged?"var(--amber)":"var(--t1)"}}>{newPrep}d before</span>}/>
+            oldEl={<span className="badge badge-teal">{oldPrep}d before</span>}
+            newEl={<span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>{newPrep}d before</span>}/>
           {info.rationale&&(
             <div style={{fontSize:12.5,color:"var(--t2)",lineHeight:1.6,marginTop:14,padding:"10px 12px",background:"var(--card2)",borderRadius:8}}>
               <i className="ti ti-quote" style={{fontSize:12,color:"var(--t3)",marginRight:4}}/>{info.rationale}
             </div>
           )}
         </div>
-        <div style={{padding:"16px 24px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div style={{padding:"16px 24px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"flex-end",gap:10}}>
           <button className="btn btn-ghost" onClick={onDiscard} style={{padding:"8px 16px"}}>
             Keep current estimate
           </button>
-          <div style={{display:"flex",gap:10}}>
-            <button className="btn btn-ghost" onClick={onApply} style={{padding:"8px 16px"}}>
-              Apply, replan later
-            </button>
-            <button className="btn btn-action" onClick={onApplyAndReplan} disabled={planning} style={{padding:"8px 16px"}}>
-              {planning?<><Sp sz={13}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
-            </button>
-          </div>
+          <button className="btn btn-action" onClick={onApplyAndReplan} disabled={planning} style={{padding:"8px 16px"}}>
+            {planning?<><Sp sz={13}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
+          </button>
         </div>
       </div>
     </div>
