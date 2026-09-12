@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.46.0 — 2026-09-12
+
+**B-01: web-researched course difficulty**
+
+`/api/course-info` now runs real web search (grades/workload discussion, reviews) instead of pure model guesswork, and self-reports how much it actually found — real CAPE-style data is usually login-gated, so the estimate is honest about its own confidence rather than presented as fact.
+
+- **`/api/course-info`**: added the `web_search_20250305` tool; removed the hardcoded "De Anza College" (now takes the student's real `schoolName`); response now includes `confidence` (low/medium/high) and a one-sentence `rationale`. JSON extraction pulls the `{...}` object out of the model's final text block rather than assuming the whole block is clean JSON — live-tested, the model does sometimes preface it with a sentence.
+- **`CI()`** (`lib/api.js`) takes a `school` param, forwarded from both call sites (`Onboard.jsx` schedule import, `Acad.jsx` syllabus sync) — still one call per *new course*, not per assignment.
+- **Academics → Courses**: a small confidence badge (🔍 *low/medium/high confidence*) next to each course's difficulty, tooltip carrying the rationale. Inline with the existing badge row — no new column, wraps naturally on narrow/mobile widths.
+- **Removed `webDifficultySignal()`** — a per-assignment stub from an earlier design superseded by researching the course once, at creation time (what `course.difficulty` already reflects). Dead code, no behavior change.
+
+**Validation:** 78 tests pass, `npm run build` clean, **live-tested against the real endpoint**: a real UCSD course returned `high` confidence with a specific cited rationale (found actual syllabi); a fabricated course/school correctly returned `low` confidence with an honest "nothing found" rationale. Browser-verified no regression on existing (pre-B-01) courses.
+
 ## v2.45.6 — 2026-09-12
 
 **Warn when a new/edited term overlaps the current one**

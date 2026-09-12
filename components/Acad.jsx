@@ -414,7 +414,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         // No matching course exists yet — create one instead of silently dropping its
         // assignments/exams. This is the common case right after a fresh reset or when a
         // syllabus is uploaded before the class schedule has been imported.
-        const info=await CI(c.courseName);
+        const info=await CI(c.courseName,null,data.profile?.schoolName);
         course={
           id:uid(),
           termId:viewingTermId,
@@ -426,6 +426,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",
           weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,
           description:info.description||"",tips:info.tips||[],
+          difficultyConfidence:info.confidence||"low",difficultyRationale:info.rationale||"",
           color:CC[workingCourses.length%CC.length],
         };
         workingCourses=[...workingCourses,course];
@@ -1060,10 +1061,16 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   )}
                   {c.professor&&<span style={{color:"var(--t3)"}}> · {c.professor}</span>}
                 </div>
-                <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:c.description||c.tips?.length?10:0}}>
+                <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:c.description||c.tips?.length?10:0}}>
                   <DiffBadge score={c.difficulty} label={c.difficultyLabel}/>
                   <span className="badge badge-blue">{c.weeklyHours}h/wk study</span>
                   <span className="badge badge-teal">prep {c.startExamPrepDays||5}d before exams</span>
+                  {c.difficultyConfidence&&(
+                    <span className="tt" data-tt={`Web-researched difficulty, ${c.difficultyConfidence} confidence.${c.difficultyRationale?` ${c.difficultyRationale}`:""} You can always override the score above.`}
+                      style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--card2)",color:"var(--t3)",cursor:"default"}}>
+                      <i className="ti ti-search" style={{fontSize:11}}/>{c.difficultyConfidence} confidence
+                    </span>
+                  )}
                 </div>
                 {c.description&&<div style={{fontSize:13,color:"var(--t3)",fontStyle:"italic",marginBottom:c.tips?.length?4:0}}>{c.description}</div>}
                 {c.tips?.length>0&&<div style={{fontSize:13,color:"var(--a-study-t)"}}>💡 {c.tips[0]}</div>}
