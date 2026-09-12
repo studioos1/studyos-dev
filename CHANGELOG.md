@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.47.0 — 2026-09-12
+
+**Deterministic difficulty/hours consistency check + a "?" help on the Courses tab**
+
+- New gap: `difficultyScore` and `weeklyHours` come back together in one AI response with no guarantee the two are actually coherent — nothing stopped a re-research from claiming "Heavy" with an implausibly low hours number, or vice versa, especially across two separate research calls for the same course.
+- `expectedHoursRange(difficultyScore)` (`lib/planner/estimate.js`) is a plain, deterministic lookup table — Light/Medium/Heavy/Intense bands each mapped to a loose plausible weekly-hours window — used only as a sanity check, never to override anything. Wired into `ResearchPreview`: an ⚠ appears next to the hours pill when a fresh result's hours fall outside the expected range for its own difficulty score, with a tooltip explaining the mismatch. It never blocks Apply — it's a nudge to read the rationale before trusting the number. 3 new unit tests cover the bands and their boundaries.
+- New **?** button on the Courses tab (matches the existing Study Preferences help) explaining the whole B-01 concept in one place: what difficulty score and weekly hours mean (and why they only loosely track each other), how to read the confidence/rationale tooltip, what the new unusual-combination flag means, and what re-researching does.
+
+**Validation:** 81 tests pass (78 + 3 new), `npm run build` clean.
+
 ## v2.46.13 — 2026-09-12
 
 **Lighter `--blue` token for better contrast on dark card backgrounds**

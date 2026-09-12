@@ -136,7 +136,11 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   course (not per item — the old per-item stub was removed), self-reports a confidence level
   (low/medium/high) + rationale since real grade-distribution data is usually login-gated, and
   that confidence shows as a small tooltip badge next to the course's difficulty in Academics →
-  Courses.
+  Courses. Re-researching an existing course (🔄) shows old vs new inline before saving anything
+  (`ResearchPreview` in `components/Acad.jsx`), with a deterministic sanity check
+  (`expectedHoursRange()` in `lib/planner/estimate.js`) flagging — never blocking — a result whose
+  difficulty score and weekly hours don't plausibly line up, since the two come from one AI call
+  with no guaranteed internal consistency across separate research runs.
 - Personalization loop — student overrides (`userValue`/`userHours`) only affect that one item;
   nothing feeds them back to influence future estimates.
 - Overflow UI — currently just a toast naming shortfalls. Designed but not built: a persistent
