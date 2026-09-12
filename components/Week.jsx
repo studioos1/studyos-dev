@@ -192,18 +192,21 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
               onClick={()=>setEditState({dateStr:iso(),block:null})}>
               <i className="ti ti-plus" style={{fontSize:15}}/>
             </button>
-            <button className="btn btn-sm btn-ghost tt tt-below" data-tt="Plan status & diagnostics" style={{padding:"6px 9px"}}
+            <button className="btn btn-sm btn-ghost tt tt-below" data-tt={data.planStale?"Plan status & diagnostics — new estimates saved, not yet applied":"Plan status & diagnostics"}
+              style={{padding:"6px 9px",position:"relative"}}
               onClick={()=>setPlanDrawerOpen(true)}>
               <i className="ti ti-stethoscope" style={{fontSize:15}}/>
+              {data.planStale&&<span style={{position:"absolute",top:2,right:3,width:7,height:7,borderRadius:"50%",background:"var(--amber)"}}/>}
             </button>
 
             {/* Replan split-button: primary = whole-term replan; ▾ = scope + clear */}
             <div style={{display:"flex",position:"relative",flexShrink:0}}>
               <button className="btn btn-sm tt tt-below tt-right"
-                data-tt="Re-plan every day from this week through the end of your term"
-                style={{background:"var(--red)",color:"#fff",borderRadius:"7px 0 0 7px"}}
+                data-tt={data.planStale?"New estimates saved (e.g. a re-researched course) — replan to apply them":"Re-plan every day from this week through the end of your term"}
+                style={{background:"var(--red)",color:"#fff",borderRadius:"7px 0 0 7px",position:"relative"}}
                 onClick={refreshQuarterPlan} disabled={planning}>
                 {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Replan</>}
+                {!planning&&data.planStale&&<span style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:"50%",background:"var(--amber)",border:"1.5px solid var(--card)"}}/>}
               </button>
               <button className="tt tt-below tt-right" data-tt="Replan options"
                 onClick={()=>setReplanMenu(o=>!o)} disabled={planning}

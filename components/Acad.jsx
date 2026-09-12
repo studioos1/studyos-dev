@@ -229,6 +229,10 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     setResearchingCourseId(course.id);
     try{
       const info=await CI(course.name,null,data.profile?.schoolName);
+      // A changed weeklyHours/difficulty means the current plan was built on stale estimates —
+      // setting planStale flags it the same way a manual hours override does, so the existing
+      // Save & Replan highlight (Difficulty tab) and Plan status banner (Weekly) both pick it up
+      // without needing a separate signal.
       upd({courses:data.courses.map(c=>c.id===course.id?{...c,
         difficulty:info.difficultyScore||c.difficulty,
         difficultyLabel:info.difficultyLabel||c.difficultyLabel,
@@ -238,8 +242,8 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
         tips:info.tips?.length?info.tips:c.tips,
         difficultyConfidence:info.confidence||"low",
         difficultyRationale:info.rationale||"",
-      }:c)});
-      toast2(`${course.name} difficulty updated`);
+      }:c),planStale:true});
+      toast2(`${course.name} difficulty updated — Save & Replan to apply the new estimate`);
     }catch{
       toast2("Couldn't research this course right now",true);
     }
@@ -555,7 +559,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     {id:"assignments",l:"Assignments",warn:missing.length>0},
     {id:"exams",      l:"Exams"},
     {id:"grades",     l:"GPA"},
-    {id:"difficulty", l:"Difficulty",warn:diffDirty},
+    {id:"difficulty", l:"Difficulty",warn:diffDirty||data.planStale},
     {id:"sync",       l:"Update Syllabus"},
   ];
   const gpa=calcGPA(termCourses);

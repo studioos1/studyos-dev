@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.46.5 — 2026-09-12
+
+**Re-researching a course now flags the plan stale, and it's visible in Difficulty + Weekly**
+
+- **Gap found**: clicking "Re-research this course's difficulty" (B-01) could change a course's weekly hours/difficulty estimate, but nothing signaled that the current plan was built on the old numbers — the student had to know to go hit Save & Replan on their own.
+- `reResearchCourse` (Academics → Courses) now sets `planStale:true` on a changed estimate, same flag `setHoursOverride`/`saveDifficulty` already use — so the existing machinery lights up for free:
+  - Academics → **Difficulty** tab's Save & Replan button (already amber-highlighted on `planStale`) and its "Current plan doesn't reflect your latest saved changes" banner now also trigger from a re-research, not just a manual hours edit.
+  - Academics tab bar: the small red dot on the **Difficulty** tab (previously only for unsaved draft edits) now also lights up when `planStale`.
+  - **Weekly view** (new): an amber dot on the "Plan status & diagnostics" stethoscope icon, and on the **Replan** button itself, when `planStale` — plus both tooltips explain why ("new estimates saved, not yet applied").
+- Toast on re-research now says "...Save & Replan to apply the new estimate" instead of just "...difficulty updated".
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.4 — 2026-09-12
 
 **Remove redundant "h" unit label in Difficulty table's Hours column**
