@@ -30,6 +30,7 @@ No need to order the whole list up front.
 | — | B-15 | New-user Site Tour / guided walkthrough | Onboarding | M | Backlog |
 | — | B-16 | In-app planner assistant — command-driven plan edits (no external LLM) | AI assistant | M–L | Parked |
 | **2** | B-17 | Onboarding + account-integrity hardening (surfaced testing Itay's new account) | Onboarding / Infra | L | In progress |
+| — | B-18 | Concurrent multi-term planning (dual enrollment / study abroad) | Planner | L | Backlog |
 
 ## Details
 
@@ -237,6 +238,20 @@ bugs ship first:
 in the first place).
 
 Order done: Group 1 → Group 2 → Group 4. Remaining: Group 3, then B-11 for reliable reset emails.
+
+### B-18 · Concurrent multi-term planning (dual enrollment / study abroad)
+`getActiveTermAndSchool()`/`termScopedForPlanning()` only ever treat ONE term as "current" —
+that's a deliberate, load-bearing assumption throughout the planner, not just a UI limitation.
+Real scenarios exist where a student is legitimately in two terms at once: dual enrollment (high
+school + community college, or a certificate program at a different school), or study abroad
+(home school's quarter calendar overlapping an abroad program's semester calendar).
+
+Today, creating an overlapping term just warns (see the overlap-check shipped alongside this
+entry) — it doesn't actually plan across both. Building real support means the planner would need
+to merge courses/assignments/exams across every simultaneously-"current" term, not just the single
+one `termScopedForPlanning` currently scopes to — a genuine architectural change (capacity
+planning, session-time overlap, difficulty/priority balancing across two schools' work at once),
+not a validation tweak. Worth doing if/when a real need shows up; not proactively building it now.
 
 ---
 
