@@ -132,8 +132,11 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Known backlog (not yet built)
 
-- `webDifficultySignal()` — still a stub returning `null`. Needs real web-search-backed course
-  difficulty research feeding into `estimateDifficulty()`.
+- ~~`webDifficultySignal()`~~ — done (B-01): `/api/course-info` now runs real web search per new
+  course (not per item — the old per-item stub was removed), self-reports a confidence level
+  (low/medium/high) + rationale since real grade-distribution data is usually login-gated, and
+  that confidence shows as a small tooltip badge next to the course's difficulty in Academics →
+  Courses.
 - Personalization loop — student overrides (`userValue`/`userHours`) only affect that one item;
   nothing feeds them back to influence future estimates.
 - Overflow UI — currently just a toast naming shortfalls. Designed but not built: a persistent
