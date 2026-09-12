@@ -193,6 +193,13 @@
     .g4{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:11px;}
     .row{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
 
+    /* List row — a leading checkbox/icon, flexible label text, optional trailing badge/button,
+    all on one line. Used across Progress/History/Onboard/Preferences; was referenced everywhere
+    but never actually defined, so every "list-item" row silently stacked its children in block
+    flow instead of a row (the checkbox landing on its own line above the title). */
+    .list-item{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--b1);}
+    .list-item:last-child{border-bottom:none;}
+
     /* Progress bar */
     .bar{height:6px; border-radius:3px; background:var(--card2); overflow:hidden;}
     .bar-fill{height:100%; border-radius:3px; transition:width 0.4s;}

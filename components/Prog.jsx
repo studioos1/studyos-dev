@@ -74,7 +74,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
         <StatCard label="Gym/30d" value={g30} sub={`/${gymTarget*4}`} col="var(--a-gym-t)" icon="ti-barbell"/>
         <StatCard label="GPA" value={gpa!==null?gpa.toFixed(2):"—"} sub="" col="var(--amber)" icon="ti-award"/>
         <StatCard label="Focus/30d" value={focus30} sub=" min" col="var(--a-study-t)" icon="ti-clock-play"/>
-        <StatCard label="UCSD ready" value={ms.filter(m=>m.ok).length} sub={`/${ms.length}`} col="var(--lime)" icon="ti-school"/>
+        <StatCard label="College ready" value={ms.filter(m=>m.ok).length} sub={`/${ms.length}`} col="var(--lime)" icon="ti-school"/>
       </div>
 
       <div className="card" style={{marginBottom:12}}>
@@ -83,7 +83,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
           <span style={{fontSize:18,color:"var(--blue)"}}>{hs}/100</span>
         </div>
         <div className="bar" style={{marginBottom:7}}><div className="bar-fill" style={{width:`${hs}%`,background:hs>=75?"var(--a-study-t)":hs>=50?"var(--amber)":"var(--blue)"}}/></div>
-        <div style={{fontSize:13,color:"var(--t2)"}}>{hs>=75?"UCSD-ready habits forming":hs>=50?"Good progress — keep going":"Every check-in builds the habit"}</div>
+        <div style={{fontSize:13,color:"var(--t2)"}}>{hs>=75?"College-ready habits forming":hs>=50?"Good progress — keep going":"Every check-in builds the habit"}</div>
       </div>
 
       <div className="card" style={{marginBottom:12}}>
@@ -114,7 +114,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       </div>
 
       <div className="card" style={{marginBottom:12}}>
-        <SecHead icon="ti-school" title="UCSD Readiness"/>
+        <SecHead icon="ti-school" title="College Readiness"/>
         {ms.map((m,i)=>(
           <div key={i} className="list-item">
             <div style={{width:17,height:17,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:m.ok?"var(--green-bg)":"var(--card2)"}}>
