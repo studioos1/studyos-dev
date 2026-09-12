@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { iso, du } from "@/lib/time";
 import { courseNameFor, findMatchingCourse, norm, prettyCourseCode } from "@/lib/courses";
 import { computeTermStatuses, uid } from "@/lib/data";
@@ -68,8 +68,32 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // anything's actually changed (dirty-tracking), same pattern as Settings' Save & Replan.
   const [diffRatings,setDiffRatings]=useState(null); // {itemKey: {estimatorValue, userValue, aiHours, userHours, kind, id, courseId, courseName, title, weight, dueDate}}
   const [diffComputing,setDiffComputing]=useState(true);
-  const [diffSortBy,setDiffSortBy]=useState("class");
+  const [diffSortBy,setDiffSortBy]=useState("due");
   const [diffBaseline,setDiffBaseline]=useState(null); // JSON snapshot of {userValue,userHours} at last load/save
+
+  // Study Preferences table is grouped by class with foldable sections (Class column removed —
+  // every row's class is implied by its group). Fold state is a transient viewing preference, not
+  // account data: sessionStorage keeps it while switching between tabs in this session, but a
+  // fresh visit (reload, new session) always starts fully expanded rather than risking a stale
+  // folded state the student doesn't remember setting.
+  const FOLD_KEY="studyos_difftab_folded";
+  const [foldedClasses,setFoldedClasses]=useState(()=>{
+    try{return new Set(JSON.parse(sessionStorage.getItem(FOLD_KEY)||"[]"));}catch{return new Set();}
+  });
+  function persistFolded(next){try{sessionStorage.setItem(FOLD_KEY,JSON.stringify([...next]));}catch{}}
+  function toggleFold(courseId){
+    setFoldedClasses(prev=>{
+      const next=new Set(prev);
+      if(next.has(courseId))next.delete(courseId);else next.add(courseId);
+      persistFolded(next);
+      return next;
+    });
+  }
+  function setAllFolded(courseIds,folded){
+    const next=folded?new Set(courseIds):new Set();
+    persistFolded(next);
+    setFoldedClasses(next);
+  }
 
   // Computes Low/Mid/High + suggested hours for every active assignment/exam — but only for items
   // that have NEVER had an estimate computed at all (estimatorValue==null). As of this version,
@@ -1200,20 +1224,42 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   effectiveValue:r.userValue||r.estimatorValue,
                   effectiveHours:r.userHours??r.aiHours,
                   priority:computePriorityScore(r.dueDate,r.userValue||r.estimatorValue,r.weight)})):[];
-                const sorted=[...allItems].sort((a,b)=>{
-                  if(diffSortBy==="due")return(a.dueDate||"9999").localeCompare(b.dueDate||"9999");
+                if(allItems.length===0)return <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>;
+
+                // Same comparator drives both the row order WITHIN a class and the order of the
+                // class groups themselves (by that group's own top item) — grouping removes the
+                // repeated Class column, but "what's most urgent" still surfaces at a glance.
+                const itemCmp=(a,b)=>{
                   if(diffSortBy==="weight")return(b.weight??-1)-(a.weight??-1);
                   if(diffSortBy==="priority")return b.priority-a.priority;
-                  return a.courseName.localeCompare(b.courseName)||(a.dueDate||"").localeCompare(b.dueDate||"");
+                  return(a.dueDate||"9999").localeCompare(b.dueDate||"9999");
+                };
+                const byCourse=new Map();
+                allItems.forEach(it=>{
+                  if(!byCourse.has(it.courseId))byCourse.set(it.courseId,{courseId:it.courseId,courseName:it.courseName,items:[]});
+                  byCourse.get(it.courseId).items.push(it);
                 });
-                if(sorted.length===0)return <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>;
+                const groups=[...byCourse.values()].map(g=>{
+                  const items=[...g.items].sort(itemCmp);
+                  const course=termCourses.find(c=>c.id===g.courseId);
+                  return{...g,items,color:course?.color?.border||"var(--t3)"};
+                }).sort((a,b)=>itemCmp(a.items[0],b.items[0]));
+
+                const allCourseIds=groups.map(g=>g.courseId);
+                const allFolded=allCourseIds.length>0&&allCourseIds.every(id=>foldedClasses.has(id));
+
                 return(
                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                  <table style={{width:"100%",minWidth:760,borderCollapse:"collapse"}}>
+                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setAllFolded(allCourseIds,!allFolded)}>
+                      <i className={`ti ${allFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{marginRight:5}}/>
+                      {allFolded?"Expand all":"Collapse all"}
+                    </button>
+                  </div>
+                  <table style={{width:"100%",minWidth:680,borderCollapse:"collapse"}}>
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Assignment</th>
-                        <TableHead label="Class" col="class" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
                         <TableHead label="Due" col="due" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
                         <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Type</th>
@@ -1224,61 +1270,81 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map(item=>{
-                        const isExam=item.kind==="exam";
-                        const isProject=item.type==="project";
-                        const accent=isExam?"var(--red)":isProject?"#6a5acd":"transparent";
+                      {groups.map(g=>{
+                        const folded=foldedClasses.has(g.courseId);
+                        const nextDue=g.items.map(it=>it.dueDate).filter(Boolean).sort()[0];
                         return(
-                        <tr key={item.key} style={{borderBottom:"1px solid var(--b1)",
-                          borderLeft:`3px solid ${accent}`,
-                          background:isExam?"var(--red-bg)":isProject?"rgba(106,90,205,0.09)":undefined}}>
-                          <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>
-                            <i className={`ti ${isExam?"ti-file-text":isProject?"ti-folders":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
-                            {item.title}
-                            {isExam&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"var(--red)",background:"var(--red-bg)",padding:"2px 6px",borderRadius:4}}>EXAM</span>}
-                            {isProject&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"#a89cf0",background:"rgba(106,90,205,0.18)",padding:"2px 6px",borderRadius:4}}>PROJECT</span>}
-                          </td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{item.courseName}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.dueDate||"—"}</td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.weight!=null?item.weight+"%":"—"}</td>
-                          <td style={{padding:"9px 8px"}}>
-                            {isExam
-                              ?<span style={{fontSize:12,color:"var(--t3)"}}>Exam</span>
-                              :<select value={item.type||"homework"} onChange={e=>setItemType(item.key,item.id,e.target.value)}
-                                 title="Projects get steady work across the whole term instead of a last-few-days sprint"
-                                 style={{fontSize:12,padding:"4px 7px",width:110,
-                                   borderColor:isProject?"#6a5acd":undefined,
-                                   color:isProject?"#a89cf0":undefined,fontWeight:isProject?600:400}}>
-                                 <option value="homework">Homework</option>
-                                 <option value="project">Project</option>
-                               </select>}
-                          </td>
-                          <td style={{padding:"9px 8px",textAlign:"center"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
-                          <td style={{padding:"9px 8px",textAlign:"center"}}>
-                            <select value={item.userValue||""} onChange={e=>setDiffOverride(item.key,e.target.value||null)}
-                              style={{fontSize:12,padding:"4px 6px",width:98,
-                                borderColor:item.userValue?"var(--amber)":undefined,
-                                fontWeight:item.userValue?600:400,
-                                color:item.userValue?"var(--amber)":undefined}}>
-                              <option value="">— none —</option>
-                              {DIFFICULTY_BANDS.map(b=><option key={b} value={b}>{b}</option>)}
-                            </select>
-                          </td>
-                          <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
-                            <HoursInput value={item.userHours??item.aiHours} isOverridden={item.userHours!=null}
-                              onCommit={v=>setHoursOverride(item.key,v)}/>
-                            <span style={{fontSize:11,color:"var(--t3)",marginLeft:4}}>h</span>
-                            {item.userHours!=null&&item.userHours!==item.aiHours&&(
-                              <button onClick={()=>setHoursOverride(item.key,null)}
-                                title={`Reset to suggested ${item.aiHours}h`}
-                                style={{marginLeft:6,fontSize:11,color:"var(--t3)",background:"none",border:"none",
-                                  cursor:"pointer",padding:0}}>
-                                ↺ {item.aiHours}h
-                              </button>
-                            )}
-                          </td>
-                          <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)"}}>{item.priority}</td>
-                        </tr>
+                          <Fragment key={g.courseId}>
+                            <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
+                              onClick={()=>toggleFold(g.courseId)}>
+                              <td colSpan={8} style={{padding:"8px 8px"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                                  <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
+                                  <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                                  <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
+                                  <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
+                                  {nextDue&&<span style={{color:"var(--t3)"}}>· next due {nextDue}</span>}
+                                  <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
+                                </div>
+                              </td>
+                            </tr>
+                            {!folded&&g.items.map(item=>{
+                              const isExam=item.kind==="exam";
+                              const isProject=item.type==="project";
+                              const accent=isExam?"var(--red)":isProject?"#6a5acd":"transparent";
+                              return(
+                              <tr key={item.key} style={{borderBottom:"1px solid var(--b1)",
+                                borderLeft:`3px solid ${accent}`,
+                                background:isExam?"var(--red-bg)":isProject?"rgba(106,90,205,0.09)":undefined}}>
+                                <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>
+                                  <i className={`ti ${isExam?"ti-file-text":isProject?"ti-folders":"ti-notebook"}`} style={{fontSize:13,color:"var(--t3)",marginRight:6}}/>
+                                  {item.title}
+                                  {isExam&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"var(--red)",background:"var(--red-bg)",padding:"2px 6px",borderRadius:4}}>EXAM</span>}
+                                  {isProject&&<span style={{marginLeft:7,fontSize:10,fontWeight:700,letterSpacing:"0.05em",color:"#a89cf0",background:"rgba(106,90,205,0.18)",padding:"2px 6px",borderRadius:4}}>PROJECT</span>}
+                                </td>
+                                <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.dueDate||"—"}</td>
+                                <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",textAlign:"center"}}>{item.weight!=null?item.weight+"%":"—"}</td>
+                                <td style={{padding:"9px 8px"}}>
+                                  {isExam
+                                    ?<span style={{fontSize:12,color:"var(--t3)"}}>Exam</span>
+                                    :<select value={item.type||"homework"} onChange={e=>setItemType(item.key,item.id,e.target.value)}
+                                       title="Projects get steady work across the whole term instead of a last-few-days sprint"
+                                       style={{fontSize:12,padding:"4px 7px",width:110,
+                                         borderColor:isProject?"#6a5acd":undefined,
+                                         color:isProject?"#a89cf0":undefined,fontWeight:isProject?600:400}}>
+                                       <option value="homework">Homework</option>
+                                       <option value="project">Project</option>
+                                     </select>}
+                                </td>
+                                <td style={{padding:"9px 8px",textAlign:"center"}}><DiffPill value={item.estimatorValue} muted={!!item.userValue}/></td>
+                                <td style={{padding:"9px 8px",textAlign:"center"}}>
+                                  <select value={item.userValue||""} onChange={e=>setDiffOverride(item.key,e.target.value||null)}
+                                    style={{fontSize:12,padding:"4px 6px",width:98,
+                                      borderColor:item.userValue?"var(--amber)":undefined,
+                                      fontWeight:item.userValue?600:400,
+                                      color:item.userValue?"var(--amber)":undefined}}>
+                                    <option value="">— none —</option>
+                                    {DIFFICULTY_BANDS.map(b=><option key={b} value={b}>{b}</option>)}
+                                  </select>
+                                </td>
+                                <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+                                  <HoursInput value={item.userHours??item.aiHours} isOverridden={item.userHours!=null}
+                                    onCommit={v=>setHoursOverride(item.key,v)}/>
+                                  <span style={{fontSize:11,color:"var(--t3)",marginLeft:4}}>h</span>
+                                  {item.userHours!=null&&item.userHours!==item.aiHours&&(
+                                    <button onClick={()=>setHoursOverride(item.key,null)}
+                                      title={`Reset to suggested ${item.aiHours}h`}
+                                      style={{marginLeft:6,fontSize:11,color:"var(--t3)",background:"none",border:"none",
+                                        cursor:"pointer",padding:0}}>
+                                      ↺ {item.aiHours}h
+                                    </button>
+                                  )}
+                                </td>
+                                <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)"}}>{item.priority}</td>
+                              </tr>
+                              );
+                            })}
+                          </Fragment>
                         );
                       })}
                     </tbody>
