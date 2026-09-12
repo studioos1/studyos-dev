@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.46.13 — 2026-09-12
+
+**Lighter `--blue` token for better contrast on dark card backgrounds**
+
+- `--blue` (#6aace0) had a measured contrast ratio of only ~2.9:1 against the `--card2` background (below WCAG AA's 3:1 floor even for large text/icons) and ~3.6:1 against `--card` — plain blue text/icons sitting directly on either surface (no own background chip, unlike `badge-blue`'s own dark `--blue-bg` pill) read as washed out, which is what showed up in the new re-research strip.
+- Lightened it to `#8ec4f0` — contrast improves to ~3.8:1 on `--card2` and ~4.8:1 on `--card` (now meets AA for large text/UI components), and `badge-blue` text-on-pill contrast rises from ~6.9:1 to ~9:1. One CSS variable, so every use (badge-blue, `.sec-title` icons, `.card-accent` left border, stat dots) picks it up automatically — no per-component changes.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.12 — 2026-09-12
 
 **Re-research: "Confirm" instead of "Apply & Replan" when nothing actually changed**
