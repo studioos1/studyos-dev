@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.46.6 — 2026-09-12
+
+**Re-research now opens a review modal (old vs new, highlighted, Apply & Replan) instead of silently overwriting**
+
+- v2.46.5 made a re-research flag the plan stale so the student *could* notice something needed attention — but they still had to go find it. This goes further: "Re-research this course's difficulty" (Academics → Courses) no longer writes the new estimate straight onto the course. It fetches the fresh web-search result, then opens `ReResearchModal` for review before anything is saved:
+  - **Difficulty**, **Weekly hours**, and **Exam prep days** shown old → new, with an arrow and amber highlight only on whatever actually changed (a search that confirms the existing estimate shows no arrows and says so).
+  - The confidence pill and rationale sentence from the search are shown too, same content as the tooltip badge, but now with the numbers it's judging.
+  - Three ways to close it: **Keep current estimate** (discard the new numbers, nothing saved), **Apply, replan later** (saves it, flags `planStale` same as before), or **Apply & Replan** (saves it and immediately runs the full replan, mirroring the Sync-result modal's "Create study plan" flow).
+- If the search just confirms the existing numbers, applying doesn't flag `planStale` or suggest a replan — nothing actually changed for the planner to react to.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.5 — 2026-09-12
 
 **Re-researching a course now flags the plan stale, and it's visible in Difficulty + Weekly**

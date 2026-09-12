@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
-import { Sp, ExtractionIssues, PasswordInput } from "./ui";
+import { Sp, ExtractionIssues, PasswordInput, DiffBadge } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
 // data.assignments/data.exams. Gives the student one place to catch and fix any misclassified
@@ -354,6 +354,83 @@ export function SyncResultModal({result,onClose,onPlanNow,planning}){
               {planning?<><Sp sz={13}/> Planning...</>:<><i className="ti ti-sparkles"/> Create study plan</>}
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Shown right after "Re-research this course's difficulty" (B-01) comes back — a fresh web-search
+// estimate is worth review-and-decide, not a silent overwrite the student has to notice later via
+// the planStale dot. Puts old vs new side by side, highlights whatever actually changed, and offers
+// the replan step right here (same "Apply & Replan" idea as SyncResultModal's onPlanNow) instead of
+// relying on the student to remember to go do it in Study Preferences.
+export function ReResearchModal({course,info,onApply,onApplyAndReplan,onDiscard,planning}){
+  if(!course||!info)return null;
+  const oldScore=course.difficulty,newScore=info.difficultyScore||oldScore;
+  const oldHours=course.weeklyHours,newHours=info.weeklyStudyHours||oldHours;
+  const oldPrep=course.startExamPrepDays,newPrep=info.startExamPrepDays||oldPrep;
+  const diffChanged=newScore!==oldScore||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
+  const hoursChanged=newHours!==oldHours;
+  const prepChanged=newPrep!==oldPrep;
+  const anyChanged=diffChanged||hoursChanged||prepChanged;
+  const Row=({label,changed,oldEl,newEl})=>(
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
+      <span style={{fontSize:13,color:"var(--t2)",width:110,flexShrink:0}}>{label}</span>
+      {changed?(<>
+        <span style={{opacity:0.5}}>{oldEl}</span>
+        <i className="ti ti-arrow-right" style={{fontSize:13,color:"var(--t3)"}}/>
+        <span>{newEl}</span>
+      </>):(
+        <span>{newEl}</span>
+      )}
+    </div>
+  );
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"var(--card)",borderRadius:14,maxWidth:480,width:"100%",maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{padding:"20px 24px",borderBottom:"1px solid var(--b1)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <i className="ti ti-refresh" style={{fontSize:20,color:"var(--amber)"}}/>
+            <span style={{fontSize:17,fontWeight:600}}>New estimate for {course.name}</span>
+          </div>
+          {info.confidence&&(
+            <div style={{fontSize:12,color:"var(--t3)",marginTop:6,display:"flex",alignItems:"center",gap:5}}>
+              <i className="ti ti-search"/> {info.confidence} confidence
+            </div>
+          )}
+        </div>
+        <div style={{padding:"18px 24px"}}>
+          {!anyChanged&&(
+            <div style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>The web search came back with the same numbers you already have.</div>
+          )}
+          <Row label="Difficulty" changed={diffChanged}
+            oldEl={<DiffBadge score={oldScore} label={course.difficultyLabel}/>}
+            newEl={<DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/>}/>
+          <Row label="Weekly hours" changed={hoursChanged}
+            oldEl={<span style={{fontSize:13}}>{oldHours}h/week</span>}
+            newEl={<span style={{fontSize:13,fontWeight:hoursChanged?600:400,color:hoursChanged?"var(--amber)":"var(--t1)"}}>{newHours}h/week</span>}/>
+          <Row label="Exam prep" changed={prepChanged}
+            oldEl={<span style={{fontSize:13}}>{oldPrep}d before</span>}
+            newEl={<span style={{fontSize:13,fontWeight:prepChanged?600:400,color:prepChanged?"var(--amber)":"var(--t1)"}}>{newPrep}d before</span>}/>
+          {info.rationale&&(
+            <div style={{fontSize:12.5,color:"var(--t2)",lineHeight:1.6,marginTop:14,padding:"10px 12px",background:"var(--card2)",borderRadius:8}}>
+              <i className="ti ti-quote" style={{fontSize:12,color:"var(--t3)",marginRight:4}}/>{info.rationale}
+            </div>
+          )}
+        </div>
+        <div style={{padding:"16px 24px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          <button className="btn btn-ghost" onClick={onDiscard} style={{padding:"8px 16px"}}>
+            Keep current estimate
+          </button>
+          <div style={{display:"flex",gap:10}}>
+            <button className="btn btn-ghost" onClick={onApply} style={{padding:"8px 16px"}}>
+              Apply, replan later
+            </button>
+            <button className="btn btn-action" onClick={onApplyAndReplan} disabled={planning} style={{padding:"8px 16px"}}>
+              {planning?<><Sp sz={13}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
+            </button>
+          </div>
         </div>
       </div>
     </div>

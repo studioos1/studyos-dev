@@ -23,6 +23,7 @@ import {
   HoursInput,
   InfoModal,
   SyncResultModal,
+  ReResearchModal,
   ExtractionVerifyModal,
   DelBtn,
   DiffBadge,
@@ -222,32 +223,55 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
 
   // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —
   // courses created before that shipped, or ones a student just wants refreshed, have no
-  // confidence/rationale to show otherwise. Updates that one course in place; never touches its
-  // assignments/exams/grades.
+  // confidence/rationale to show otherwise. Rather than overwriting the course silently, the
+  // fresh result is held for review (pendingResearch) and shown in ReResearchModal — old vs new,
+  // changed fields highlighted — so the student sees exactly what a "Save & Replan" would apply
+  // instead of having to notice the planStale dot afterward and guess what changed.
   const [researchingCourseId,setResearchingCourseId]=useState(null);
+  const [pendingResearch,setPendingResearch]=useState(null); // {course,info} awaiting review
   async function reResearchCourse(course){
     setResearchingCourseId(course.id);
     try{
       const info=await CI(course.name,null,data.profile?.schoolName);
-      // A changed weeklyHours/difficulty means the current plan was built on stale estimates —
-      // setting planStale flags it the same way a manual hours override does, so the existing
-      // Save & Replan highlight (Difficulty tab) and Plan status banner (Weekly) both pick it up
-      // without needing a separate signal.
-      upd({courses:data.courses.map(c=>c.id===course.id?{...c,
-        difficulty:info.difficultyScore||c.difficulty,
-        difficultyLabel:info.difficultyLabel||c.difficultyLabel,
-        weeklyHours:info.weeklyStudyHours||c.weeklyHours,
-        startExamPrepDays:info.startExamPrepDays||c.startExamPrepDays,
-        description:info.description||c.description,
-        tips:info.tips?.length?info.tips:c.tips,
-        difficultyConfidence:info.confidence||"low",
-        difficultyRationale:info.rationale||"",
-      }:c),planStale:true});
-      toast2(`${course.name} difficulty updated — Save & Replan to apply the new estimate`);
+      setPendingResearch({course,info});
     }catch{
       toast2("Couldn't research this course right now",true);
     }
     setResearchingCourseId(null);
+  }
+  // Writes the reviewed result onto the course; never touches assignments/exams/grades. Returns
+  // whether anything that actually feeds the planner changed, so callers can skip flagging
+  // planStale (and skip the "replan" step) when the search just confirmed the existing estimate.
+  function commitPendingResearch(){
+    const {course,info}=pendingResearch;
+    const changed=(info.difficultyScore&&info.difficultyScore!==course.difficulty)
+      ||(info.weeklyStudyHours&&info.weeklyStudyHours!==course.weeklyHours)
+      ||(info.startExamPrepDays&&info.startExamPrepDays!==course.startExamPrepDays);
+    upd({courses:data.courses.map(c=>c.id===course.id?{...c,
+      difficulty:info.difficultyScore||c.difficulty,
+      difficultyLabel:info.difficultyLabel||c.difficultyLabel,
+      weeklyHours:info.weeklyStudyHours||c.weeklyHours,
+      startExamPrepDays:info.startExamPrepDays||c.startExamPrepDays,
+      description:info.description||c.description,
+      tips:info.tips?.length?info.tips:c.tips,
+      difficultyConfidence:info.confidence||"low",
+      difficultyRationale:info.rationale||"",
+    }:c),...(changed?{planStale:true}:{})});
+    setPendingResearch(null);
+    return changed;
+  }
+  function applyResearch(){
+    const changed=commitPendingResearch();
+    toast2(changed?"Difficulty updated — Save & Replan to apply the new estimate":"Difficulty updated");
+  }
+  async function applyResearchAndReplan(){
+    commitPendingResearch();
+    await refreshQuarterPlan();
+    toast2("Difficulty updated and plan refreshed");
+  }
+  function discardResearch(){
+    setPendingResearch(null);
+    toast2("Kept the existing estimate");
   }
 
 
@@ -1545,6 +1569,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         </div>
       )}
       {modal}
+      {pendingResearch&&(
+        <ReResearchModal course={pendingResearch.course} info={pendingResearch.info} planning={planning}
+          onApply={applyResearch} onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
+      )}
       <SyncResultModal result={syncResult} planning={planning}
         onClose={()=>{const hadItems=syncResult?.added>0;setSyncResult(null);if(hadItems)setView("difficulty");}}
         onPlanNow={async()=>{await refreshQuarterPlan();setSyncResult(null);setView("difficulty");}}/>
