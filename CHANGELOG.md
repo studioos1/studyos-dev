@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.45.5 — 2026-09-12
+
+**Public SMS opt-in evidence page, for A2P Campaign re-submission**
+
+Twilio rejected the Campaign for "issues verifying the Call to Action" — the Google Drive screenshot link given as evidence apparently couldn't be reliably verified. Replaced it with a same-domain page instead of a third-party file host.
+
+- **`/sms-optin`** — new public, unauthenticated page: describes the real in-app opt-in flow step by step, and embeds a screenshot of the live consent screen (phone field, frequency/rate disclosure, STOP/HELP, ToS/Privacy links, checked consent box, submit button). Links to `/terms` and `/privacy`, same as the flow itself does.
+- The screenshot uses a **placeholder phone number**, not the real account's — the original capture briefly showed the real number, caught before publishing and re-shot with `+15551234567` after temporarily swapping the field (restored to the real number immediately after, verified).
+
+**Next:** resubmit the Campaign with the CTA/consent-evidence field pointing to `https://www.studyos.io/sms-optin` instead of the Drive link.
+
+**Validation:** 73 tests pass, `npm run build` clean, page verified locally.
+
 ## v2.45.4 — 2026-09-11
 
 **Account modal: minimal, unified styling**
