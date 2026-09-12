@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { iso } from "@/lib/time";
-import { computeTermStatuses } from "@/lib/data";
+import { computeTermStatuses, datesOverlap } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
-import { Sp, CollegeAutocomplete } from "@/components/shared";
+import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
 // ── SCHOOL INFO ──────────────────────────────────────────────────────────────
 export function SchoolInfo({data,upd,updP,toast2}){
@@ -10,6 +10,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
   const termStatuses=computeTermStatuses(data.terms,iso());
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
   const currentSchoolId=currentTerm?.schoolId||null;
+  const {confirm,modal}=useConfirm();
   const [expandedSchoolId,setExpandedSchoolId]=useState(currentSchoolId);
   useEffect(()=>{if(currentSchoolId&&expandedSchoolId===null)setExpandedSchoolId(currentSchoolId);},[currentSchoolId]); // eslint-disable-line
 
@@ -35,11 +36,33 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // belongs to (that's a bigger structural move, out of scope for a simple correction).
   const [editingTerm,setEditingTerm]=useState(null); // {id, name, type, start, end} while a term is being edited, else null
   function startEditTerm(t){setEditingTerm({id:t.id,name:t.name,type:t.type,start:t.start,end:t.end});}
+  // Warns — doesn't block — when a term's dates overlap the term currently driving the planner.
+  // getActiveTermAndSchool()/termScopedForPlanning() only ever treat ONE term as "current", so an
+  // overlap doesn't merge planning across both terms — it silently drops the other one's courses.
+  // Same-school overlap is almost always a mistake (wrong dates, duplicate entry); cross-school
+  // overlap can be a real situation (dual enrollment, study abroad) that this app just can't plan
+  // across yet — either way the student should see the consequence before it happens quietly.
+  async function checkOverlapAndProceed(schoolId,start,end,excludeTermId,onProceed){
+    if(currentTerm&&currentTerm.id!==excludeTermId&&datesOverlap(start,end,currentTerm.start,currentTerm.end)){
+      const sameSchool=currentTerm.schoolId===schoolId;
+      const currentSchoolName=schools.find(s=>s.id===currentTerm.schoolId)?.name||"your current school";
+      const msg=sameSchool
+        ?`This overlaps with your current term at ${currentSchoolName} (${currentTerm.start} – ${currentTerm.end}). That's almost always a mistake — double check the dates. Continue anyway?`
+        :`This overlaps with your current term at ${currentSchoolName} (${currentTerm.start} – ${currentTerm.end}). Only one term is used for planning at a time, so the other one's courses won't be scheduled until it becomes current. Continue anyway?`;
+      const ok=await confirm(msg,{confirmLabel:"Continue anyway",confirmIcon:"ti-alert-triangle"});
+      if(!ok)return;
+    }
+    onProceed();
+  }
+
   function saveEditedTerm(){
     if(!editingTerm.start||!editingTerm.end){toast2("Both dates are required",true);return;}
-    upd({terms:data.terms.map(t=>t.id===editingTerm.id?{...t,name:editingTerm.name||"Untitled term",type:editingTerm.type,start:editingTerm.start,end:editingTerm.end}:t)});
-    toast2("Term updated");
-    setEditingTerm(null);
+    const term=data.terms.find(t=>t.id===editingTerm.id);
+    checkOverlapAndProceed(term?.schoolId,editingTerm.start,editingTerm.end,editingTerm.id,()=>{
+      upd({terms:data.terms.map(t=>t.id===editingTerm.id?{...t,name:editingTerm.name||"Untitled term",type:editingTerm.type,start:editingTerm.start,end:editingTerm.end}:t)});
+      toast2("Term updated");
+      setEditingTerm(null);
+    });
   }
 
   const bySchool={};
@@ -76,14 +99,16 @@ export function SchoolInfo({data,upd,updP,toast2}){
     if(!newSchool||!newStart||!newEnd){toast2("School name and both dates are required",true);return;}
     const existing=schools.find(s=>s.name===newSchool);
     const schoolId=existing?existing.id:"sch_"+Date.now();
-    const patch={};
-    if(!existing)patch.schools=[...schools,{id:schoolId,name:newSchool,address:"",schoolType:newType}];
-    patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:[],source:null,fetchedAt:null}];
-    upd(patch);
-    toast2(existing?"Term added!":"New school and term added!");
-    setExpandedSchoolId(schoolId);
-    setShowAddTerm(false);
-    setNewSchool("");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+    checkOverlapAndProceed(schoolId,newStart,newEnd,null,()=>{
+      const patch={};
+      if(!existing)patch.schools=[...schools,{id:schoolId,name:newSchool,address:"",schoolType:newType}];
+      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:[],source:null,fetchedAt:null}];
+      upd(patch);
+      toast2(existing?"Term added!":"New school and term added!");
+      setExpandedSchoolId(schoolId);
+      setShowAddTerm(false);
+      setNewSchool("");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+    });
   }
 
   const statusColor=s=>s==="current"?"var(--amber)":s==="upcoming"?"var(--blue)":"var(--t3)";
@@ -228,6 +253,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
           </div>
         </div>
       )}
+      {modal}
     </div>
   );
 }
