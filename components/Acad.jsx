@@ -30,57 +30,41 @@ import {
   DayPick,
 } from "@/components/shared";
 
-// Inline preview of a pending re-research result (B-01) — shown directly under the course's own
-// badge row instead of a separate modal, so old vs new sits right where the badges it would update
-// already are. Field order mirrors the badge row above it (Difficulty, Weekly hours, Exam prep);
-// actions sit on the right so applying doesn't need scanning back up to the course name.
+// Inline preview of a pending re-research result (B-01) — a second line directly under the
+// course's own badge row, in the exact same shape (same badge classes, same gap/wrap) as that row,
+// so the new values sit exactly under the old ones instead of living in a separate boxed panel.
+// Only fields that actually changed get an amber highlight; an unchanged field renders identically
+// to how it already looked above, since the vertical position is what says "this is the new one."
 function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
-  const oldScore=course.difficulty,newScore=info.difficultyScore||oldScore;
-  const oldHours=course.weeklyHours,newHours=info.weeklyStudyHours||oldHours;
-  const oldPrep=course.startExamPrepDays,newPrep=info.startExamPrepDays||oldPrep;
-  const diffChanged=newScore!==oldScore||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
-  const hoursChanged=newHours!==oldHours;
-  const prepChanged=newPrep!==oldPrep;
-  const Field=({changed,oldEl,newEl})=>(
-    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-      {changed?(<>
-        <span style={{opacity:0.5}}>{oldEl}</span>
-        <i className="ti ti-arrow-right" style={{fontSize:12,color:"var(--t3)"}}/>
-        <span>{newEl}</span>
-      </>):(<>
-        <span>{newEl}</span>
-        <span style={{fontSize:10,color:"var(--t3)",display:"flex",alignItems:"center",gap:2}}>
-          <i className="ti ti-check" style={{fontSize:10}}/>same
-        </span>
-      </>)}
-    </div>
+  const newScore=info.difficultyScore||course.difficulty;
+  const newHours=info.weeklyStudyHours||course.weeklyHours;
+  const newPrep=info.startExamPrepDays||course.startExamPrepDays;
+  const diffChanged=newScore!==course.difficulty||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
+  const hoursChanged=newHours!==course.weeklyHours;
+  const prepChanged=newPrep!==course.startExamPrepDays;
+  const Hi=({on,children})=>(
+    <span style={{display:"inline-flex",borderRadius:8,boxShadow:on?"0 0 0 2px var(--amber)":"none"}}>{children}</span>
   );
   return(
-    <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8,marginBottom:10,
-      padding:"10px 12px",background:"var(--amber-bg)",borderRadius:8,border:"1px solid var(--amber)"}}>
-      <div style={{display:"flex",gap:18,flexWrap:"wrap",flex:1,minWidth:0}}>
-        <Field changed={diffChanged}
-          oldEl={<DiffBadge score={oldScore} label={course.difficultyLabel}/>}
-          newEl={<DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/>}/>
-        <Field changed={hoursChanged}
-          oldEl={<span className="badge badge-blue">{oldHours}h/wk</span>}
-          newEl={<span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk</span>}/>
-        <Field changed={prepChanged}
-          oldEl={<span className="badge badge-teal">{oldPrep}d before</span>}
-          newEl={<span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>{newPrep}d before</span>}/>
-      </div>
-      <div style={{display:"flex",gap:8,flexShrink:0}}>
-        <button className="btn btn-ghost btn-sm" onClick={onDiscard}>Keep current</button>
-        <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning}>
-          {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
-        </button>
-      </div>
-      {info.rationale&&(
-        <div style={{width:"100%",fontSize:11.5,color:"var(--t2)",lineHeight:1.5}}>
-          <i className="ti ti-search" style={{fontSize:11,marginRight:3}}/>
-          {info.confidence?`${info.confidence} confidence — `:""}{info.rationale}
-        </div>
+    <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginTop:2,marginBottom:6}}>
+      <span style={{fontSize:11,color:"var(--t3)"}}>New:</span>
+      <Hi on={diffChanged}><DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/></Hi>
+      <Hi on={hoursChanged}><span className="badge badge-blue">{newHours}h/wk study</span></Hi>
+      <Hi on={prepChanged}><span className="badge badge-teal">prep {newPrep}d before exams</span></Hi>
+      {info.confidence&&(
+        <span className="tt" data-tt={`Web-researched, ${info.confidence} confidence.${info.rationale?` ${info.rationale}`:""}`}
+          style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--card2)",color:"var(--t3)",cursor:"default"}}>
+          <i className="ti ti-search" style={{fontSize:11}}/>{info.confidence} confidence
+        </span>
       )}
+      <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning} style={{marginLeft:"auto"}}>
+        {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
+      </button>
+      <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
+        style={{width:22,height:22,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
+          cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+        <i className="ti ti-x" style={{fontSize:15}}/>
+      </button>
     </div>
   );
 }

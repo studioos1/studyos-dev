@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.46.10 — 2026-09-12
+
+**Re-research preview: plain line instead of a nested box, badges mirror the row above exactly, X to cancel**
+
+- `ResearchPreview` no longer renders as a bordered/background panel ("a box in a box") — it's now a plain second line, same gap/wrap/alignment as the course's existing badge row directly above it, so the new Difficulty/Weekly-hours/Exam-prep badges sit exactly under the old ones.
+- Dropped the arrow-comparison and "no change" tags from v2.46.6–.8 — with the new row sitting directly under the old one, position alone shows old vs new; only fields that actually changed get an amber highlight ring, so the eye goes straight to what moved.
+- "Keep current estimate" text button replaced with a small **X** at the right, next to "Apply & Replan" — both actions now sit at the end of that one line.
+- Confidence + rationale moved into the confidence badge's tooltip, matching how the course's own confidence badge (row above) already works, instead of a separate caption line.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.9 — 2026-09-12
 
 **Re-research result now expands inline under the course, not a popup modal**
