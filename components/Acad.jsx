@@ -46,6 +46,7 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
   const diffChanged=newScore!==course.difficulty||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
   const hoursChanged=newHours!==course.weeklyHours;
   const prepChanged=newPrep!==course.startExamPrepDays;
+  const anyChanged=diffChanged||hoursChanged||prepChanged;
   return(
     <div style={{background:"var(--card2)",margin:"2px -20px 10px",padding:"10px 20px"}}>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
@@ -60,16 +61,20 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
             <i className="ti ti-search" style={{fontSize:11}}/>{info.confidence} confidence
           </span>
         )}
-        <div style={{display:"flex",alignItems:"center",gap:18,marginLeft:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+          {!anyChanged&&!planning&&<span style={{fontSize:11,color:"var(--t3)"}}>no replan needed</span>}
           <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning}>
-            {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
-          </button>
-          <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
-            style={{width:30,height:30,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
-              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-            <i className="ti ti-x" style={{fontSize:18}}/>
+            {planning?<><Sp sz={12}/> Planning...</>
+              :anyChanged?<><i className="ti ti-sparkles"/> Apply &amp; Replan</>
+              :<><i className="ti ti-check"/> Confirm</>}
           </button>
         </div>
+        <div style={{width:18}}/>
+        <button className="tt" data-tt="Cancel — keep current estimate" onClick={onDiscard}
+          style={{width:30,height:30,borderRadius:"50%",border:"none",background:"transparent",color:"var(--t3)",
+            cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+          <i className="ti ti-x" style={{fontSize:18}}/>
+        </button>
       </div>
       {info.rationale&&(
         <div style={{fontSize:11.5,color:"var(--t3)",lineHeight:1.5,marginTop:6}}>{info.rationale}</div>
@@ -314,7 +319,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
       await refreshQuarterPlan();
       toast2("Difficulty updated and plan refreshed");
     }else{
-      toast2("Difficulty updated");
+      toast2("Estimate confirmed — nothing changed");
     }
   }
   function discardResearch(){

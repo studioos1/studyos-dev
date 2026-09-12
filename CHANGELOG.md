@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.46.12 — 2026-09-12
+
+**Re-research: "Confirm" instead of "Apply & Replan" when nothing actually changed**
+
+- When a re-research comes back identical to the current estimate, the action button now reads **Confirm** (check icon) instead of **Apply & Replan** (sparkles), with a small "no replan needed" note beside it — since there's genuinely nothing for a replan to apply. `applyResearchAndReplan` already skipped the actual replan step in this case (v2.46.6); this just makes the button say what it's about to do.
+- Toast on confirming an unchanged estimate now reads "Estimate confirmed — nothing changed" instead of the generic "Difficulty updated."
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.11 — 2026-09-12
 
 **Re-research preview: full-bleed shaded strip, badges aligned under the row above, background-fill highlight**
