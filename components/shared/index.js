@@ -20,7 +20,6 @@ export {
   ExtractionVerifyModal,
   BlockEditModal,
   SyncResultModal,
-  ReResearchModal,
   InfoModal,
   ConfirmModal,
   useConfirm,

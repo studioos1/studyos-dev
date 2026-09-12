@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.46.9 — 2026-09-12
+
+**Re-research result now expands inline under the course, not a popup modal**
+
+- Replaced `ReResearchModal` (a centered popup) with `ResearchPreview` — an inline panel that expands directly under the course's own badge row in Academics → Courses, right where the Difficulty/Weekly-hours/Exam-prep badges it's about to update already are.
+- Same field order as the badges above it (Difficulty, Weekly hours, Exam prep), same old→new pill treatment and "no change" tag per field from v2.46.8 — just laid out inline instead of in a dialog.
+- Actions (**Keep current** / **Apply & Replan**) sit on the right of the panel, one line, no popup chrome or backdrop to dismiss.
+- Confidence + rationale now show as a caption line under the fields instead of a header/quote block.
+
+**Validation:** 78 tests pass, `npm run build` clean.
+
 ## v2.46.8 — 2026-09-12
 
 **Every row in the re-research modal now says explicitly "changed" or "no change"**

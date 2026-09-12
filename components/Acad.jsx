@@ -23,13 +23,67 @@ import {
   HoursInput,
   InfoModal,
   SyncResultModal,
-  ReResearchModal,
   ExtractionVerifyModal,
   DelBtn,
   DiffBadge,
   PdfDrop,
   DayPick,
 } from "@/components/shared";
+
+// Inline preview of a pending re-research result (B-01) — shown directly under the course's own
+// badge row instead of a separate modal, so old vs new sits right where the badges it would update
+// already are. Field order mirrors the badge row above it (Difficulty, Weekly hours, Exam prep);
+// actions sit on the right so applying doesn't need scanning back up to the course name.
+function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
+  const oldScore=course.difficulty,newScore=info.difficultyScore||oldScore;
+  const oldHours=course.weeklyHours,newHours=info.weeklyStudyHours||oldHours;
+  const oldPrep=course.startExamPrepDays,newPrep=info.startExamPrepDays||oldPrep;
+  const diffChanged=newScore!==oldScore||(info.difficultyLabel&&info.difficultyLabel!==course.difficultyLabel);
+  const hoursChanged=newHours!==oldHours;
+  const prepChanged=newPrep!==oldPrep;
+  const Field=({changed,oldEl,newEl})=>(
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {changed?(<>
+        <span style={{opacity:0.5}}>{oldEl}</span>
+        <i className="ti ti-arrow-right" style={{fontSize:12,color:"var(--t3)"}}/>
+        <span>{newEl}</span>
+      </>):(<>
+        <span>{newEl}</span>
+        <span style={{fontSize:10,color:"var(--t3)",display:"flex",alignItems:"center",gap:2}}>
+          <i className="ti ti-check" style={{fontSize:10}}/>same
+        </span>
+      </>)}
+    </div>
+  );
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8,marginBottom:10,
+      padding:"10px 12px",background:"var(--amber-bg)",borderRadius:8,border:"1px solid var(--amber)"}}>
+      <div style={{display:"flex",gap:18,flexWrap:"wrap",flex:1,minWidth:0}}>
+        <Field changed={diffChanged}
+          oldEl={<DiffBadge score={oldScore} label={course.difficultyLabel}/>}
+          newEl={<DiffBadge score={newScore} label={info.difficultyLabel||course.difficultyLabel}/>}/>
+        <Field changed={hoursChanged}
+          oldEl={<span className="badge badge-blue">{oldHours}h/wk</span>}
+          newEl={<span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk</span>}/>
+        <Field changed={prepChanged}
+          oldEl={<span className="badge badge-teal">{oldPrep}d before</span>}
+          newEl={<span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>{newPrep}d before</span>}/>
+      </div>
+      <div style={{display:"flex",gap:8,flexShrink:0}}>
+        <button className="btn btn-ghost btn-sm" onClick={onDiscard}>Keep current</button>
+        <button className="btn btn-action btn-sm" onClick={onApplyAndReplan} disabled={planning}>
+          {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Apply &amp; Replan</>}
+        </button>
+      </div>
+      {info.rationale&&(
+        <div style={{width:"100%",fontSize:11.5,color:"var(--t2)",lineHeight:1.5}}>
+          <i className="ti ti-search" style={{fontSize:11,marginRight:3}}/>
+          {info.confidence?`${info.confidence} confidence — `:""}{info.rationale}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
 export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg}){
@@ -224,9 +278,10 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —
   // courses created before that shipped, or ones a student just wants refreshed, have no
   // confidence/rationale to show otherwise. Rather than overwriting the course silently, the
-  // fresh result is held for review (pendingResearch) and shown in ReResearchModal — old vs new,
-  // changed fields highlighted — so the student sees exactly what a "Save & Replan" would apply
-  // instead of having to notice the planStale dot afterward and guess what changed.
+  // fresh result is held for review (pendingResearch) and shown inline as a ResearchPreview right
+  // under that course's own badge row — old vs new, changed fields highlighted — so the student
+  // sees exactly what a "Save & Replan" would apply instead of having to notice the planStale dot
+  // afterward and guess what changed.
   const [researchingCourseId,setResearchingCourseId]=useState(null);
   const [pendingResearch,setPendingResearch]=useState(null); // {course,info} awaiting review
   async function reResearchCourse(course){
@@ -1156,6 +1211,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     {researchingCourseId===c.id?<Sp sz={13}/>:<i className="ti ti-refresh" style={{fontSize:15}}/>}
                   </button>
                 </div>
+                {pendingResearch?.course.id===c.id&&(
+                  <ResearchPreview course={c} info={pendingResearch.info} planning={planning}
+                    onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
+                )}
                 {c.description&&<div style={{fontSize:13,color:"var(--t3)",fontStyle:"italic",marginBottom:c.tips?.length?4:0}}>{c.description}</div>}
                 {c.tips?.length>0&&<div style={{fontSize:13,color:"var(--a-study-t)"}}>💡 {c.tips[0]}</div>}
               </div>
@@ -1569,10 +1628,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         </div>
       )}
       {modal}
-      {pendingResearch&&(
-        <ReResearchModal course={pendingResearch.course} info={pendingResearch.info} planning={planning}
-          onApplyAndReplan={applyResearchAndReplan} onDiscard={discardResearch}/>
-      )}
       <SyncResultModal result={syncResult} planning={planning}
         onClose={()=>{const hadItems=syncResult?.added>0;setSyncResult(null);if(hadItems)setView("difficulty");}}
         onPlanNow={async()=>{await refreshQuarterPlan();setSyncResult(null);setView("difficulty");}}/>
