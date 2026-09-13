@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.57.0 — 2026-09-13
+
+**Web-Mobile Enablement items #1–3** — see `MOBILE.md` (`docs/backlog` branch)
+
+All three implemented as additive breakpoints/viewport checks — desktop rendering unaffected (verified live: Weekly still defaults to the full grid on desktop).
+
+- **#1 `.g2/.g3/.g4` grid collapse**: below 480px, these shared 2/3/4-equal-column classes stack to one column instead of crushing labeled inputs to ~65-80px — fixes Preferences, Onboarding wizard, and Account modal simultaneously (they all share these classes).
+- **#2 Weekly auto-day-mode**: below 768px, `Week.jsx` now defaults straight into the existing single-day agenda view (today) instead of forcing the 7-column time grid, which genuinely can't fit a phone screen. The "← Weekly" button still lets a narrow-screen user reach the grid on purpose.
+- **#3 Top nav no longer clips tabs**: the tab row was `overflowX:"hidden"` — once tabs didn't fit a narrow screen, the excess ones were invisible and unreachable, not just cramped. Switched to `overflowX:"auto"` with `flexShrink:0` per tab, so it scrolls horizontally instead — nothing is ever unreachable again.
+
+**Validation:** 81 tests pass, `npm run build` clean. Live-verified desktop is unaffected (Weekly still opens to the grid). The narrow-viewport behavior itself couldn't be visually verified this session — the browser resize tool isn't taking effect in this environment — worth a real check on an actual phone.
+
 ## v2.56.7 — 2026-09-13
 
 **SMS opt-in: added "consent is optional" line, matching Twilio's web-form example 100%**

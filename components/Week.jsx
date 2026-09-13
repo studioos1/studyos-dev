@@ -9,8 +9,14 @@ import { PlanDrawer } from "@/components/PlanDrawer";
 // ── WEEK ─────────────────────────────────────────────────────────────────────
 export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg,planDrawerOpen,setPlanDrawerOpen}){
   const {confirm,modal}=useConfirm();
-  const [selDay,setSel]=useState(null);
-  const [mode,setMode]=useState("week");
+  // Sub-project: Web-Mobile Enablement item #2 — the 7-column time-block grid genuinely can't fit
+  // a phone screen (each day column would be well under 50px). Default straight into the existing
+  // single-day agenda view (today) on narrow screens instead of forcing the grid; desktop is
+  // unaffected since window.innerWidth there is always above the breakpoint. The "← Weekly"
+  // button in day mode still lets a narrow-screen user reach the grid on purpose if they want it.
+  const isNarrow=typeof window!=="undefined"&&window.innerWidth<768;
+  const [selDay,setSel]=useState(()=>isNarrow?iso():null);
+  const [mode,setMode]=useState(()=>isNarrow?"day":"week");
   const [editState,setEditState]=useState(null); // {dateStr, block|null} — lifted up from WeekGrid so the Add Activity button can live in this header row, next to Clear plan/Refresh Plan
   const [replanMenu,setReplanMenu]=useState(false); // the Replan split-button's ▾ menu
   const p=data.profile;

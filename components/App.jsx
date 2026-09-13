@@ -432,12 +432,15 @@ function App(){
             </button>
           </div>
         </div>
-        {/* NAV */}
+        {/* NAV — Sub-project: Web-Mobile Enablement item #3: this row previously clipped
+            (overflowX hidden) once the 8 tabs didn't fit a narrow screen, making the clipped
+            ones genuinely unreachable, not just hard to tap. Scrollable instead: nothing is
+            ever invisible, and desktop is unaffected since all tabs already fit there. */}
         {data.onboarded&&(
-          <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",gap:2,overflowX:"hidden",borderBottom:"1px solid var(--b1)"}}>
+          <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",gap:2,overflowX:"auto",WebkitOverflowScrolling:"touch",borderBottom:"1px solid var(--b1)"}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"11px 15px",fontSize:13,color:tab===t.id?"var(--amber)":"var(--t3)",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:400,borderBottom:tab===t.id?"2px solid var(--amber)":"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap"}}>
+                style={{display:"flex",alignItems:"center",gap:5,padding:"11px 15px",fontSize:13,color:tab===t.id?"var(--amber)":"var(--t3)",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:400,borderBottom:tab===t.id?"2px solid var(--amber)":"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>
                 <i className={`ti ${t.icon}`} style={{fontSize:14}}/>{t.label}
               </button>
             ))}

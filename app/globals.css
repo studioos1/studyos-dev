@@ -197,6 +197,12 @@
     .g2{display:grid; grid-template-columns:1fr 1fr; gap:13px;}
     .g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:13px;}
     .g4{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:11px;}
+    /* Mobile: 2/3/4-equal-column rows crush labeled inputs to unusable widths (a .g4 cell is
+       ~65px at phone width) — Sub-project: Web-Mobile Enablement item #1. Stack to one column
+       below phone-ish widths; unaffected above this breakpoint. */
+    @media (max-width: 480px){
+      .g2, .g3, .g4 { grid-template-columns: 1fr; }
+    }
     .row{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
 
     /* List row — a leading checkbox/icon, flexible label text, optional trailing badge/button,
