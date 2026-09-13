@@ -600,7 +600,7 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
           <div><label>Last name</label><input value={draft.lastName} onChange={set("lastName")}/></div>
         </div>
         <div className="g2" style={{marginBottom:12}}>
-          <div><label>WhatsApp</label><input value={draft.phone} onChange={set("phone")}/></div>
+          <div><label>Mobile phone</label><input value={draft.phone} onChange={set("phone")}/></div>
           <div><label>Email</label><input type="email" value={draft.email} onChange={set("email")}/></div>
         </div>
         <div style={{marginBottom:12}}><label>Home address</label><input value={draft.homeAddress} onChange={set("homeAddress")}/></div>

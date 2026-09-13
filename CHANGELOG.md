@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.51.1 — 2026-09-13
+
+**Renamed "WhatsApp" everywhere it was used — nothing actually sends via WhatsApp**
+
+- Today tab: the "View WhatsApp message" icon/tooltip → "View daily message"; the modal title "WhatsApp Morning Message" → "Morning Message"; the WhatsApp brand icon (green) → a generic message-circle icon (neutral, matching the calendar-preview icon beside it). Its own caption already said "Sends automatically via Twilio" — corrected to "via SMS" (the user-facing channel name, not the vendor).
+- Internal field names to match: `whatsAppGreeting/whatsAppLines/whatsAppClosing` → `dailyGreeting/dailyLines/dailyClosing` (AI prompt + every read site), `.wapp` CSS class → `.daily-msg`. The version-gated brief cache (`briefVersion===APP_VERSION`) means this version bump self-invalidates any stale cached brief with the old field names — no migration needed.
+- Two phone-number fields were also mislabeled "WhatsApp" (Account modal, onboarding Welcome step) — relabeled "Mobile phone," matching the Sign up form's own label.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.51.0 — 2026-09-12
 
 **Landing page** (launch-readiness item 5/6) **+ a real bug the smoke test caught**

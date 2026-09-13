@@ -26,7 +26,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const [adhocTm,setATm]=useState("");
   const [adhocD,setAD]=useState(90);
   const [showCalendar,setShowCalendar]=useState(false); // full-day calendar now opens on demand instead of always inline — the day-view design itself is still a work in progress
-  const [showWhatsApp,setShowWhatsApp]=useState(false); // same on-demand pattern for the WhatsApp message preview
+  const [showDailyMsg,setShowDailyMsg]=useState(false); // same on-demand pattern for the daily message preview — not tied to any one channel (copy/paste, not a live send)
   // Per-row Focus Time timer state — replaces the old single global "which session is current"
   // selector entirely. Only one row can be running at a time; starting a different row just
   // switches (no confirmation needed, nothing destructive happens to the abandoned one — it
@@ -88,7 +88,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   async function gen(){
     // The real, deterministic plan (data.studyPlan.weeks) is the single source of truth for what
     // studying happens today — no longer computed here at all. gen()'s only job now is the AI
-    // commentary layer (oneFocus/encouragement/whatsAppMessage/etc), which is given the real plan
+    // commentary layer (oneFocus/encouragement/dailyMessage/etc), which is given the real plan
     // as READ-ONLY context so it can write something relevant, but never asked to invent or
     // rewrite the actual task text — that was the source of the AI/plan inconsistency this fixes.
     const realBlocks=realDayBlocks(data,td);
@@ -108,7 +108,7 @@ MISSING DATES: ${missing.map(a=>a.title).join(", ")||"None"}
 Gym today: ${gd?"Yes at "+gd.s+"-"+gd.e:"No"} · Week: ${gymWk}/${gymTarget}
 TODAY'S ACTUAL PLANNED STUDY SESSIONS (already scheduled by the planner — for context only, do not rewrite, restate, or invent alternatives to these):
 ${realBlocks.length?realBlocks.map(b=>`${b.time} (${b.duration}min) — ${b.task}`).join("\n"):"(none scheduled — either a rest day, or this week hasn't been planned yet)"}
-Return JSON:{"oneFocus":"THE single most important thing today — one specific sentence, referencing the real plan above if there is one","urgencyAlert":null,"gymNudge":null,"encouragement":"one warm encouraging sentence","whatsAppGreeting":"short casual greeting, e.g. 'Hey ${p.name}! 💪'","whatsAppLines":["one SHORT line per distinct topic today — due items, exams, study sessions, gym — each its own array entry, NOT one paragraph. Keep each line under ~12 words, start with a relevant emoji, plain and scannable like a real text message."],"whatsAppClosing":"one short warm sign-off, e.g. 'You've got this! 🚀'"}`
+Return JSON:{"oneFocus":"THE single most important thing today — one specific sentence, referencing the real plan above if there is one","urgencyAlert":null,"gymNudge":null,"encouragement":"one warm encouraging sentence","dailyGreeting":"short casual greeting, e.g. 'Hey ${p.name}! 💪'","dailyLines":["one SHORT line per distinct topic today — due items, exams, study sessions, gym — each its own array entry, NOT one paragraph. Keep each line under ~12 words, start with a relevant emoji, plain and scannable like a real text message."],"dailyClosing":"one short warm sign-off, e.g. 'You've got this! 🚀'"}`
       );
       if(t){
         try{
@@ -183,11 +183,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
             <i className="ti ti-calendar" style={{fontSize:16}}/>
           </button>
-          {brief?.whatsAppLines?.length>0&&(
-            <button className="tt" data-tt="View WhatsApp message" onClick={()=>setShowWhatsApp(true)}
+          {brief?.dailyLines?.length>0&&(
+            <button className="tt" data-tt="View daily message" onClick={()=>setShowDailyMsg(true)}
               style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
-                color:"var(--green)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <i className="ti ti-brand-whatsapp" style={{fontSize:16}}/>
+                color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <i className="ti ti-message-circle" style={{fontSize:16}}/>
             </button>
           )}
         </div>
@@ -561,29 +561,29 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
         </div>
       )}
 
-      {showWhatsApp&&(
+      {showDailyMsg&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
           display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowWhatsApp(false)}>
+          onClick={()=>setShowDailyMsg(false)}>
           <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",
             maxWidth:400,width:"100%",maxHeight:"85vh",overflowY:"auto",
             boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
             onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>
-                <i className="ti ti-brand-whatsapp" style={{marginRight:8,color:"var(--green)"}}/>WhatsApp Morning Message
+                <i className="ti ti-message-circle" style={{marginRight:8,color:"var(--blue)"}}/>Morning Message
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowWhatsApp(false)}><i className="ti ti-x"/></button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowDailyMsg(false)}><i className="ti ti-x"/></button>
             </div>
-            <div className="wapp" style={{display:"flex",flexDirection:"column",gap:9}}>
-              {brief?.whatsAppGreeting&&<div style={{fontSize:14,fontWeight:600,color:"var(--t1)"}}>{brief.whatsAppGreeting}</div>}
-              {brief?.whatsAppLines?.map((line,i)=>(
+            <div className="daily-msg" style={{display:"flex",flexDirection:"column",gap:9}}>
+              {brief?.dailyGreeting&&<div style={{fontSize:14,fontWeight:600,color:"var(--t1)"}}>{brief.dailyGreeting}</div>}
+              {brief?.dailyLines?.map((line,i)=>(
                 <div key={i} style={{fontSize:13.5,color:"var(--t2)",lineHeight:1.4}}>{line}</div>
               ))}
-              {brief?.whatsAppClosing&&<div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginTop:2}}>{brief.whatsAppClosing}</div>}
+              {brief?.dailyClosing&&<div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginTop:2}}>{brief.dailyClosing}</div>}
             </div>
             <div style={{fontSize:12,color:"var(--t3)",marginTop:12,textAlign:"center"}}>
-              Sends automatically via Twilio at <span style={{color:"var(--amber)"}}>{p.wakeTime}</span> once deployed
+              Sends automatically via SMS at <span style={{color:"var(--amber)"}}>{p.wakeTime}</span> once deployed
             </div>
           </div>
         </div>
