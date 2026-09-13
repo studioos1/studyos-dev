@@ -720,11 +720,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 ?
               </button>
             )}
-            {(termCourses.length>0||termAssignments.length>0||termExams.length>0)&&(
-              <button className="btn btn-ghost btn-sm" style={{color:"var(--amber)"}} onClick={resetAcademic}>
-                <i className="ti ti-eraser"/> Reset academic data
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -1531,6 +1526,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               <i className="ti ti-refresh" style={TITLE_ICON}/>
               <span style={TITLE_TEXT}>Update Syllabus</span>
             </div>
+            {(termCourses.length>0||termAssignments.length>0||termExams.length>0)&&(
+              <button className="btn btn-ghost btn-sm" style={{color:"var(--amber)"}} onClick={resetAcademic}>
+                <i className="ti ti-eraser"/> Reset academic data
+              </button>
+            )}
           </div>
           <div style={DIVIDER}/>
           <div style={INNER}>

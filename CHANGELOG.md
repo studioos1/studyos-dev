@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.47.1 — 2026-09-12
+
+**Moved "Reset academic data" into the Update Syllabus tab's header**
+
+- Was sitting in the shared tab-bar row, visible no matter which Academics sub-tab was open. Moved into the **Update Syllabus** section's own title row (right side) — it's a destructive action about the term's academic data as a whole, and syllabus sync is where a student would reasonably go to start over.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.47.0 — 2026-09-12
 
 **Deterministic difficulty/hours consistency check + a "?" help on the Courses tab**
