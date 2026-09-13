@@ -1,8 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { APP_VERSION } from "@/lib/version";
 import { PasswordInput } from "@/components/shared";
 import { redeemInviteCode } from "@/lib/invites";
+
+// Hand-drawn-style connector between the landing page's flow cards — a wobbly curve (not a
+// straight line) plus an open chevron head, rather than a crisp geometric arrow, to read as
+// "sketched," not "generated." Purely decorative (aria-hidden), so a plain module-scope function
+// is fine — no props that change per keystroke, nothing that needs remount-safety.
+function SketchArrow({ className }) {
+  return (
+    <svg className={className} width="46" height="22" viewBox="0 0 46 22" fill="none" aria-hidden="true">
+      <path d="M2,14 C 9,5 16,17 23,9 C 27,4 30,10 33,11" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" />
+      <path d="M29,5 L38,11 L28,17" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 // Auth gate shown by components/App.jsx whenever there's no active session (and, in recoveryMode,
 // even with one — App renders this to let the user set a new password after a reset-email link).
@@ -129,9 +142,9 @@ export function Login({ recoveryMode = false, onDone }) {
 
   const FEATURES = [
     { icon: "ti-file-upload", title: "Upload your syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
-    { icon: "ti-calendar-time", title: "A plan built for you", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
-    { icon: "ti-search", title: "Real difficulty research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
-    { icon: "ti-flame", title: "Daily check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
+    { icon: "ti-calendar-time", title: "Study Plan Built for You", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
+    { icon: "ti-search", title: "Class Difficulty, Based on Research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
+    { icon: "ti-flame", title: "Stay on Track with Daily Check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
   ];
 
   // A small, honest preview of the real Today tab's Deadline Awareness list — same structure
@@ -214,16 +227,16 @@ export function Login({ recoveryMode = false, onDone }) {
           </div>
         </div>
 
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-          gap: 16, marginBottom: 40,
-        }}>
-          {FEATURES.map(f => (
-            <div key={f.title} className="feature-card">
-              <div className="feature-icon"><i className={`ti ${f.icon}`} /></div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
-            </div>
+        <div className="feature-flow">
+          {FEATURES.map((f, i) => (
+            <Fragment key={f.title}>
+              <div className="feature-card feature-card-sm">
+                <div className="feature-icon feature-icon-sm"><i className={`ti ${f.icon}`} /></div>
+                <div className="feature-card-title">{f.title}</div>
+                <div className="feature-card-body">{f.body}</div>
+              </div>
+              {i < FEATURES.length - 1 && <SketchArrow className="feature-arrow" />}
+            </Fragment>
           ))}
         </div>
 

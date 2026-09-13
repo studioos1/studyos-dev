@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.54.0 — 2026-09-13
+
+**Landing feature boxes: one-row flow with hand-drawn connector arrows + new copy**
+
+- The 4 feature cards now sit in a single row (`.feature-flow`, explicit `1fr auto 1fr auto 1fr auto 1fr` grid track list) connected by a hand-drawn-style `SketchArrow` — a wobbly curved SVG path with an open chevron head, not a crisp geometric arrow — showing the syllabus→plan→difficulty→check-ins flow explicitly. Collapses to a single stacked column below 820px, with the same arrows rotated 90° so the flow still reads top-to-bottom instead of breaking.
+- Cards themselves are smaller (`.feature-card-sm`: 14px/16px padding vs 20px/22px) with a tightened internal hierarchy — bold 13px title on top, 11px muted body below (`.feature-card-title`/`.feature-card-body`), smaller 30px icon badge — so four of them fit one row without crowding.
+- Copy updated: "A plan built for you" → "Study Plan Built for You", "Real difficulty research" → "Class Difficulty, Based on Research", "Daily check-ins" → "Stay on Track with Daily Check-ins" (also picked up by the compact bullet list in the hero, which shares the same `FEATURES` data).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (including a zoomed check that the arrow's hand-drawn wobble reads clearly at actual size).
+
 ## v2.53.3 — 2026-09-13
 
 **Landing hero headline sized down**
