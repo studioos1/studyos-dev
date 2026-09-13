@@ -1,5 +1,24 @@
 # StudyOS Changelog
 
+## v2.50.1 — 2026-09-12
+
+**RLS audit** (launch-readiness item 4/6) — clean, two accepted risks noted
+
+Reviewed every table's RLS policy against every actual query site in the codebase (grepped, not just recalled) ahead of real strangers' data being in the system:
+
+- **`user_data`**: SELECT/INSERT/UPDATE all correctly scoped to `auth.uid() = user_id`, including `with check` on writes — a crafted payload claiming someone else's `user_id` is rejected at the database level, not just trusted client-side.
+- **`bug_reports`**: INSERT scoped to the reporter; SELECT/UPDATE correctly split (reporter reads own, admin-by-JWT-email reads/updates all).
+- **`invite_codes`**: no direct INSERT/UPDATE policy for any role at all — writes only happen through the two `security definer` functions, both with `search_path` pinned (the standard hardening against the classic SECURITY DEFINER hijack). `redeem_invite_code`'s atomic `UPDATE ... WHERE use_count < max_uses` correctly prevents a race past a code's use limit.
+- **No service-role key anywhere in the codebase** — confirmed by grep, not assumption.
+- **Single signup entry point** — `components/Login.jsx` is the only `auth.signUp()` call site, so the ToS/invite gates can't be bypassed via another path.
+- Fixed in passing: `.env.template` never actually listed `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`, despite the app requiring them.
+
+**Two accepted risks, not fixed now** (noted in `CLAUDE.md`'s backlog):
+1. Admin-seeded invite codes (`owner_id` null, e.g. `STUDYOS2026`) have no matching SELECT policy — their usage count isn't visible in-app, only via the Supabase dashboard directly. Not a leak, just a gap.
+2. `redeem_invite_code` has no rate-limiting and is callable pre-auth — a scripted attacker could hammer it. Self-generated codes (~4.3 billion combinations) are impractical to brute-force; the human-shared launch code is a static secret with the usual sharing risk. Accepted for this launch's scale; revisit if abuse actually shows up.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.50.0 — 2026-09-12
 
 **Invite-gated signup + invite-a-friend links** (launch-readiness item 3/6)
