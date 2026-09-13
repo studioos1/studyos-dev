@@ -240,7 +240,29 @@ export default function Terms() {
         </div>
 
         <div style={S}>
-          <div style={H}>22. Contact</div>
+          <div style={H}>22. SMS/Text Messaging Program</div>
+          <p style={P}>
+            If you opt in to StudyOS Reminders, we will send SMS text messages to the phone
+            number you provide — a daily summary, overdue-item nudges, exam/project countdowns,
+            and any custom reminders you set. <strong>Message frequency varies (up to a few
+            messages a day, depending on your settings).</strong>
+          </p>
+          <p style={P}><strong>Message and data rates may apply.</strong></p>
+          <p style={P}>
+            Reply <strong>HELP</strong> for help. Reply <strong>STOP</strong> at any time to
+            cancel — you will receive no further messages, and you can also turn SMS reminders
+            off in Preferences. Opting out of SMS does not affect your account or any other part
+            of the Service.
+          </p>
+          <p style={P}><strong>Carriers are not liable for delayed or undelivered messages.</strong></p>
+          <p style={P}>
+            See our <a href="/privacy" style={{ color: "var(--blue)" }}>Privacy Policy</a> for
+            how your phone number and messaging data are handled.
+          </p>
+        </div>
+
+        <div style={S}>
+          <div style={H}>23. Contact</div>
           <p style={P}>Questions about these Terms may be sent to:</p>
           <p style={{ ...P, marginTop: 8 }}>
             <strong>StudyOS</strong><br />

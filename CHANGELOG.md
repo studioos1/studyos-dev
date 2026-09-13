@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.56.6 — 2026-09-13
+
+**Restored SMS-specific disclosures to Terms/Privacy — needed for A2P 10DLC Campaign review**
+
+- The Terms & Conditions and Privacy Policy full rewrites (v2.56.0, v2.55.0) dropped SMS-specific language the old short versions had. Twilio's A2P 10DLC guide explicitly checks for this. New Terms §22 "SMS/Text Messaging Program": frequency, "Message and data rates may apply" (verbatim), HELP/STOP instructions, and "Carriers are not liable for delayed or undelivered messages" (verbatim, required). New Privacy §15 "SMS/Text Messaging Consent Data": the exact CTIA-required sentence — "text messaging originator opt-in data and consent... won't be shared with any third parties."
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.56.5 — 2026-09-13
 
 **Flow arrow: filled arrowhead for visibility**
