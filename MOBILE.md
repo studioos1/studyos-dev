@@ -1,4 +1,4 @@
-# StudyOS — Mobile Web Readiness
+# Sub-project: Web-Mobile Enablement
 
 Tracking table for enabling mobile access. All fixes here are additive — implemented via
 `@media (max-width: …)` breakpoints or a viewport-width check — so **desktop rendering is
