@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.53.2 — 2026-09-13
+
+**Landing hero: swapped headline hierarchy**
+
+- "Your Personal Study Assistant" is now the big H1 (clamp(36px,4.6vw,56px)) — was a small eyebrow line above the headline. "From Syllabus to a Complete Study Plan" moved to a small uppercase amber kicker line beneath it.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.53.1 — 2026-09-13
 
 **Landing page: new hero copy**

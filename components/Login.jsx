@@ -163,15 +163,15 @@ export function Login({ recoveryMode = false, onDone }) {
           gap: 48, alignItems: "center", margin: "44px 0 60px",
         }}>
           <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 14 }}>
-              Your Personal Study Assistant
-            </div>
             <h1 style={{
-              fontFamily: "'Syne',sans-serif", fontSize: "clamp(30px, 3.6vw, 44px)", fontWeight: 700,
-              lineHeight: 1.15, color: "var(--t1)", textWrap: "balance", marginBottom: 18,
+              fontFamily: "'Syne',sans-serif", fontSize: "clamp(36px, 4.6vw, 56px)", fontWeight: 700,
+              lineHeight: 1.1, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
             }}>
-              From Syllabus to a Complete Study Plan
+              Your Personal Study Assistant
             </h1>
+            <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.35, marginBottom: 18 }}>
+              From Syllabus to a Complete Study Plan
+            </div>
             <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
               Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day.
             </p>
