@@ -27,7 +27,7 @@ export default function SmsOptIn() {
           </p>
           <ol style={{ ...P, paddingLeft: 20, marginTop: 10 }}>
             <li>Entering their phone number.</li>
-            <li>Reading the message-type, frequency, rate-disclosure, and STOP/HELP text shown on that screen.</li>
+            <li>Reading the message-type, frequency, rate-disclosure, STOP/HELP, and optional-consent text shown on that screen (opting in is not required to use StudyOS).</li>
             <li>Checking a consent checkbox — unchecked by default — reading: <em>"I agree to receive SMS text messages from StudyOS at the number above."</em></li>
             <li>Clicking <strong>"Yes, text me reminders"</strong> to submit.</li>
           </ol>

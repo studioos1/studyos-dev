@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.56.7 — 2026-09-13
+
+**SMS opt-in: added "consent is optional" line, matching Twilio's web-form example 100%**
+
+- Compared the real SMS opt-in screen (Preferences → SMS Reminders) against Twilio's official web-form opt-in example element-by-element — everything already matched except one: their example explicitly states consent isn't required to use the product ("Consent is not required to make a purchase"). Added the equivalent line: "Opting in is entirely optional — StudyOS works the same either way." `/sms-optin` evidence page's description updated to match.
+- **Follow-up needed**: the public `/sms-optin-screenshot.png` evidence image still shows the form *before* this line was added — needs retaking from a live logged-in account before relying on it as Campaign proof.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.56.6 — 2026-09-13
 
 **Restored SMS-specific disclosures to Terms/Privacy — needed for A2P 10DLC Campaign review**
