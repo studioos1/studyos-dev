@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.54.1 — 2026-09-13
+
+**Landing: smaller headline, dropped redundant bullets, aligned feature boxes**
+
+- "Your Personal Study Assistant" sized down again: clamp(28,3.2vw,38) → clamp(23,2.5vw,30).
+- Removed the 3-item compact bullet list under the CTA — it duplicated the 4 feature boxes' own titles one screen below.
+- The 4 feature boxes are now genuinely uniform: `.feature-flow` switched from `align-items:center` (each card sized to its own content, so a 2-line title made that card taller than its neighbors) to `align-items:stretch`, so the grid stretches every card to the row's tallest. On top of that, `.feature-card-title` got a fixed 2-line `min-height` so a 1-line title and a 2-line title both leave their card's body text starting at the exact same row — actual row alignment, not just matching card heights.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.54.0 — 2026-09-13
 
 **Landing feature boxes: one-row flow with hand-drawn connector arrows + new copy**

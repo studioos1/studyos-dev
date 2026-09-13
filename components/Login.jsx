@@ -177,8 +177,8 @@ export function Login({ recoveryMode = false, onDone }) {
         }}>
           <div>
             <h1 style={{
-              fontFamily: "'Syne',sans-serif", fontSize: "clamp(28px, 3.2vw, 38px)", fontWeight: 700,
-              lineHeight: 1.15, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
+              fontFamily: "'Syne',sans-serif", fontSize: "clamp(23px, 2.5vw, 30px)", fontWeight: 700,
+              lineHeight: 1.2, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
             }}>
               Your Personal Study Assistant
             </h1>
@@ -188,17 +188,9 @@ export function Login({ recoveryMode = false, onDone }) {
             <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
               Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day.
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 34, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
               <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Get Started</button>
               <button className="link-btn" style={{ fontSize: 14 }} onClick={() => go("signin")}>Already have an account? Log in</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-              {FEATURES.slice(1).map(f => (
-                <div key={f.title} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <i className={`ti ${f.icon}`} style={{ color: "var(--amber)", fontSize: 16, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13.5, color: "var(--t3)" }}>{f.title}</span>
-                </div>
-              ))}
             </div>
           </div>
 
