@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.52.0 — 2026-09-13
+
+**Polished the sign-in/sign-up card to look more like a real product, less like a bare form**
+
+- Two soft brand-colored ambient glows (blue/teal, matching the wordmark gradient) behind the page instead of a flat single-tone background.
+- The auth card now has real depth — a subtle border + shadow — instead of blending flat into the page.
+- Heading ("Log in to your account" etc.) bumped from 15px/600 to 20px/700 with tighter letter-spacing, more presence.
+- "Forgot your password?" and the "Sign up"/"Log in" switch link, both previously boxed buttons, are now plain text links (new `.link-btn` utility class) — reads as secondary actions instead of competing with the real submit button.
+- The Sign up form's Terms/Privacy checkbox replaced a bare unstyled native checkbox with the app's existing custom `.chk` toggle (same pattern used elsewhere, e.g. Progress's check-in rows) — green check, consistent sizing, matches the rest of the form's styling instead of looking like a stray browser default.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (sign-in card, sign-up card + checkbox toggle).
+
 ## v2.51.1 — 2026-09-13
 
 **Renamed "WhatsApp" everywhere it was used — nothing actually sends via WhatsApp**

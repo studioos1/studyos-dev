@@ -97,10 +97,15 @@ export function Login({ recoveryMode = false, onDone }) {
   // The heading lives INSIDE the card as its title — the card itself stays put between the
   // "log in" and "sign up" states, only its title and fields change.
   const cardTitle = (
-    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 14 }}>
+    <div style={{ fontSize: 20, fontWeight: 700, color: "var(--t1)", marginBottom: 18, letterSpacing: "-0.01em" }}>
       {heading}
     </div>
   );
+  // Depth the auth card visually off the background it sits on — the base .card class alone
+  // (shared with every card app-wide) reads flat here since there's no surrounding page chrome to
+  // separate it from. Applied as inline style (not a new global class) so this stays scoped to
+  // just the auth forms.
+  const authCardStyle = { border: "1px solid var(--b1)", boxShadow: "0 24px 60px rgba(0,0,0,0.45)" };
 
   // NB: field markup is written inline in each view rather than via a helper component — a
   // component defined inside Login() gets a fresh identity every render, which would remount the
@@ -114,11 +119,11 @@ export function Login({ recoveryMode = false, onDone }) {
   );
   const switchRow = (prompt, to, label) => (
     <div style={{
-      display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14,
-      marginTop: 12, fontSize: 13, color: "var(--t3)",
+      display: "flex", justifyContent: "center", alignItems: "center", gap: 6,
+      marginTop: 18, fontSize: 13, color: "var(--t3)",
     }}>
       <span>{prompt}</span>
-      <button className="btn btn-ghost btn-sm" type="button" onClick={() => go(to)}>{label}</button>
+      <button className="link-btn" type="button" onClick={() => go(to)} style={{ fontWeight: 600 }}>{label}</button>
     </div>
   );
 
@@ -131,7 +136,12 @@ export function Login({ recoveryMode = false, onDone }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "var(--bg)", color: "var(--t1)",
+      minHeight: "100vh", color: "var(--t1)",
+      // Two soft brand-colored glows (matching the wordmark's blue→teal gradient) fading into the
+      // base background — the flat single-tone page this replaced had nothing separating the card
+      // from its surroundings.
+      background: "radial-gradient(ellipse 900px 560px at 18% -8%, rgba(94,163,224,0.16), transparent 60%), "
+        + "radial-gradient(ellipse 900px 560px at 82% -8%, rgba(94,224,197,0.12), transparent 60%), var(--bg)",
       fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "flex-start",
       justifyContent: "center", padding: 20,
       paddingTop: "clamp(48px, 12vh, 130px)",
@@ -193,7 +203,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "signin" && (
           <>
-            <form onSubmit={signIn} className="card">
+            <form onSubmit={signIn} className="card" style={authCardStyle}>
               {cardTitle}
               {emailField}
               <div style={{ marginBottom: 8 }}>
@@ -201,8 +211,8 @@ export function Login({ recoveryMode = false, onDone }) {
                 <PasswordInput value={password} autoComplete="current-password"
                   onChange={e => setPassword(e.target.value)} />
               </div>
-              <div style={{ textAlign: "right", marginBottom: 14 }}>
-                <button className="btn btn-ghost btn-sm" type="button" onClick={() => go("reset")}>
+              <div style={{ textAlign: "right", marginBottom: 16 }}>
+                <button className="link-btn" type="button" onClick={() => go("reset")}>
                   Forgot your password?
                 </button>
               </div>
@@ -216,7 +226,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "signup" && (
           <>
-            <form onSubmit={signUp} className="card">
+            <form onSubmit={signUp} className="card" style={authCardStyle}>
               {cardTitle}
               <div style={{ marginBottom: 12 }}>
                 <label>Full name</label>
@@ -239,21 +249,19 @@ export function Login({ recoveryMode = false, onDone }) {
                 <input type="text" value={inviteCode} autoCapitalize="characters"
                   onChange={e => setInviteCode(e.target.value)} placeholder="From whoever invited you" />
               </div>
-              <label style={{
-                display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 16,
-                fontSize: 13, color: "var(--t2)", textTransform: "none", letterSpacing: "normal",
-                fontWeight: 400, cursor: "pointer",
+              <div onClick={() => setAgreedToTerms(a => !a)} style={{
+                display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 18, cursor: "pointer",
               }}>
-                <input type="checkbox" checked={agreedToTerms}
-                  onChange={e => setAgreedToTerms(e.target.checked)}
-                  style={{ width: "auto", marginTop: 2, flexShrink: 0 }} />
-                <span>
+                <div className={`chk${agreedToTerms ? " on" : ""}`} style={{ marginTop: 1 }}>
+                  {agreedToTerms && <i className="ti ti-check" style={{ fontSize: 12, color: "var(--green)" }} />}
+                </div>
+                <span style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
                   I agree to the{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Terms of Service</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Terms of Service</a>
                   {" "}and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Privacy Policy</a>
                 </span>
-              </label>
+              </div>
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy || !agreedToTerms}>
                 {busy ? "Working…" : "Create account"}
               </button>
@@ -264,7 +272,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "reset" && (
           <>
-            <form onSubmit={sendReset} className="card">
+            <form onSubmit={sendReset} className="card" style={authCardStyle}>
               {cardTitle}
               {emailField}
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
@@ -276,7 +284,7 @@ export function Login({ recoveryMode = false, onDone }) {
         )}
 
         {view === "update" && (
-          <form onSubmit={updatePassword} className="card">
+          <form onSubmit={updatePassword} className="card" style={authCardStyle}>
             {cardTitle}
             <div style={{ marginBottom: 12 }}>
               <label>New password</label>

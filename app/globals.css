@@ -110,6 +110,12 @@
     .btn-ghost{background:var(--card2); color:var(--t2);}
     .btn-ghost:hover{background:var(--card3); color:var(--t1);}
     .btn-ghost:disabled{opacity:0.3; cursor:not-allowed;}
+
+    /* Plain text link, styled as a button (no chip/background) — for secondary auth-flow actions
+       like "Forgot your password?" / "Sign up instead" that read better as a link than a button. */
+    .link-btn{background:none; border:none; padding:0; font-family:inherit; font-size:13px;
+      color:var(--blue); cursor:pointer; text-decoration:none;}
+    .link-btn:hover{text-decoration:underline;}
     /* Custom hover tooltip — doesn't rely on native title-attribute timing/behavior */
     .tt{position:relative;}
     .tt::after{
