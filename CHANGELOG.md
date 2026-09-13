@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.52.1 — 2026-09-13
+
+**Landing page design pass — matches the polish just applied to the auth card**
+
+- The landing view now has its own hero treatment instead of reusing the compact wordmark+tagline shared with the sign-in/sign-up views: a real headline ("Get things done, on time.", clamp(28px,4.2vw,40px)/700) plus a one-sentence supporting line grounded in what's actually built (syllabus upload → planned term → daily schedule) instead of the terse two-line tagline. Auth views (sign in/up/reset) are untouched — still the original compact version, since screen space there is shared with the form.
+- Feature cards get real depth (border + shadow, new `.feature-card` class) and a subtle hover lift, plus each icon now sits in an amber badge instead of floating bare — matches the "icon in a colored box" pattern common to polished product pages.
+- Log in / Sign up buttons enlarged (bigger padding/font) to read as the page's actual call to action, not incidental buttons.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.52.0 — 2026-09-13
 
 **Polished the sign-in/sign-up card to look more like a real product, less like a bare form**

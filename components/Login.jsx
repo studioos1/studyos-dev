@@ -144,42 +144,53 @@ export function Login({ recoveryMode = false, onDone }) {
         + "radial-gradient(ellipse 900px 560px at 82% -8%, rgba(94,224,197,0.12), transparent 60%), var(--bg)",
       fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "flex-start",
       justifyContent: "center", padding: 20,
-      paddingTop: "clamp(48px, 12vh, 130px)",
+      paddingTop: view === "landing" ? "clamp(40px, 7vh, 90px)" : "clamp(48px, 12vh, 130px)",
     }}>
-      <div style={{ width: "100%", maxWidth: view === "landing" ? 720 : 380 }}>
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
+      <div style={{ width: "100%", maxWidth: view === "landing" ? 760 : 380 }}>
+        <div style={{ textAlign: "center", marginBottom: view === "landing" ? 36 : 20 }}>
           <span onClick={!recoveryMode && view !== "landing" ? () => go("landing") : undefined} style={{
-            fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
+            fontFamily: "'Syne',sans-serif", fontSize: view === "landing" ? 24 : 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
             cursor: !recoveryMode && view !== "landing" ? "pointer" : "default",
           }}>StudyOS</span>
-          <div style={{ marginTop: 10, lineHeight: 1.4 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
-              Get things done, on time
+          {view === "landing" ? (
+            <div style={{ marginTop: 18, lineHeight: 1.25 }}>
+              <h1 style={{ fontSize: "clamp(28px, 4.2vw, 40px)", fontWeight: 700, color: "var(--t1)", textWrap: "balance", marginBottom: 12 }}>
+                Get things done, on time.
+              </h1>
+              <div style={{ fontSize: 17, fontWeight: 400, color: "var(--t2)", maxWidth: 480, margin: "0 auto" }}>
+                A personal study assistant that plans your term for you — built for students, from a syllabus PDF to a daily schedule.
+              </div>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: "var(--t1)" }}>
-              A personal assistant for students
+          ) : (
+            <div style={{ marginTop: 10, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
+                Get things done, on time
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 500, color: "var(--t1)" }}>
+                A personal assistant for students
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {view === "landing" && (
           <div style={{ maxWidth: 380, margin: "0 auto" }}>
-            <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => go("signin")}>Log in</button>
-              <button className="btn btn-action" style={{ flex: 1 }} onClick={() => go("signup")}>Sign up</button>
+            <div style={{ display: "flex", gap: 12, marginBottom: 36 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, padding: "13px 0", fontSize: 15 }} onClick={() => go("signin")}>Log in</button>
+              <button className="btn btn-action" style={{ flex: 1, padding: "13px 0", fontSize: 15 }} onClick={() => go("signup")}>Sign up</button>
             </div>
           </div>
         )}
         {view === "landing" && (
           <div style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-            gap: 14, marginBottom: 28,
+            gap: 16, marginBottom: 32,
           }}>
             {FEATURES.map(f => (
-              <div key={f.title} className="card" style={{ marginBottom: 0 }}>
-                <i className={`ti ${f.icon}`} style={{ fontSize: 22, color: "var(--amber)", marginBottom: 10, display: "block" }} />
+              <div key={f.title} className="feature-card">
+                <div className="feature-icon"><i className={`ti ${f.icon}`} /></div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
                 <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
               </div>
