@@ -96,7 +96,7 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
 export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg}){
   const {confirm,modal}=useConfirm();
-  const [view,setView]=useState("assignments");
+  const [view,setView]=useState("courses");
   const [showDiffHelp,setShowDiffHelp]=useState(false);
   const [showCourseHelp,setShowCourseHelp]=useState(false);
   const [showAddAssign,setShowAddAssign]=useState(false);
