@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.51.0 — 2026-09-12
+
+**Landing page** (launch-readiness item 5/6) **+ a real bug the smoke test caught**
+
+- `components/Login.jsx` had an unused `"landing"` view documented in its own header comment but never built — the app just skipped straight to the login form. Built it: hero + tagline, Log in/Sign up buttons, four feature cards grounded in what's actually built (syllabus upload, the study planner, B-01's difficulty research, daily check-ins), Terms/Privacy footer. It's now the default view for a logged-out visitor (an active `?invite=CODE` link still jumps straight to Sign up, unchanged). Clicking the wordmark from any other view returns to it.
+- Browser-verified live, not just built-and-assumed: landing page, sign up form, and the invite deep-link redirect all confirmed working end-to-end.
+- **Real bug found via that same smoke test**: opening the Account modal's "Invite a friend" section threw *"JSON object requested, multiple (or no) rows returned"* — `get_or_create_my_invite_code()`'s check-then-insert wasn't atomic, so two near-simultaneous calls (React's dev-mode double-effect invocation surfaced this immediately) could each decide no code existed yet and both insert one, leaving two rows for one owner. Fixed: a unique constraint on `owner_id` plus an `insert ... on conflict (owner_id) do nothing` in the function makes creation atomic; `supabase/schema.sql` also self-heals any already-existing duplicate (deletes all but the oldest) before adding the constraint, so it's safe to re-run on the now-affected production database. Client-side `getMyInviteInfo()` also hardened to read the oldest row instead of hard-erroring if this class of bug ever recurs.
+- **Manual step**: re-run `supabase/schema.sql`'s `invite_codes` section (the whole file, or just that section) in the Supabase SQL Editor to apply the dedupe + constraint + fixed function.
+
+**Validation:** 81 tests pass, `npm run build` clean, live browser smoke test (landing → sign up → invite deep-link → account modal) — the last of which is what caught the race condition above.
+
 ## v2.50.1 — 2026-09-12
 
 **RLS audit** (launch-readiness item 4/6) — clean, two accepted risks noted

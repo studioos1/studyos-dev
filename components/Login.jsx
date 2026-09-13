@@ -11,7 +11,7 @@ import { redeemInviteCode } from "@/lib/invites";
 // Views: "landing" (Log in / Sign up buttons) · "signin" · "signup" · "reset" (send reset email)
 // · "update" (set a new password — recoveryMode).
 export function Login({ recoveryMode = false, onDone }) {
-  const [view, setView] = useState(recoveryMode ? "update" : "signin");
+  const [view, setView] = useState(recoveryMode ? "update" : "landing");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -122,6 +122,13 @@ export function Login({ recoveryMode = false, onDone }) {
     </div>
   );
 
+  const FEATURES = [
+    { icon: "ti-file-upload", title: "Upload your syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
+    { icon: "ti-calendar-time", title: "A plan built for you", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
+    { icon: "ti-search", title: "Real difficulty research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
+    { icon: "ti-flame", title: "Daily check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
+  ];
+
   return (
     <div style={{
       minHeight: "100vh", background: "var(--bg)", color: "var(--t1)",
@@ -129,12 +136,13 @@ export function Login({ recoveryMode = false, onDone }) {
       justifyContent: "center", padding: 20,
       paddingTop: "clamp(48px, 12vh, 130px)",
     }}>
-      <div style={{ width: "100%", maxWidth: 380 }}>
+      <div style={{ width: "100%", maxWidth: view === "landing" ? 720 : 380 }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <span style={{
+          <span onClick={!recoveryMode && view !== "landing" ? () => go("landing") : undefined} style={{
             fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            cursor: !recoveryMode && view !== "landing" ? "pointer" : "default",
           }}>StudyOS</span>
           <div style={{ marginTop: 10, lineHeight: 1.4 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
@@ -145,6 +153,36 @@ export function Login({ recoveryMode = false, onDone }) {
             </div>
           </div>
         </div>
+
+        {view === "landing" && (
+          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => go("signin")}>Log in</button>
+              <button className="btn btn-action" style={{ flex: 1 }} onClick={() => go("signup")}>Sign up</button>
+            </div>
+          </div>
+        )}
+        {view === "landing" && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+            gap: 14, marginBottom: 28,
+          }}>
+            {FEATURES.map(f => (
+              <div key={f.title} className="card" style={{ marginBottom: 0 }}>
+                <i className={`ti ${f.icon}`} style={{ fontSize: 22, color: "var(--amber)", marginBottom: 10, display: "block" }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
+                <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {view === "landing" && (
+          <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
+            <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
+            {" · "}
+            <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
+          </div>
+        )}
 
         {error && (
           <div style={{ fontSize: 13, color: "var(--red)", background: "var(--red-bg)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>{error}</div>

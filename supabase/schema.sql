@@ -82,6 +82,21 @@ create table if not exists public.invite_codes (
   created_at timestamptz not null default now()
 );
 
+-- Self-healing: an earlier version of get_or_create_my_invite_code() below had a race condition
+-- (check-then-insert, not atomic) that could leave two rows for the same owner_id — caught via
+-- React's dev-mode double-effect invocation. Clean up any such duplicates (keep the oldest) BEFORE
+-- adding the constraint that now prevents it, so this file stays safe to re-run on an already-
+-- affected database, not just a fresh one.
+delete from public.invite_codes a using public.invite_codes b
+  where a.owner_id is not null
+    and a.owner_id = b.owner_id
+    and a.created_at > b.created_at;
+
+-- One code per owner. NULL owner_id (admin-seeded codes) is exempt — Postgres unique constraints
+-- allow any number of NULLs — so multiple shared launch codes are still fine.
+alter table public.invite_codes drop constraint if exists invite_codes_owner_id_key;
+alter table public.invite_codes add constraint invite_codes_owner_id_key unique (owner_id);
+
 alter table public.invite_codes enable row level security;
 
 drop policy if exists "owner reads own invite code" on public.invite_codes;
@@ -118,11 +133,14 @@ as $$
 declare
   v_code text;
 begin
-  select code into v_code from public.invite_codes where owner_id = auth.uid() limit 1;
-  if v_code is null then
-    v_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
-    insert into public.invite_codes(code, owner_id) values (v_code, auth.uid());
-  end if;
+  -- Always attempt an insert; the unique owner_id constraint makes this atomic — if a concurrent
+  -- call already created a row for this owner (two effect-invocations, two browser tabs, whatever),
+  -- ON CONFLICT DO NOTHING silently skips ours and the SELECT below picks up the one that won,
+  -- instead of the old check-then-insert race that could leave two rows for one owner.
+  v_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
+  insert into public.invite_codes(code, owner_id) values (v_code, auth.uid())
+    on conflict (owner_id) do nothing;
+  select code into v_code from public.invite_codes where owner_id = auth.uid();
   return v_code;
 end;
 $$;
