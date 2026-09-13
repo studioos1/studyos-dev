@@ -14,9 +14,9 @@ no architecture change).
 
 | # | Item | Priority | Effort | Status | Notes |
 |--:|------|----------|:------:|--------|-------|
-| 1 | `.g2/.g3/.g4` grid collapse | Essential | Low | Not started | One CSS media-query fix — cascades to Preferences, Onboarding wizard, and Account modal at once (all currently crush inputs into ~80px columns on phone) |
-| 2 | Weekly: auto-default to Day/agenda mode on narrow screens | Essential | Low | Not started | Reuses the existing single-day Timeline view already built (`mode==="day"` in Week.jsx) — just changes the default under a width check, no new UI |
-| 3 | Top nav fix (currently clips tabs off-screen) | Essential | Low–Mid | Not started | `overflowX:"hidden"` on the tab row means excess tabs are invisible + unreachable on narrow screens, not just hard to tap — real blocker, not polish |
+| 1 | `.g2/.g3/.g4` grid collapse | Essential | Low | **Done (v2.57.0)** | Below 480px, stacks to one column — cascades to Preferences, Onboarding wizard, and Account modal at once |
+| 2 | Weekly: auto-default to Day/agenda mode on narrow screens | Essential | Low | **Done (v2.57.0)** | Below 768px, defaults into the existing single-day Timeline view (`mode==="day"` in Week.jsx) instead of forcing the grid |
+| 3 | Top nav fix (currently clips tabs off-screen) | Essential | Low–Mid | **Done (v2.57.0)** | `overflowX` hidden → auto + `flexShrink:0` per tab — scrolls into view instead of being clipped invisible |
 | 4 | Today tab verification + touch-target pass | Essential | Low | Not started | Already a responsive card stack (`auto-fit,minmax` stat grid) — confirm live at phone width, bump 28px tap targets where cramped |
 | 5 | Onboarding wizard step-bar check | Medium | Low–Mid | Not started | Inherits #1 automatically; step-bar's 8 circular icons + connectors may need a wrap/shrink check |
 | 6 | Account modal verification | Medium | Low | Not started | Inherits #1 automatically, likely fine after that alone |
@@ -32,3 +32,4 @@ no architecture change).
 ## Session log
 
 - 2026-09-13 — List created, prioritized, and confirmed with Avishai. Nothing built yet.
+- 2026-09-13 — Items #1–3 shipped (v2.57.0). Desktop verified unaffected live. Narrow-viewport rendering itself not yet visually verified — the browser resize tool wasn't working in this session's environment; needs a real check on an actual phone before considering these fully confirmed.
