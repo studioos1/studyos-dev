@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.53.3 — 2026-09-13
+
+**Landing hero headline sized down**
+
+- "Your Personal Study Assistant" from clamp(36px,4.6vw,56px) → clamp(28px,3.2vw,38px) — was overpowering the page; still the largest, most prominent text (the visual anchor), just proportionate to the rest of the hero.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.53.2 — 2026-09-13
 
 **Landing hero: swapped headline hierarchy**

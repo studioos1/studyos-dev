@@ -164,8 +164,8 @@ export function Login({ recoveryMode = false, onDone }) {
         }}>
           <div>
             <h1 style={{
-              fontFamily: "'Syne',sans-serif", fontSize: "clamp(36px, 4.6vw, 56px)", fontWeight: 700,
-              lineHeight: 1.1, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
+              fontFamily: "'Syne',sans-serif", fontSize: "clamp(28px, 3.2vw, 38px)", fontWeight: 700,
+              lineHeight: 1.15, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
             }}>
               Your Personal Study Assistant
             </h1>
