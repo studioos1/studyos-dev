@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.56.1 — 2026-09-13
+
+**Visible "BETA" tag next to the StudyOS wordmark everywhere it appears**
+
+- The Terms of Service now says StudyOS is Beta software (v2.56.0) — this makes that visible in the product itself, not only buried in a legal document. A small "BETA" tag (dimmed `var(--t3)`, letter-spaced, clearly smaller than the gradient wordmark) now sits next to "StudyOS" in all 4 places it appears: the landing page's top-left brand mark, the auth views' (sign in/up/reset/update) centered hero, the logged-in app's top bar, and the Terms/Privacy Policy page headers. Left `app/sms-optin/page.jsx` untouched — that's an internal Twilio-verification evidence page, not part of the product experience.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live on 4 of the 5 wordmark instances (landing, auth hero, /terms — the logged-in app top bar uses the identical pattern but couldn't be visually re-verified without live credentials).
+
 ## v2.56.0 — 2026-09-13
 
 **Full Terms & Conditions rewrite — Beta framing + real liability protection**

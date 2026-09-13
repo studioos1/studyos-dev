@@ -10,9 +10,12 @@ export default function Terms() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--t1)", fontFamily: "'Inter',sans-serif" }}>
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "48px 20px 80px" }}>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6,
-          background: "linear-gradient(120deg,var(--blue),var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          StudyOS
+        <div style={{ marginBottom: 6 }}>
+          <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700,
+            background: "linear-gradient(120deg,var(--blue),var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            StudyOS
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", letterSpacing: "0.06em", marginLeft: 7, verticalAlign: "middle" }}>BETA</span>
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Terms &amp; Conditions</h1>
         <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 8 }}>Effective Date: September 13, 2026</p>

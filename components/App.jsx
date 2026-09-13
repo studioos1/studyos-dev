@@ -409,6 +409,7 @@ function App(){
         {/* TOP BAR */}
         <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",alignItems:"center",gap:12,height:50,borderBottom:"1px solid var(--b1)"}}>
           <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>StudyOS</span>
+          <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {q&&<span className="badge badge-blue">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
           {missing>0&&<span className="badge badge-amber" style={{cursor:"pointer"}} onClick={()=>setTab("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
