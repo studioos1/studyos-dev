@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.56.5 — 2026-09-13
+
+**Flow arrow: filled arrowhead for visibility**
+
+- The arrowhead's thin open-stroke hook was too faint to read clearly at actual size. Replaced with a small solid filled shape (same grey `var(--t3)`, rounded leaf/teardrop via curved edges) — much higher contrast, reads unambiguously as a pointer. Body curve and color unchanged.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (zoomed screenshot).
+
 ## v2.56.4 — 2026-09-13
 
 **Reverted the flow arrow to the wobble/grey style — v2.56.3's smooth amber redesign didn't land well**
