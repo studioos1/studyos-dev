@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.49.0 — 2026-09-12
+
+**Bug reporting + admin Bug Reports tab, one implementation** (launch-readiness item 2/6)
+
+- New 🐛 icon in the top bar (next to Account, visible once onboarded) opens a small form — describe what happened, current tab and app version are captured automatically. Writes to a new `bug_reports` Supabase table (`lib/bugReports.js`).
+- New **Bug Reports** tab, visible only to `lib/constants.js`'s `ADMIN_EMAILS` — lists Open reports first, Resolved below, with a one-click Resolve/Reopen toggle. No custom backend route or service-role key: `supabase/schema.sql`'s RLS policies enforce at the database level that only the reporter (their own rows) or the admin email (all rows) can read anything — a non-admin literally cannot query other users' reports, regardless of client code.
+- **Manual step required**: run the new `bug_reports` section of `supabase/schema.sql` in the Supabase SQL Editor before this works in production — it wasn't auto-applied.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.48.0 — 2026-09-12
 
 **Signup now requires agreeing to Terms of Service + Privacy Policy** (launch-readiness item 1/6)

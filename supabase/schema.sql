@@ -30,3 +30,39 @@ create policy "insert own row" on public.user_data
 
 create policy "update own row" on public.user_data
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Bug reports — submitted from the "Report a bug" button (any signed-in user), reviewed from the
+-- in-app admin list (lib/constants.js's ADMIN_EMAILS — keep the two in sync). No service-role key
+-- or server route needed: RLS enforces the admin check at the database level regardless of what
+-- the client claims, same pattern as user_data above.
+create table if not exists public.bug_reports (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  user_email  text,        -- snapshot at submit time, so a report stays legible if the account is later deleted
+  message     text not null,
+  page        text,        -- which tab the report was submitted from (e.g. "acad", "week")
+  app_version text,
+  status      text not null default 'open' check (status in ('open','resolved')),
+  created_at  timestamptz not null default now()
+);
+
+alter table public.bug_reports enable row level security;
+
+drop policy if exists "insert own bug report" on public.bug_reports;
+drop policy if exists "read own or admin bug reports" on public.bug_reports;
+drop policy if exists "admin update bug reports" on public.bug_reports;
+
+create policy "insert own bug report" on public.bug_reports
+  for insert with check (auth.uid() = user_id);
+
+-- A reporter can see their own reports; the admin (by email) can see everyone's.
+-- KEEP IN SYNC with ADMIN_EMAILS in lib/constants.js.
+create policy "read own or admin bug reports" on public.bug_reports
+  for select using (
+    auth.uid() = user_id
+    or (auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com')
+  );
+
+create policy "admin update bug reports" on public.bug_reports
+  for update using ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'))
+  with check ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'));

@@ -24,6 +24,7 @@ export {
   ConfirmModal,
   useConfirm,
   AccountModal,
+  BugReportModal,
 } from "./modals";
 export { WeekGrid } from "./WeekGrid";
 export { Timeline } from "./Timeline";

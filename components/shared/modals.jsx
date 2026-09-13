@@ -435,6 +435,46 @@ export function ConfirmModal({message,confirmLabel="Yes",confirmIcon,onConfirm,o
   );
 }
 
+// Opened from the bug icon in App.jsx's top bar — page/appVersion are captured automatically by
+// the caller (current tab, APP_VERSION) so the student only ever has to describe what happened.
+export function BugReportModal({onSubmit,onCancel}){
+  const [message,setMessage]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  async function submit(){
+    if(!message.trim()){setError("Describe what happened first.");return;}
+    setBusy(true);setError("");
+    try{ await onSubmit(message.trim()); }
+    catch(err){ setError(err?.message||"Couldn't send that — try again."); setBusy(false); }
+  }
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+      onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--card)",borderRadius:14,
+        padding:"24px 26px",maxWidth:420,width:"100%",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <i className="ti ti-bug" style={{fontSize:20,color:"var(--amber)"}}/>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>Report a bug</span>
+        </div>
+        <p style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.5}}>
+          What happened, and what were you doing right before it? We'll see which page you're on automatically.
+        </p>
+        <textarea value={message} onChange={e=>setMessage(e.target.value)} autoFocus
+          placeholder="e.g. The Save button on Study Preferences didn't do anything when I clicked it"
+          style={{width:"100%",minHeight:100,fontFamily:"inherit",fontSize:14,resize:"vertical",marginBottom:10}}/>
+        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn btn-action" onClick={submit} disabled={busy}>
+            {busy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send report</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Hook for confirm dialog — use anywhere
 export function useConfirm(){
   const [state,setState]=React.useState(null);
