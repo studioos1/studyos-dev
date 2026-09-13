@@ -11,8 +11,8 @@ import { redeemInviteCode } from "@/lib/invites";
 function SketchArrow({ className }) {
   return (
     <svg className={className} width="46" height="24" viewBox="0 0 46 24" fill="none" aria-hidden="true">
-      <path d="M3,16 Q22,3 34,13" stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M29,6 C38,9.5 38,16.5 29,20 C33.5,15.5 33.5,10.5 29,6 Z" fill="var(--amber)" />
+      <path d="M3,15 Q14,4 24,13 Q30,18 37,12" stroke="var(--t3)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M31,6 Q41,12 31,18" stroke="var(--t3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

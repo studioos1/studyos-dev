@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.56.4 — 2026-09-13
+
+**Reverted the flow arrow to the wobble/grey style — v2.56.3's smooth amber redesign didn't land well**
+
+- Back to the double-curve wobble path and `var(--t3)` grey. Kept one small refinement: the arrowhead's hook curve tightened (control point pulled in, endpoints narrowed) for a slightly rounder, more finished point than the original.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.56.3 — 2026-09-13
 
 **Redesigned the landing flow arrow — smoother curve, rounded amber arrowhead**
