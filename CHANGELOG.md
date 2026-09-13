@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.54.2 — 2026-09-13
+
+**Landing/signup polish: new 4-step flow titles, readable box text, rounder sketch arrows, checkbox wording**
+
+- Feature box titles/order now read as an explicit flow: "Upload Your Syllabus" → "We Classify Difficulties" → "We Build Your Study Plan" → "We Assist You Daily to Track the Plan" (was "Upload your syllabus" / "Study Plan Built for You" / "Class Difficulty, Based on Research" / "Stay on Track with Daily Check-ins" — reordered so difficulty classification comes before plan-building, matching the narrative). Icons moved with their concept. Body copy under each title unchanged.
+- `.feature-card-body` color `var(--t3)` → `var(--t2)` — the detail text under each box title was too low-contrast.
+- `SketchArrow` redrawn: smooth `Q`-curve S-shape (was a sharper `C`-curve zigzag) and a rounded hook-shaped arrowhead (was a straight angular chevron), stroke bumped 2px → 2.5px — reads as a nicer, rounder hand-drawn mark instead of a jagged one.
+- Sign up's ToS checkbox now reads "I agree to the Terms of Service and acknowledge the Privacy Policy." (was "...and Privacy Policy") — distinguishes agreeing to a contract (Terms) from acknowledging a disclosure (Privacy Policy), a distinction commonly drawn in real consent checkboxes.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.54.1 — 2026-09-13
 
 **Landing: smaller headline, dropped redundant bullets, aligned feature boxes**

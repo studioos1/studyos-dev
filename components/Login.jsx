@@ -10,9 +10,9 @@ import { redeemInviteCode } from "@/lib/invites";
 // is fine — no props that change per keystroke, nothing that needs remount-safety.
 function SketchArrow({ className }) {
   return (
-    <svg className={className} width="46" height="22" viewBox="0 0 46 22" fill="none" aria-hidden="true">
-      <path d="M2,14 C 9,5 16,17 23,9 C 27,4 30,10 33,11" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" />
-      <path d="M29,5 L38,11 L28,17" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className={className} width="46" height="24" viewBox="0 0 46 24" fill="none" aria-hidden="true">
+      <path d="M3,15 Q14,4 24,13 Q30,18 37,12" stroke="var(--t3)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M30,5 Q42,12 30,19" stroke="var(--t3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -141,10 +141,10 @@ export function Login({ recoveryMode = false, onDone }) {
   );
 
   const FEATURES = [
-    { icon: "ti-file-upload", title: "Upload your syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
-    { icon: "ti-calendar-time", title: "Study Plan Built for You", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
-    { icon: "ti-search", title: "Class Difficulty, Based on Research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
-    { icon: "ti-flame", title: "Stay on Track with Daily Check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
+    { icon: "ti-file-upload", title: "Upload Your Syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
+    { icon: "ti-search", title: "We Classify Difficulties", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
+    { icon: "ti-calendar-time", title: "We Build Your Study Plan", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
+    { icon: "ti-flame", title: "We Assist You Daily to Track the Plan", body: "Track what got done, build a streak, and see your habits improve over the term." },
   ];
 
   // A small, honest preview of the real Today tab's Deadline Awareness list — same structure
@@ -333,8 +333,9 @@ export function Login({ recoveryMode = false, onDone }) {
                 <span style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
                   I agree to the{" "}
                   <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Terms of Service</a>
-                  {" "}and{" "}
+                  {" "}and acknowledge the{" "}
                   <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Privacy Policy</a>
+                  .
                 </span>
               </div>
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy || !agreedToTerms}>
