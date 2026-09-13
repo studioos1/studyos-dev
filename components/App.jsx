@@ -419,13 +419,13 @@ function App(){
               v{APP_VERSION}
             </span>
             {data.onboarded&&(
-              <button className="tt" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
+              <button className="tt tt-below tt-right" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                   color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
                 <i className="ti ti-bug" style={{fontSize:15}}/>
               </button>
             )}
-            <button className="tt" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
+            <button className="tt tt-below tt-right" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
               style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                 color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
               <i className="ti ti-user-circle" style={{fontSize:16}}/>

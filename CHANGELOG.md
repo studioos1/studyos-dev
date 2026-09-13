@@ -1,6 +1,12 @@
 # StudyOS Changelog
 
-## v2.56.1 — 2026-09-13
+## v2.56.2 — 2026-09-13
+
+**Fix clipped tooltips on the top-right Bug Report/Account icons**
+
+- Both icons sat at the very top-right corner of the fixed top bar and used the plain `.tt` tooltip variant, which renders centered above the element — for an element pinned to the corner, that pushes the tooltip off both the right edge (horizontal) and the top edge (no room above a fixed bar), so it never actually became visible. Switched both to `tt tt-below tt-right`, the same edge-anchored variant already used elsewhere for corner-pinned controls (e.g. Week.jsx's Replan menu button) — tooltip now opens below and right-anchored, growing inward instead of off-screen.
+
+**Validation:** 81 tests pass, `npm run build` clean. Not browser-verified this time — only visible in the logged-in app view, which needs Avishai's own login; worth a quick confirm once he's back in.
 
 **Visible "BETA" tag next to the StudyOS wordmark everywhere it appears**
 
