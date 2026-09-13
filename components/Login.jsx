@@ -134,76 +134,135 @@ export function Login({ recoveryMode = false, onDone }) {
     { icon: "ti-flame", title: "Daily check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
   ];
 
+  // A small, honest preview of the real Today tab's Deadline Awareness list — same structure
+  // (colored course dot, due-in-N badge, planned checkmark) as the actual product, with made-up
+  // example content. Showing this instead of another row of icon-and-caption cards is the whole
+  // point of the redesign: prove the product does something concrete rather than describe it.
+  const PREVIEW_ROWS = [
+    { dot: "#7ab4cc", title: "Lab 4", course: "DSC 10", due: "3d", amber: false },
+    { dot: "#c8a860", title: "Midterm", course: "MATH 180A", due: "in 6 days", amber: true },
+    { dot: "#9080c0", title: "Essay 1", course: "MMW 122", due: "6d", amber: false },
+  ];
+
+  if (view === "landing") return (
+    <div style={{
+      minHeight: "100vh", color: "var(--t1)",
+      background: "radial-gradient(ellipse 900px 560px at 15% -10%, rgba(94,163,224,0.14), transparent 60%), "
+        + "radial-gradient(ellipse 900px 560px at 85% 10%, rgba(94,224,197,0.10), transparent 60%), var(--bg)",
+      fontFamily: "'Inter',sans-serif",
+    }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "36px 24px 64px" }}>
+        <span style={{
+          fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 700,
+          background: "linear-gradient(120deg,var(--blue),var(--teal))",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>StudyOS</span>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))",
+          gap: 48, alignItems: "center", margin: "44px 0 60px",
+        }}>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 14 }}>
+              Built for college students
+            </div>
+            <h1 style={{
+              fontFamily: "'Syne',sans-serif", fontSize: "clamp(30px, 3.6vw, 44px)", fontWeight: 700,
+              lineHeight: 1.15, color: "var(--t1)", textWrap: "balance", marginBottom: 18,
+            }}>
+              Your syllabus, turned into a study plan.
+            </h1>
+            <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
+              Upload a syllabus PDF — StudyOS builds a day-by-day plan around your real deadlines, class schedule, and how hard each course actually is.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 34, flexWrap: "wrap" }}>
+              <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Sign up</button>
+              <button className="link-btn" style={{ fontSize: 14 }} onClick={() => go("signin")}>Already have an account? Log in</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+              {FEATURES.slice(1).map(f => (
+                <div key={f.title} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <i className={`ti ${f.icon}`} style={{ color: "var(--amber)", fontSize: 16, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13.5, color: "var(--t3)" }}>{f.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="feature-card" style={{ padding: "22px 24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Deadline awareness</span>
+              <span className="badge badge-blue" style={{ fontSize: 11 }}>Fall 2026</span>
+            </div>
+            {PREVIEW_ROWS.map((r, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                borderBottom: i < PREVIEW_ROWS.length - 1 ? "1px solid var(--b1)" : "none",
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.dot, flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: 13.5, color: "var(--t1)", minWidth: 0 }}>
+                  {r.title} <span style={{ color: "var(--t3)" }}>— {r.course}</span>
+                </div>
+                <span className={`badge ${r.amber ? "badge-amber" : "badge-blue"}`} style={{ fontSize: 11, flexShrink: 0 }}>{r.due}</span>
+                <span style={{ fontSize: 11, color: "var(--green)", flexShrink: 0 }}>✓ planned</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--b1)" }}>
+              <i className="ti ti-flame" style={{ color: "var(--amber)", fontSize: 15 }} />
+              <span style={{ fontSize: 12.5, color: "var(--t2)" }}>7-day study streak</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+          gap: 16, marginBottom: 40,
+        }}>
+          {FEATURES.map(f => (
+            <div key={f.title} className="feature-card">
+              <div className="feature-icon"><i className={`ti ${f.icon}`} /></div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
+              <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
+          <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
+          {" · "}
+          <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
+          <div style={{ marginTop: 8 }}>v{APP_VERSION}</div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{
       minHeight: "100vh", color: "var(--t1)",
-      // Two soft brand-colored glows (matching the wordmark's blue→teal gradient) fading into the
-      // base background — the flat single-tone page this replaced had nothing separating the card
-      // from its surroundings.
       background: "radial-gradient(ellipse 900px 560px at 18% -8%, rgba(94,163,224,0.16), transparent 60%), "
         + "radial-gradient(ellipse 900px 560px at 82% -8%, rgba(94,224,197,0.12), transparent 60%), var(--bg)",
       fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "flex-start",
       justifyContent: "center", padding: 20,
-      paddingTop: view === "landing" ? "clamp(40px, 7vh, 90px)" : "clamp(48px, 12vh, 130px)",
+      paddingTop: "clamp(48px, 12vh, 130px)",
     }}>
-      <div style={{ width: "100%", maxWidth: view === "landing" ? 760 : 380 }}>
-        <div style={{ textAlign: "center", marginBottom: view === "landing" ? 36 : 20 }}>
-          <span onClick={!recoveryMode && view !== "landing" ? () => go("landing") : undefined} style={{
-            fontFamily: "'Syne',sans-serif", fontSize: view === "landing" ? 24 : 28, fontWeight: 700,
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <span onClick={!recoveryMode ? () => go("landing") : undefined} style={{
+            fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            cursor: !recoveryMode && view !== "landing" ? "pointer" : "default",
+            cursor: !recoveryMode ? "pointer" : "default",
           }}>StudyOS</span>
-          {view === "landing" ? (
-            <div style={{ marginTop: 18, lineHeight: 1.25 }}>
-              <h1 style={{ fontSize: "clamp(28px, 4.2vw, 40px)", fontWeight: 700, color: "var(--t1)", textWrap: "balance", marginBottom: 12 }}>
-                Get things done, on time.
-              </h1>
-              <div style={{ fontSize: 17, fontWeight: 400, color: "var(--t2)", maxWidth: 480, margin: "0 auto" }}>
-                A personal study assistant that plans your term for you — built for students, from a syllabus PDF to a daily schedule.
-              </div>
+          <div style={{ marginTop: 10, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
+              Get things done, on time
             </div>
-          ) : (
-            <div style={{ marginTop: 10, lineHeight: 1.4 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
-                Get things done, on time
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 500, color: "var(--t1)" }}>
-                A personal assistant for students
-              </div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: "var(--t1)" }}>
+              A personal assistant for students
             </div>
-          )}
+          </div>
         </div>
-
-        {view === "landing" && (
-          <div style={{ maxWidth: 380, margin: "0 auto" }}>
-            <div style={{ display: "flex", gap: 12, marginBottom: 36 }}>
-              <button className="btn btn-ghost" style={{ flex: 1, padding: "13px 0", fontSize: 15 }} onClick={() => go("signin")}>Log in</button>
-              <button className="btn btn-action" style={{ flex: 1, padding: "13px 0", fontSize: 15 }} onClick={() => go("signup")}>Sign up</button>
-            </div>
-          </div>
-        )}
-        {view === "landing" && (
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-            gap: 16, marginBottom: 32,
-          }}>
-            {FEATURES.map(f => (
-              <div key={f.title} className="feature-card">
-                <div className="feature-icon"><i className={`ti ${f.icon}`} /></div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
-                <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        {view === "landing" && (
-          <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
-            <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
-            {" · "}
-            <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
-          </div>
-        )}
 
         {error && (
           <div style={{ fontSize: 13, color: "var(--red)", background: "var(--red-bg)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>{error}</div>

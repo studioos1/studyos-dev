@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.53.0 — 2026-09-13
+
+**Landing page redesign — a real product preview instead of another icon-and-caption grid**
+
+- The previous version (v2.52.1) was a fairly generic "centered hero + 2x2 feature card" template. Replaced with a two-column layout: headline + copy + CTA on the left, and on the right an honest small preview modeled directly on the real Today tab's Deadline Awareness list (colored course dot, due-in-N badge, ✓ planned, a streak line) — made-up example content, but the identical structure the product actually shows, so a visitor sees something concrete instead of reading abstractions. A slimmer 4-item feature grid still sits below for supporting detail.
+- Headline set in the display font (Syne, already used for the wordmark) instead of the body font, for more visual character: "Your syllabus, turned into a study plan." — the actual mechanic, not generic motivational copy.
+- Sign up is now the clear single primary CTA (button); "Already have an account? Log in" is a plain text link beside it, instead of two equal-weight buttons competing for attention.
+- Small top-left brand mark instead of a big centered logo — reads more like a product page, less like an app's splash screen.
+- Auth views (sign in/up/reset/update) are completely unchanged — still their own compact layout; the ToS/Privacy checkbox stays exactly where it was, on the Sign up form, required and active.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (landing → sign up → back via wordmark).
+
 ## v2.52.1 — 2026-09-13
 
 **Landing page design pass — matches the polish just applied to the auth card**
