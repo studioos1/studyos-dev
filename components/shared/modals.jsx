@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
+import { getMyInviteInfo } from "@/lib/invites";
 import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
@@ -545,6 +546,18 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
     toast2("Password updated");
   }
 
+  // Invite a friend — fetched once when the modal opens (create-on-first-view, via
+  // lib/invites.js's getMyInviteInfo). Sharing the link is the whole feature; use_count/max_uses
+  // is just a light "did this actually reach anyone" signal, not a hard cap the user manages here.
+  const [inviteInfo,setInviteInfo]=useState(null);
+  const [inviteLoading,setInviteLoading]=useState(true);
+  useEffect(()=>{getMyInviteInfo().then(info=>{setInviteInfo(info);setInviteLoading(false);});},[]);
+  const inviteLink=inviteInfo&&typeof window!=="undefined"?`${window.location.origin}/?invite=${inviteInfo.code}`:"";
+  async function copyInviteLink(){
+    try{ await navigator.clipboard.writeText(inviteLink); toast2("Invite link copied!"); }
+    catch{ toast2("Couldn't copy — select and copy the link manually",true); }
+  }
+
   // "Reset all data" — moved here from Preferences and hardened with two real gates: the account
   // password (re-verified via signInWithPassword — Supabase has no separate "check password"
   // call, so re-authenticating IS the check) before the destructive action is even offered, then
@@ -635,6 +648,31 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+        {userEmail&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            <div style={{fontSize:13,color:"var(--t1)",fontWeight:600,marginBottom:8}}>
+              <i className="ti ti-heart-handshake" style={{marginRight:6,color:"var(--amber)"}}/>Invite a friend
+            </div>
+            {inviteLoading?(
+              <div style={{fontSize:12,color:"var(--t3)"}}>Loading your invite link...</div>
+            ):inviteInfo?(
+              <>
+                <p style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.5}}>
+                  Signing up needs an invite — share this link so a friend's account is ready to go.
+                </p>
+                <div style={{display:"flex",gap:8,marginBottom:6}}>
+                  <input readOnly value={inviteLink} onFocus={e=>e.target.select()} style={{fontSize:12}}/>
+                  <button className="btn btn-ghost btn-sm" onClick={copyInviteLink} style={{flexShrink:0}}>
+                    <i className="ti ti-copy"/> Copy
+                  </button>
+                </div>
+                <div style={{fontSize:12,color:"var(--t3)"}}>{inviteInfo.use_count} of {inviteInfo.max_uses} used</div>
+              </>
+            ):(
+              <div style={{fontSize:12,color:"var(--red)"}}>Couldn't load your invite link — try reopening this.</div>
             )}
           </div>
         )}

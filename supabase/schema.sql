@@ -66,3 +66,71 @@ create policy "read own or admin bug reports" on public.bug_reports
 create policy "admin update bug reports" on public.bug_reports
   for update using ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'))
   with check ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'));
+
+-- Invite codes — signup requires a valid code (cost/abuse control), and any signed-in user gets
+-- their own shareable code (the actual "invite a friend" feature). Redeeming happens BEFORE the
+-- auth account is created (no session yet), so it can't go through a normal RLS-gated table read
+-- — anon would need SELECT on the whole table to check one code, which would let anyone list every
+-- valid code. Instead, two SECURITY DEFINER functions do the only two things anyone's allowed to
+-- do: redeem one code (atomically, so two people can't win a race past a code's use limit), or
+-- create-or-fetch the caller's own code. Neither function ever returns another row's data.
+create table if not exists public.invite_codes (
+  code       text primary key,
+  owner_id   uuid references auth.users(id) on delete set null, -- null = admin-seeded code, not tied to one user
+  max_uses   int not null default 20,
+  use_count  int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.invite_codes enable row level security;
+
+drop policy if exists "owner reads own invite code" on public.invite_codes;
+
+-- The only direct table access anyone gets: a signed-in user reading their OWN code (to show/copy
+-- it and see its use_count) — never anyone else's. Redeeming and creating go through the functions
+-- below instead, since those need to work for a not-yet-authenticated signup and need atomicity.
+create policy "owner reads own invite code" on public.invite_codes
+  for select using (auth.uid() = owner_id);
+
+create or replace function public.redeem_invite_code(p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ok boolean;
+begin
+  update public.invite_codes
+    set use_count = use_count + 1
+    where code = upper(trim(p_code)) and use_count < max_uses
+  returning true into v_ok;
+  return coalesce(v_ok, false);
+end;
+$$;
+
+create or replace function public.get_or_create_my_invite_code()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+begin
+  select code into v_code from public.invite_codes where owner_id = auth.uid() limit 1;
+  if v_code is null then
+    v_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
+    insert into public.invite_codes(code, owner_id) values (v_code, auth.uid());
+  end if;
+  return v_code;
+end;
+$$;
+
+-- redeem_invite_code must be callable pre-auth (signup has no session yet); get_or_create only
+-- makes sense once signed in.
+grant execute on function public.redeem_invite_code(text) to anon, authenticated;
+grant execute on function public.get_or_create_my_invite_code() to authenticated;
+
+-- Seed at least one starting code for launch, e.g.:
+--   insert into public.invite_codes(code, max_uses) values ('STUDYOS2026', 30);

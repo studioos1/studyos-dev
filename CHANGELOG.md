@@ -1,5 +1,17 @@
 # StudyOS Changelog
 
+## v2.50.0 — 2026-09-12
+
+**Invite-gated signup + invite-a-friend links** (launch-readiness item 3/6)
+
+- Sign up now requires a valid **invite code** — redeemed *before* the account is created, so an invalid/exhausted code never leaves an orphaned auth user behind. This is the cost/abuse gate ahead of wider sharing (Anthropic + Twilio usage isn't free), combined with a real feature: any signed-in user gets their own shareable invite link.
+- **Account modal** → new "Invite a friend" section: your link (`studyos.app/?invite=CODE`), a Copy button, and how many people have used it out of its cap.
+- Following a shared link (`?invite=CODE`) auto-fills the code and jumps straight to the Sign up view — one click, not "figure out where this goes."
+- No service-role key or backend route: two Postgres `security definer` functions (`supabase/schema.sql`) do the only two things anyone's allowed to do — redeem one code atomically (so two people can't race past its use limit), or create-or-fetch the caller's own code. Reading your *own* code (for the Account modal display) goes through a plain RLS-gated table read; nothing ever exposes another user's code or full table.
+- **Manual steps**: run the new `invite_codes` section of `supabase/schema.sql` in the Supabase SQL Editor, then seed at least one starting code (the file's last line has a ready-to-run example, e.g. `STUDYOS2026`) so the very first signups have something to use before anyone's generated their own.
+
+**Validation:** 81 tests pass, `npm run build` clean. (No new unit tests — this feature is mostly thin wrappers over live Supabase RPC/table calls, same as the bug-reporting and password-change flows; verify live once the SQL is applied.)
+
 ## v2.49.0 — 2026-09-12
 
 **Bug reporting + admin Bug Reports tab, one implementation** (launch-readiness item 2/6)
