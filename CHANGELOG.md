@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.53.1 — 2026-09-13
+
+**Landing page: new hero copy**
+
+- Eyebrow: "Your Personal Study Assistant" · Headline: "From Syllabus to a Complete Study Plan" · Body: "Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day." · Primary CTA relabeled "Sign up" → "Get Started" (user-supplied copy).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.53.0 — 2026-09-13
 
 **Landing page redesign — a real product preview instead of another icon-and-caption grid**

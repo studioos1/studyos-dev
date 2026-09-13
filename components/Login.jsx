@@ -164,19 +164,19 @@ export function Login({ recoveryMode = false, onDone }) {
         }}>
           <div>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 14 }}>
-              Built for college students
+              Your Personal Study Assistant
             </div>
             <h1 style={{
               fontFamily: "'Syne',sans-serif", fontSize: "clamp(30px, 3.6vw, 44px)", fontWeight: 700,
               lineHeight: 1.15, color: "var(--t1)", textWrap: "balance", marginBottom: 18,
             }}>
-              Your syllabus, turned into a study plan.
+              From Syllabus to a Complete Study Plan
             </h1>
             <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
-              Upload a syllabus PDF — StudyOS builds a day-by-day plan around your real deadlines, class schedule, and how hard each course actually is.
+              Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 34, flexWrap: "wrap" }}>
-              <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Sign up</button>
+              <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Get Started</button>
               <button className="link-btn" style={{ fontSize: 14 }} onClick={() => go("signin")}>Already have an account? Log in</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
