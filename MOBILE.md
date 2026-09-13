@@ -21,9 +21,9 @@ no architecture change).
 | 5 | Onboarding wizard step-bar check | Medium | Low–Mid | Not started | Inherits #1 automatically; step-bar's 8 circular icons + connectors may need a wrap/shrink check |
 | 6 | Account modal verification | Medium | Low | Not started | Inherits #1 automatically, likely fine after that alone |
 | 7 | Progress tab verification | Nice-to-have | Low | Not started | Same responsive patterns as Today, likely already close to fine |
-| 8 | History tab | Low priority | Low | Not started | Already benefits from the earlier `.list-item` CSS fix; rarely used |
-| 9 | School Info tab | Low priority | Low | Not started | Occasional-use form; inherits #1 "for free" |
-| 10 | Academics tables (Courses/Assignments/Difficulty) — real mobile redesign | Medium value, **deferred** | High | Deferred | Already has a working `overflow-x:auto` fallback — usable in a pinch today. A real card-based mobile redesign is a bigger project, not v1 |
+| 8 | School Info tab | Low priority | Low | Not started | Occasional-use form; inherits #1 "for free" |
+| 9 | Academics tables (Courses/Assignments/Difficulty) — real mobile redesign | **Essential** (sequenced last — high effort) | High | Deferred | Genuinely important — it's just the one item that needs a real card-based redesign, not a quick fix. Has a working `overflow-x:auto` fallback in the meantime, usable in a pinch |
+| 10 | History tab | **Lowest priority** | Low | Not started | Already benefits from the earlier `.list-item` CSS fix; rarely used |
 
 ## Confirmed already in reasonable shape (no action needed yet)
 
