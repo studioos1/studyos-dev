@@ -366,6 +366,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   Message frequency varies — typically up to a few texts a day. Message and data rates may apply. Reply <strong>STOP</strong> to any text to cancel, <strong>HELP</strong> for help. See our{" "}
                   <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:"var(--blue)"}}>Terms of Service</a>{" "}
                   and <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"var(--blue)"}}>Privacy Policy</a>.
+                  {" "}Opting in is entirely optional — StudyOS works the same either way.
                 </div>
                 <label style={{display:"flex",alignItems:"flex-start",gap:9,marginBottom:14,cursor:"pointer"}}>
                   <input type="checkbox" checked={smsConsent} onChange={e=>setSmsConsent(e.target.checked)}

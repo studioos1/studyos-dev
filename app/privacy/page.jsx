@@ -303,7 +303,25 @@ export default function Privacy() {
         </div>
 
         <div style={S}>
-          <div style={H}>15. Contact Us</div>
+          <div style={H}>15. SMS/Text Messaging Consent Data</div>
+          <p style={P}>
+            If you opt in to StudyOS Reminders, your phone number is used only to send the SMS
+            messages you've explicitly opted into in Preferences, and only while that setting is
+            on. It is sent to our SMS delivery provider (Twilio) solely to deliver those
+            messages, and to no one else.
+          </p>
+          <p style={P}>
+            <strong>All the above categories exclude text messaging originator opt-in data and
+            consent; this information won't be shared with any third parties.</strong>
+          </p>
+          <p style={P}>
+            Reply STOP to any text to opt out immediately, or turn SMS reminders off in
+            Preferences — either way, we stop texting you right away.
+          </p>
+        </div>
+
+        <div style={S}>
+          <div style={H}>16. Contact Us</div>
           <p style={P}>For privacy questions or requests, contact:</p>
           <p style={{ ...P, marginTop: 8 }}>
             <strong>StudyOS</strong><br />

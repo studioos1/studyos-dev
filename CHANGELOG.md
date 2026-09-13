@@ -1,5 +1,47 @@
 # StudyOS Changelog
 
+## v2.56.7 — 2026-09-13
+
+**SMS opt-in: added "consent is optional" line, matching Twilio's web-form example 100%**
+
+- Compared the real SMS opt-in screen (Preferences → SMS Reminders) against Twilio's official web-form opt-in example element-by-element — everything already matched except one: their example explicitly states consent isn't required to use the product ("Consent is not required to make a purchase"). Added the equivalent line: "Opting in is entirely optional — StudyOS works the same either way." `/sms-optin` evidence page's description updated to match.
+- **Follow-up needed**: the public `/sms-optin-screenshot.png` evidence image still shows the form *before* this line was added — needs retaking from a live logged-in account before relying on it as Campaign proof.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.56.6 — 2026-09-13
+
+**Restored SMS-specific disclosures to Terms/Privacy — needed for A2P 10DLC Campaign review**
+
+- The Terms & Conditions and Privacy Policy full rewrites (v2.56.0, v2.55.0) dropped SMS-specific language the old short versions had. Twilio's A2P 10DLC guide explicitly checks for this. New Terms §22 "SMS/Text Messaging Program": frequency, "Message and data rates may apply" (verbatim), HELP/STOP instructions, and "Carriers are not liable for delayed or undelivered messages" (verbatim, required). New Privacy §15 "SMS/Text Messaging Consent Data": the exact CTIA-required sentence — "text messaging originator opt-in data and consent... won't be shared with any third parties."
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.56.5 — 2026-09-13
+
+**Flow arrow: filled arrowhead for visibility**
+
+- The arrowhead's thin open-stroke hook was too faint to read clearly at actual size. Replaced with a small solid filled shape (same grey `var(--t3)`, rounded leaf/teardrop via curved edges) — much higher contrast, reads unambiguously as a pointer. Body curve and color unchanged.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (zoomed screenshot).
+
+## v2.56.4 — 2026-09-13
+
+**Reverted the flow arrow to the wobble/grey style — v2.56.3's smooth amber redesign didn't land well**
+
+- Back to the double-curve wobble path and `var(--t3)` grey. Kept one small refinement: the arrowhead's hook curve tightened (control point pulled in, endpoints narrowed) for a slightly rounder, more finished point than the original.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.56.3 — 2026-09-13
+
+**Redesigned the landing flow arrow — smoother curve, rounded amber arrowhead**
+
+- The wobbly hand-drawn double-curve (two direction reversals) read as odd/messy rather than "sketchy." Replaced with a single smooth rising arc (one quadratic curve, no reversal) ending in a small filled rounded arrowhead (a soft leaf/teardrop shape via curved path edges, not a straight-line chevron).
+- Color changed from muted grey (`var(--t3)`) to `var(--amber)` — ties the connector visually to the amber icon badges above each card instead of reading as an unrelated grey mark.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (zoomed screenshot).
+
 ## v2.56.2 — 2026-09-13
 
 **Fix clipped tooltips on the top-right Bug Report/Account icons**
