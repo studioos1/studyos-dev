@@ -9,6 +9,7 @@ import {
   computeEstimateFields,
   computePriorityScore,
   DIFFICULTY_BANDS,
+  expectedHoursRange,
 } from "@/lib/planner";
 import { CI } from "@/lib/api";
 import { PDF } from "@/lib/pdf";
@@ -47,6 +48,11 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
   const hoursChanged=newHours!==course.weeklyHours;
   const prepChanged=newPrep!==course.startExamPrepDays;
   const anyChanged=diffChanged||hoursChanged||prepChanged;
+  // Deterministic sanity check (not another AI call) — flags when the two numbers this same
+  // result claims together don't actually line up, e.g. "Heavy" but well below what Heavy courses
+  // typically take. Never blocks Apply; it's a nudge to read the rationale before trusting it.
+  const [hMin,hMax]=expectedHoursRange(newScore);
+  const hoursOutOfBand=newHours<hMin||newHours>hMax;
   return(
     <div style={{background:"var(--card2)",margin:"2px -20px 10px",padding:"10px 20px"}}>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
@@ -54,6 +60,10 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
           ?<span className="badge badge-amber">{newLabel||"Lvl"} {newScore}/10</span>
           :<DiffBadge score={newScore} label={newLabel}/>}
         <span className={`badge ${hoursChanged?"badge-amber":"badge-blue"}`}>{newHours}h/wk study</span>
+        {hoursOutOfBand&&(
+          <i className="ti ti-alert-triangle tt" data-tt={`${newHours}h/week is unusual for a ${newScore}/10 difficulty — that band is typically ${hMin}–${hMax}h/week. Worth reading the rationale before applying.`}
+            style={{fontSize:14,color:"var(--amber)",cursor:"default"}}/>
+        )}
         <span className={`badge ${prepChanged?"badge-amber":"badge-teal"}`}>prep {newPrep}d before exams</span>
         {info.confidence&&(
           <span className="tt" data-tt={`Web-researched, ${info.confidence} confidence.${info.rationale?` ${info.rationale}`:""}`}
@@ -88,6 +98,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const {confirm,modal}=useConfirm();
   const [view,setView]=useState("assignments");
   const [showDiffHelp,setShowDiffHelp]=useState(false);
+  const [showCourseHelp,setShowCourseHelp]=useState(false);
   const [showAddAssign,setShowAddAssign]=useState(false);
   const [showAddExam,setShowAddExam]=useState(false);
   const [editId,setEditId]=useState(null);
@@ -700,13 +711,32 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </button>
             ))}
           </div>
-          {(termCourses.length>0||termAssignments.length>0||termExams.length>0)&&(
-            <button className="btn btn-ghost btn-sm" style={{color:"var(--amber)"}} onClick={resetAcademic}>
-              <i className="ti ti-eraser"/> Reset academic data
-            </button>
-          )}
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {view==="courses"&&(
+              <button className="tt" data-tt="How this estimate works" onClick={()=>setShowCourseHelp(true)}
+                style={{width:26,height:26,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                  color:"var(--t2)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",
+                  alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                ?
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      {showCourseHelp&&(
+        <InfoModal
+          title="Course Difficulty & Hours"
+          onClose={()=>setShowCourseHelp(false)}
+          sections={[
+            {heading:"",body:"Each course gets one web-search-backed estimate — not per assignment, just once per course — covering how hard it tends to be and how much time it usually takes."},
+            {heading:"Difficulty (1–10)",body:"1-3 Light, 4-6 Medium, 7-8 Heavy, 9-10 Intense. This is what drives each assignment/exam's own difficulty band in Study Preferences."},
+            {heading:"Weekly hours",body:"A realistic weekly time commitment outside class, separate from difficulty — a course can be conceptually Heavy without needing the most raw hours, or vice versa. Real courses vary a lot within a band, so the two only loosely track each other."},
+            {heading:"Confidence & rationale",body:"🔍 shows how much real evidence the search actually found (reviews, workload discussion) versus a general estimate from the subject/level — hover it to read what it found. \"High\" means it found something concrete, not that it's guaranteed correct."},
+            {heading:"Unusual-combination flag",body:"⚠ appears when the hours number looks out of step with the difficulty score (e.g. Heavy but far below what Heavy courses typically take) — a deterministic check, not another AI call. It's a nudge to read the rationale before applying, never a block."},
+            {heading:"Re-researching",body:"The 🔄 button re-runs the search and shows old vs new before anything is saved — nothing is ever overwritten silently."},
+          ]}
+        />
+      )}
 
       {/* ══════════════ ASSIGNMENTS ══════════════ */}
       {view==="assignments"&&(
@@ -1496,6 +1526,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               <i className="ti ti-refresh" style={TITLE_ICON}/>
               <span style={TITLE_TEXT}>Update Syllabus</span>
             </div>
+            {(termCourses.length>0||termAssignments.length>0||termExams.length>0)&&(
+              <button className="btn btn-ghost btn-sm" style={{color:"var(--amber)"}} onClick={resetAcademic}>
+                <i className="ti ti-eraser"/> Reset academic data
+              </button>
+            )}
           </div>
           <div style={DIVIDER}/>
           <div style={INNER}>
