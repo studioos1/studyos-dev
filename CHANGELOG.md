@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.56.3 — 2026-09-13
+
+**Redesigned the landing flow arrow — smoother curve, rounded amber arrowhead**
+
+- The wobbly hand-drawn double-curve (two direction reversals) read as odd/messy rather than "sketchy." Replaced with a single smooth rising arc (one quadratic curve, no reversal) ending in a small filled rounded arrowhead (a soft leaf/teardrop shape via curved path edges, not a straight-line chevron).
+- Color changed from muted grey (`var(--t3)`) to `var(--amber)` — ties the connector visually to the amber icon badges above each card instead of reading as an unrelated grey mark.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (zoomed screenshot).
+
 ## v2.56.2 — 2026-09-13
 
 **Fix clipped tooltips on the top-right Bug Report/Account icons**
