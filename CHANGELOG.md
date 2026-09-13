@@ -1,5 +1,70 @@
 # StudyOS Changelog
 
+## v2.56.2 — 2026-09-13
+
+**Fix clipped tooltips on the top-right Bug Report/Account icons**
+
+- Both icons sat at the very top-right corner of the fixed top bar and used the plain `.tt` tooltip variant, which renders centered above the element — for an element pinned to the corner, that pushes the tooltip off both the right edge (horizontal) and the top edge (no room above a fixed bar), so it never actually became visible. Switched both to `tt tt-below tt-right`, the same edge-anchored variant already used elsewhere for corner-pinned controls (e.g. Week.jsx's Replan menu button) — tooltip now opens below and right-anchored, growing inward instead of off-screen.
+
+**Validation:** 81 tests pass, `npm run build` clean. Not browser-verified this time — only visible in the logged-in app view, which needs Avishai's own login; worth a quick confirm once he's back in.
+
+**Visible "BETA" tag next to the StudyOS wordmark everywhere it appears**
+
+- The Terms of Service now says StudyOS is Beta software (v2.56.0) — this makes that visible in the product itself, not only buried in a legal document. A small "BETA" tag (dimmed `var(--t3)`, letter-spaced, clearly smaller than the gradient wordmark) now sits next to "StudyOS" in all 4 places it appears: the landing page's top-left brand mark, the auth views' (sign in/up/reset/update) centered hero, the logged-in app's top bar, and the Terms/Privacy Policy page headers. Left `app/sms-optin/page.jsx` untouched — that's an internal Twilio-verification evidence page, not part of the product experience.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live on 4 of the 5 wordmark instances (landing, auth hero, /terms — the logged-in app top bar uses the identical pattern but couldn't be visually re-verified without live credentials).
+
+## v2.56.0 — 2026-09-13
+
+**Full Terms & Conditions rewrite — Beta framing + real liability protection**
+
+Replaced the short informal Terms of Service with a full, professionally-structured version (user-provided draft), matching the Privacy Policy's numbered-section style. This is what the earlier "is the current setup sufficient from a legal/liability standpoint" question resolves to — directly addresses every gap flagged then:
+
+- **Section 2, explicit Beta framing**: "StudyOS is currently provided as a Beta service... may contain errors, incomplete functionality... should not rely on StudyOS as your sole source of academic information."
+- **Section 5, no guarantee of academic results** — explicit list (grades, deadlines, passing a course, etc.) of outcomes StudyOS doesn't promise.
+- **Section 16, Disclaimer of Warranties** and **Section 17, Limitation of Liability** — real liability-limiting clauses (capped at the greater of amount paid in 12 months or US $100, since the app is free that's effectively a $100 cap), not just "as is" language.
+- **Section 6, minimum age (13)**, **Section 19, Termination**, **Section 21, Governing Law** (California, Santa Clara County) — all previously missing.
+- Sections 3/4/10/11 tie the liability protection to the actual risk that matters most for this app: AI-generated study plans/difficulty estimates/deadline extraction can be wrong, the student remains responsible for verifying against official sources, and StudyOS doesn't authorize academic-integrity violations.
+- Cross-links to `/privacy` (Section 8) and from the Privacy Policy back to Terms (Section 3) both verified working.
+- Contact: StudyOS · California, United States · support@studyos.io (Privacy Policy keeps its own `privacy@studyos.io` — a standard privacy/support split).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (scrolled the full document, all 22 sections render correctly).
+
+## v2.55.0 — 2026-09-13
+
+**Full Privacy Policy rewrite — comprehensive, 15 numbered sections**
+
+Replaced the short informal Privacy Policy with a full, professionally-structured version, formatted to match the site's existing legal-page style (wordmark header, numbered sections):
+
+1. Information We Collect (account, academic/study data, uploaded content, usage/technical, connected services)
+2. How We Use Information
+3. Artificial Intelligence — including a direct statement that StudyOS does not permit third-party AI providers to use personal StudyOS content to train their general-purpose models (matches Anthropic's current commercial API terms — worth Avishai re-verifying against Anthropic's terms if those ever change)
+4. How We Share Information (service providers, legal disclosures)
+5. Student Data — no sale to data brokers/advertisers; explicitly states StudyOS doesn't engage in CCPA/CPRA "sharing" (true — the app has no ad-tech)
+6. Cookies and Analytics
+7. Data Retention
+8. Your Privacy Rights
+9. California Privacy Rights
+10. Children's Privacy (under-13 statement)
+11. Data Security
+12. Educational Institutions / FERPA-adjacent scoping
+13. International Users
+14. Changes to This Policy
+15. Contact Us — StudyOS · California, United States · privacy@studyos.io
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.54.2 — 2026-09-13
+
+**Landing/signup polish: new 4-step flow titles, readable box text, rounder sketch arrows, checkbox wording**
+
+- Feature box titles/order now read as an explicit flow: "Upload Your Syllabus" → "We Classify Difficulties" → "We Build Your Study Plan" → "We Assist You Daily to Track the Plan" (was "Upload your syllabus" / "Study Plan Built for You" / "Class Difficulty, Based on Research" / "Stay on Track with Daily Check-ins" — reordered so difficulty classification comes before plan-building, matching the narrative). Icons moved with their concept. Body copy under each title unchanged.
+- `.feature-card-body` color `var(--t3)` → `var(--t2)` — the detail text under each box title was too low-contrast.
+- `SketchArrow` redrawn: smooth `Q`-curve S-shape (was a sharper `C`-curve zigzag) and a rounded hook-shaped arrowhead (was a straight angular chevron), stroke bumped 2px → 2.5px — reads as a nicer, rounder hand-drawn mark instead of a jagged one.
+- Sign up's ToS checkbox now reads "I agree to the Terms of Service and acknowledge the Privacy Policy." (was "...and Privacy Policy") — distinguishes agreeing to a contract (Terms) from acknowledging a disclosure (Privacy Policy), a distinction commonly drawn in real consent checkboxes.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.54.1 — 2026-09-13
 
 **Landing: smaller headline, dropped redundant bullets, aligned feature boxes**

@@ -409,6 +409,7 @@ function App(){
         {/* TOP BAR */}
         <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",alignItems:"center",gap:12,height:50,borderBottom:"1px solid var(--b1)"}}>
           <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>StudyOS</span>
+          <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {q&&<span className="badge badge-blue">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
           {missing>0&&<span className="badge badge-amber" style={{cursor:"pointer"}} onClick={()=>setTab("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
@@ -418,13 +419,13 @@ function App(){
               v{APP_VERSION}
             </span>
             {data.onboarded&&(
-              <button className="tt" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
+              <button className="tt tt-below tt-right" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                   color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
                 <i className="ti ti-bug" style={{fontSize:15}}/>
               </button>
             )}
-            <button className="tt" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
+            <button className="tt tt-below tt-right" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
               style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                 color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
               <i className="ti ti-user-circle" style={{fontSize:16}}/>
