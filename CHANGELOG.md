@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.48.0 — 2026-09-12
+
+**Signup now requires agreeing to Terms of Service + Privacy Policy** (launch-readiness item 1/6)
+
+- First of the pre-launch checklist ahead of Itay's new term and wider student sharing: the Sign up form now has a required checkbox — "I agree to the Terms of Service and Privacy Policy," linking to the existing `/terms` and `/privacy` pages (opened in a new tab) — and **Create account** stays disabled until it's checked.
+- Consent is also recorded on the account itself: `tos_agreed_at` (ISO timestamp) is stored in the user's Supabase auth metadata alongside `full_name`/`phone` at signup — a durable record of when each user actually agreed, not just a client-side gate.
+- Re-checked inside `signUp()` itself, not just via the disabled button, since a form submit via Enter can bypass a disabled button.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.47.2 — 2026-09-12
 
 **Academics now lands on the Courses tab by default**

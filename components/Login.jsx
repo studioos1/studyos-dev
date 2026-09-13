@@ -16,11 +16,12 @@ export function Login({ recoveryMode = false, onDone }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const go = v => { setView(v); setError(""); setNotice(""); setPassword(""); setPassword2(""); };
+  const go = v => { setView(v); setError(""); setNotice(""); setPassword(""); setPassword2(""); setAgreedToTerms(false); };
 
   async function run(fn) {
     setError(""); setNotice(""); setBusy(true);
@@ -40,9 +41,13 @@ export function Login({ recoveryMode = false, onDone }) {
     if (!phone.trim()) throw new Error("Mobile phone is required.");
     if (!email || !password) throw new Error("Email and password are both required.");
     if (password.length < 8) throw new Error("Password must be at least 8 characters.");
+    // Belt-and-suspenders: the button itself is disabled until checked, but re-check here too
+    // (a submit via Enter bypasses a disabled-button click, and this is the one flow it's worth
+    // being paranoid about — no account should be created without recorded consent).
+    if (!agreedToTerms) throw new Error("You must agree to the Terms of Service and Privacy Policy to create an account.");
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { full_name: fullName.trim(), phone: phone.trim() } },
+      options: { data: { full_name: fullName.trim(), phone: phone.trim(), tos_agreed_at: new Date().toISOString() } },
     });
     if (error) throw error;
     if (!data.session) { setNotice("Account created. Check your email for a confirmation link, then log in."); setView("signin"); }
@@ -174,7 +179,22 @@ export function Login({ recoveryMode = false, onDone }) {
                 <PasswordInput value={password} autoComplete="new-password"
                   onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
               </div>
-              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 16,
+                fontSize: 13, color: "var(--t2)", textTransform: "none", letterSpacing: "normal",
+                fontWeight: 400, cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={agreedToTerms}
+                  onChange={e => setAgreedToTerms(e.target.checked)}
+                  style={{ width: "auto", marginTop: 2, flexShrink: 0 }} />
+                <span>
+                  I agree to the{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Terms of Service</a>
+                  {" "}and{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Privacy Policy</a>
+                </span>
+              </label>
+              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy || !agreedToTerms}>
                 {busy ? "Working…" : "Create account"}
               </button>
             </form>
