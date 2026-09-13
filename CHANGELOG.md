@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.47.2 — 2026-09-12
+
+**Academics now lands on the Courses tab by default**
+
+- Opening Academics previously defaulted to the Assignments sub-tab. Now defaults to Courses.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.47.1 — 2026-09-12
 
 **Moved "Reset academic data" into the Update Syllabus tab's header**
