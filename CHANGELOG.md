@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.56.0 — 2026-09-13
+
+**Full Terms & Conditions rewrite — Beta framing + real liability protection**
+
+Replaced the short informal Terms of Service with a full, professionally-structured version (user-provided draft), matching the Privacy Policy's numbered-section style. This is what the earlier "is the current setup sufficient from a legal/liability standpoint" question resolves to — directly addresses every gap flagged then:
+
+- **Section 2, explicit Beta framing**: "StudyOS is currently provided as a Beta service... may contain errors, incomplete functionality... should not rely on StudyOS as your sole source of academic information."
+- **Section 5, no guarantee of academic results** — explicit list (grades, deadlines, passing a course, etc.) of outcomes StudyOS doesn't promise.
+- **Section 16, Disclaimer of Warranties** and **Section 17, Limitation of Liability** — real liability-limiting clauses (capped at the greater of amount paid in 12 months or US $100, since the app is free that's effectively a $100 cap), not just "as is" language.
+- **Section 6, minimum age (13)**, **Section 19, Termination**, **Section 21, Governing Law** (California, Santa Clara County) — all previously missing.
+- Sections 3/4/10/11 tie the liability protection to the actual risk that matters most for this app: AI-generated study plans/difficulty estimates/deadline extraction can be wrong, the student remains responsible for verifying against official sources, and StudyOS doesn't authorize academic-integrity violations.
+- Cross-links to `/privacy` (Section 8) and from the Privacy Policy back to Terms (Section 3) both verified working.
+- Contact: StudyOS · California, United States · support@studyos.io (Privacy Policy keeps its own `privacy@studyos.io` — a standard privacy/support split).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (scrolled the full document, all 22 sections render correctly).
+
 ## v2.55.0 — 2026-09-13
 
 **Full Privacy Policy rewrite — comprehensive, 15 numbered sections**
