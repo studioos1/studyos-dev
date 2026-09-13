@@ -5,8 +5,10 @@ import { courseNameFor } from "@/lib/courses";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
 import { freeSlots, weekStartOf } from "@/lib/calendar";
-import { useConfirm, AccountModal } from "@/components/shared";
+import { useConfirm, AccountModal, BugReportModal } from "@/components/shared";
 import { planHorizon } from "@/lib/planner";
+import { ADMIN_EMAILS } from "@/lib/constants";
+import { submitBugReport } from "@/lib/bugReports";
 import {
   ED,
   load,
@@ -32,6 +34,7 @@ import { Sett } from "@/components/Sett";
 import { History } from "@/components/History";
 import { Prog } from "@/components/Prog";
 import { Login } from "@/components/Login";
+import { BugReports } from "@/components/BugReports";
 console.log(`StudyOS v${APP_VERSION} (built ${APP_BUILD_DATE} ${APP_BUILD_TIME}) loaded`);
 // ── Reminders ─────────────────────────────────────────────────────────────
 function urgentItems(data){
@@ -128,15 +131,21 @@ function App(){
   const [planMsg,setPlanMsg]=useState("");
   const {confirm:confirmApp,modal:modalApp}=useConfirm();
   const [showAccount,setShowAccount]=useState(false);
+  const [showBugReport,setShowBugReport]=useState(false);
   // App is the root component and never unmounts — the render gates below just swap in <Login/>.
   // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
   // would still be open on the next login. Force it shut whenever there's no session.
-  useEffect(()=>{if(!session)setShowAccount(false);},[session]);
+  useEffect(()=>{if(!session){setShowAccount(false);setShowBugReport(false);}},[session]);
   const [planDrawerOpen,setPlanDrawerOpen]=useState(false); // Weekly-tab Plan status drawer — lifted here so a replan can auto-open it on a shortfall
 
   function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
   function toast2(m,e){setToast({m,e});setTimeout(()=>setToast(null),3000);}
+  async function sendBugReport(message){
+    await submitBugReport({message,page:tab,appVersion:APP_VERSION});
+    setShowBugReport(false);
+    toast2("Thanks — bug report sent!");
+  }
 
   // One-time legacy migration — synthesizes a school+term entry from existing profile fields the
   // first time this loads with terms[] still empty. Runs on every render but is a genuine no-op
@@ -381,6 +390,7 @@ function App(){
   const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
 
+  const isAdmin=ADMIN_EMAILS.includes(session.user?.email);
   const TABS=data.onboarded?[
     {id:"today",   icon:"ti-sun",          label:"Today"},
     {id:"week",    icon:"ti-calendar-week",label:"Weekly"},
@@ -389,6 +399,7 @@ function App(){
     {id:"history", icon:"ti-history",      label:"History"},
     {id:"school",  icon:"ti-building",     label:"School Info"},
     {id:"settings",icon:"ti-settings",    label:"Preferences"},
+    ...(isAdmin?[{id:"bugs",icon:"ti-bug",label:"Bug Reports"}]:[]),
   ]:[];
 
   return(
@@ -406,6 +417,13 @@ function App(){
             <span className="tt" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
+            {data.onboarded&&(
+              <button className="tt" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
+                style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                  color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                <i className="ti ti-bug" style={{fontSize:15}}/>
+              </button>
+            )}
             <button className="tt" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
               style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                 color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
@@ -437,6 +455,7 @@ function App(){
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy}/>
           :tab==="history" ?<History  data={data} upd={upd} toast2={toast2}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
+          :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)
           :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg}/>
         }
       </div>
@@ -444,6 +463,7 @@ function App(){
       {modalApp}
       {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
         onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}
+      {showBugReport&&<BugReportModal onSubmit={sendBugReport} onCancel={()=>setShowBugReport(false)}/>}
     </div>
   );
 }

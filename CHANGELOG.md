@@ -1,5 +1,67 @@
 # StudyOS Changelog
 
+## v2.51.0 — 2026-09-12
+
+**Landing page** (launch-readiness item 5/6) **+ a real bug the smoke test caught**
+
+- `components/Login.jsx` had an unused `"landing"` view documented in its own header comment but never built — the app just skipped straight to the login form. Built it: hero + tagline, Log in/Sign up buttons, four feature cards grounded in what's actually built (syllabus upload, the study planner, B-01's difficulty research, daily check-ins), Terms/Privacy footer. It's now the default view for a logged-out visitor (an active `?invite=CODE` link still jumps straight to Sign up, unchanged). Clicking the wordmark from any other view returns to it.
+- Browser-verified live, not just built-and-assumed: landing page, sign up form, and the invite deep-link redirect all confirmed working end-to-end.
+- **Real bug found via that same smoke test**: opening the Account modal's "Invite a friend" section threw *"JSON object requested, multiple (or no) rows returned"* — `get_or_create_my_invite_code()`'s check-then-insert wasn't atomic, so two near-simultaneous calls (React's dev-mode double-effect invocation surfaced this immediately) could each decide no code existed yet and both insert one, leaving two rows for one owner. Fixed: a unique constraint on `owner_id` plus an `insert ... on conflict (owner_id) do nothing` in the function makes creation atomic; `supabase/schema.sql` also self-heals any already-existing duplicate (deletes all but the oldest) before adding the constraint, so it's safe to re-run on the now-affected production database. Client-side `getMyInviteInfo()` also hardened to read the oldest row instead of hard-erroring if this class of bug ever recurs.
+- **Manual step**: re-run `supabase/schema.sql`'s `invite_codes` section (the whole file, or just that section) in the Supabase SQL Editor to apply the dedupe + constraint + fixed function.
+
+**Validation:** 81 tests pass, `npm run build` clean, live browser smoke test (landing → sign up → invite deep-link → account modal) — the last of which is what caught the race condition above.
+
+## v2.50.1 — 2026-09-12
+
+**RLS audit** (launch-readiness item 4/6) — clean, two accepted risks noted
+
+Reviewed every table's RLS policy against every actual query site in the codebase (grepped, not just recalled) ahead of real strangers' data being in the system:
+
+- **`user_data`**: SELECT/INSERT/UPDATE all correctly scoped to `auth.uid() = user_id`, including `with check` on writes — a crafted payload claiming someone else's `user_id` is rejected at the database level, not just trusted client-side.
+- **`bug_reports`**: INSERT scoped to the reporter; SELECT/UPDATE correctly split (reporter reads own, admin-by-JWT-email reads/updates all).
+- **`invite_codes`**: no direct INSERT/UPDATE policy for any role at all — writes only happen through the two `security definer` functions, both with `search_path` pinned (the standard hardening against the classic SECURITY DEFINER hijack). `redeem_invite_code`'s atomic `UPDATE ... WHERE use_count < max_uses` correctly prevents a race past a code's use limit.
+- **No service-role key anywhere in the codebase** — confirmed by grep, not assumption.
+- **Single signup entry point** — `components/Login.jsx` is the only `auth.signUp()` call site, so the ToS/invite gates can't be bypassed via another path.
+- Fixed in passing: `.env.template` never actually listed `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`, despite the app requiring them.
+
+**Two accepted risks, not fixed now** (noted in `CLAUDE.md`'s backlog):
+1. Admin-seeded invite codes (`owner_id` null, e.g. `STUDYOS2026`) have no matching SELECT policy — their usage count isn't visible in-app, only via the Supabase dashboard directly. Not a leak, just a gap.
+2. `redeem_invite_code` has no rate-limiting and is callable pre-auth — a scripted attacker could hammer it. Self-generated codes (~4.3 billion combinations) are impractical to brute-force; the human-shared launch code is a static secret with the usual sharing risk. Accepted for this launch's scale; revisit if abuse actually shows up.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.50.0 — 2026-09-12
+
+**Invite-gated signup + invite-a-friend links** (launch-readiness item 3/6)
+
+- Sign up now requires a valid **invite code** — redeemed *before* the account is created, so an invalid/exhausted code never leaves an orphaned auth user behind. This is the cost/abuse gate ahead of wider sharing (Anthropic + Twilio usage isn't free), combined with a real feature: any signed-in user gets their own shareable invite link.
+- **Account modal** → new "Invite a friend" section: your link (`studyos.app/?invite=CODE`), a Copy button, and how many people have used it out of its cap.
+- Following a shared link (`?invite=CODE`) auto-fills the code and jumps straight to the Sign up view — one click, not "figure out where this goes."
+- No service-role key or backend route: two Postgres `security definer` functions (`supabase/schema.sql`) do the only two things anyone's allowed to do — redeem one code atomically (so two people can't race past its use limit), or create-or-fetch the caller's own code. Reading your *own* code (for the Account modal display) goes through a plain RLS-gated table read; nothing ever exposes another user's code or full table.
+- **Manual steps**: run the new `invite_codes` section of `supabase/schema.sql` in the Supabase SQL Editor, then seed at least one starting code (the file's last line has a ready-to-run example, e.g. `STUDYOS2026`) so the very first signups have something to use before anyone's generated their own.
+
+**Validation:** 81 tests pass, `npm run build` clean. (No new unit tests — this feature is mostly thin wrappers over live Supabase RPC/table calls, same as the bug-reporting and password-change flows; verify live once the SQL is applied.)
+
+## v2.49.0 — 2026-09-12
+
+**Bug reporting + admin Bug Reports tab, one implementation** (launch-readiness item 2/6)
+
+- New 🐛 icon in the top bar (next to Account, visible once onboarded) opens a small form — describe what happened, current tab and app version are captured automatically. Writes to a new `bug_reports` Supabase table (`lib/bugReports.js`).
+- New **Bug Reports** tab, visible only to `lib/constants.js`'s `ADMIN_EMAILS` — lists Open reports first, Resolved below, with a one-click Resolve/Reopen toggle. No custom backend route or service-role key: `supabase/schema.sql`'s RLS policies enforce at the database level that only the reporter (their own rows) or the admin email (all rows) can read anything — a non-admin literally cannot query other users' reports, regardless of client code.
+- **Manual step required**: run the new `bug_reports` section of `supabase/schema.sql` in the Supabase SQL Editor before this works in production — it wasn't auto-applied.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.48.0 — 2026-09-12
+
+**Signup now requires agreeing to Terms of Service + Privacy Policy** (launch-readiness item 1/6)
+
+- First of the pre-launch checklist ahead of Itay's new term and wider student sharing: the Sign up form now has a required checkbox — "I agree to the Terms of Service and Privacy Policy," linking to the existing `/terms` and `/privacy` pages (opened in a new tab) — and **Create account** stays disabled until it's checked.
+- Consent is also recorded on the account itself: `tos_agreed_at` (ISO timestamp) is stored in the user's Supabase auth metadata alongside `full_name`/`phone` at signup — a durable record of when each user actually agreed, not just a client-side gate.
+- Re-checked inside `signUp()` itself, not just via the disabled button, since a form submit via Enter can bypass a disabled button.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.47.2 — 2026-09-12
 
 **Academics now lands on the Courses tab by default**

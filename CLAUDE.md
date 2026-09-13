@@ -165,6 +165,19 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   as additive to the current design, not a rewrite. (B) native/device app — Electron/Tauri is the
   smallest lift; true mobile would need a React Native rewrite; a PWA is a middle ground. This is
   the actively-developing "bigger goal" — if this file feels behind on it, ask rather than assume.
+  **Update:** Option A is done — Supabase Auth + Postgres, deployed on Vercel, real signup/login/
+  password-reset, RLS-scoped per-user data (`supabase/schema.sql`). This paragraph is being kept
+  as-is (rather than rewritten) as a marker of how stale a "known backlog" entry can quietly get —
+  re-verify status here before trusting it, don't just read it.
+- **Two accepted security risks from the pre-launch RLS audit (2026-09), not fixed, revisit if
+  actually exploited:** (1) admin-seeded invite codes (`invite_codes.owner_id is null`, e.g. the
+  launch code) have no SELECT policy match, so their use-count isn't visible in-app, only via the
+  Supabase dashboard — a usability gap, not a leak. (2) `redeem_invite_code()` (an RPC callable
+  pre-auth, so it can't require a session) has no rate-limiting — a scripted attacker could hammer
+  it. Self-generated codes are an 8-hex-char space (~4.3B combinations), impractical to brute-force;
+  the human-shared launch code is a static secret with the usual sharing risk. Fine at family/
+  small-cohort scale; would need real rate-limiting (which needs a backend route) before this app
+  is handling meaningfully more signup traffic.
 
 ## Workflow discipline to keep
 

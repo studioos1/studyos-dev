@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { APP_VERSION } from "@/lib/version";
 import { PasswordInput } from "@/components/shared";
+import { redeemInviteCode } from "@/lib/invites";
 
 // Auth gate shown by components/App.jsx whenever there's no active session (and, in recoveryMode,
 // even with one — App renders this to let the user set a new password after a reset-email link).
@@ -10,17 +11,28 @@ import { PasswordInput } from "@/components/shared";
 // Views: "landing" (Log in / Sign up buttons) · "signin" · "signup" · "reset" (send reset email)
 // · "update" (set a new password — recoveryMode).
 export function Login({ recoveryMode = false, onDone }) {
-  const [view, setView] = useState(recoveryMode ? "update" : "signin");
+  const [view, setView] = useState(recoveryMode ? "update" : "landing");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const go = v => { setView(v); setError(""); setNotice(""); setPassword(""); setPassword2(""); };
+  // A shared invite link looks like studyos.app/?invite=CODE — pick that up on first load and
+  // jump straight to Sign up with the code pre-filled, so following a friend's link is one click,
+  // not "figure out where to type this."
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = new URLSearchParams(window.location.search).get("invite");
+    if (code) { setInviteCode(code); if (!recoveryMode) setView("signup"); }
+  }, []); // eslint-disable-line
+
+  const go = v => { setView(v); setError(""); setNotice(""); setPassword(""); setPassword2(""); setAgreedToTerms(false); };
 
   async function run(fn) {
     setError(""); setNotice(""); setBusy(true);
@@ -40,9 +52,19 @@ export function Login({ recoveryMode = false, onDone }) {
     if (!phone.trim()) throw new Error("Mobile phone is required.");
     if (!email || !password) throw new Error("Email and password are both required.");
     if (password.length < 8) throw new Error("Password must be at least 8 characters.");
+    if (!inviteCode.trim()) throw new Error("An invite code is required to sign up.");
+    // Belt-and-suspenders: the button itself is disabled until checked, but re-check here too
+    // (a submit via Enter bypasses a disabled-button click, and this is the one flow it's worth
+    // being paranoid about — no account should be created without recorded consent).
+    if (!agreedToTerms) throw new Error("You must agree to the Terms of Service and Privacy Policy to create an account.");
+    // Redeemed BEFORE the account exists — signUp() has no service-role fallback to delete a
+    // just-created account if the code turns out invalid, so validating first is the only way to
+    // avoid leaving an orphaned auth user behind on a bad code.
+    const ok = await redeemInviteCode(inviteCode.trim());
+    if (!ok) throw new Error("That invite code isn't valid (or has been used up). Double-check it or ask whoever invited you for a fresh one.");
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { full_name: fullName.trim(), phone: phone.trim() } },
+      options: { data: { full_name: fullName.trim(), phone: phone.trim(), tos_agreed_at: new Date().toISOString() } },
     });
     if (error) throw error;
     if (!data.session) { setNotice("Account created. Check your email for a confirmation link, then log in."); setView("signin"); }
@@ -100,6 +122,13 @@ export function Login({ recoveryMode = false, onDone }) {
     </div>
   );
 
+  const FEATURES = [
+    { icon: "ti-file-upload", title: "Upload your syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
+    { icon: "ti-calendar-time", title: "A plan built for you", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
+    { icon: "ti-search", title: "Real difficulty research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
+    { icon: "ti-flame", title: "Daily check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
+  ];
+
   return (
     <div style={{
       minHeight: "100vh", background: "var(--bg)", color: "var(--t1)",
@@ -107,12 +136,13 @@ export function Login({ recoveryMode = false, onDone }) {
       justifyContent: "center", padding: 20,
       paddingTop: "clamp(48px, 12vh, 130px)",
     }}>
-      <div style={{ width: "100%", maxWidth: 380 }}>
+      <div style={{ width: "100%", maxWidth: view === "landing" ? 720 : 380 }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <span style={{
+          <span onClick={!recoveryMode && view !== "landing" ? () => go("landing") : undefined} style={{
             fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            cursor: !recoveryMode && view !== "landing" ? "pointer" : "default",
           }}>StudyOS</span>
           <div style={{ marginTop: 10, lineHeight: 1.4 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
@@ -123,6 +153,36 @@ export function Login({ recoveryMode = false, onDone }) {
             </div>
           </div>
         </div>
+
+        {view === "landing" && (
+          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => go("signin")}>Log in</button>
+              <button className="btn btn-action" style={{ flex: 1 }} onClick={() => go("signup")}>Sign up</button>
+            </div>
+          </div>
+        )}
+        {view === "landing" && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+            gap: 14, marginBottom: 28,
+          }}>
+            {FEATURES.map(f => (
+              <div key={f.title} className="card" style={{ marginBottom: 0 }}>
+                <i className={`ti ${f.icon}`} style={{ fontSize: 22, color: "var(--amber)", marginBottom: 10, display: "block" }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
+                <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {view === "landing" && (
+          <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
+            <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
+            {" · "}
+            <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
+          </div>
+        )}
 
         {error && (
           <div style={{ fontSize: 13, color: "var(--red)", background: "var(--red-bg)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>{error}</div>
@@ -169,12 +229,32 @@ export function Login({ recoveryMode = false, onDone }) {
                   onChange={e => setPhone(e.target.value)} placeholder="+1 555 123 4567" />
               </div>
               {emailField}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 12 }}>
                 <label>Password</label>
                 <PasswordInput value={password} autoComplete="new-password"
                   onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
               </div>
-              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
+              <div style={{ marginBottom: 14 }}>
+                <label>Invite code</label>
+                <input type="text" value={inviteCode} autoCapitalize="characters"
+                  onChange={e => setInviteCode(e.target.value)} placeholder="From whoever invited you" />
+              </div>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 16,
+                fontSize: 13, color: "var(--t2)", textTransform: "none", letterSpacing: "normal",
+                fontWeight: 400, cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={agreedToTerms}
+                  onChange={e => setAgreedToTerms(e.target.checked)}
+                  style={{ width: "auto", marginTop: 2, flexShrink: 0 }} />
+                <span>
+                  I agree to the{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Terms of Service</a>
+                  {" "}and{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Privacy Policy</a>
+                </span>
+              </label>
+              <button className="btn btn-action" style={{ width: "100%" }} disabled={busy || !agreedToTerms}>
                 {busy ? "Working…" : "Create account"}
               </button>
             </form>

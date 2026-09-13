@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
+import { getMyInviteInfo } from "@/lib/invites";
 import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
@@ -435,6 +436,46 @@ export function ConfirmModal({message,confirmLabel="Yes",confirmIcon,onConfirm,o
   );
 }
 
+// Opened from the bug icon in App.jsx's top bar — page/appVersion are captured automatically by
+// the caller (current tab, APP_VERSION) so the student only ever has to describe what happened.
+export function BugReportModal({onSubmit,onCancel}){
+  const [message,setMessage]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  async function submit(){
+    if(!message.trim()){setError("Describe what happened first.");return;}
+    setBusy(true);setError("");
+    try{ await onSubmit(message.trim()); }
+    catch(err){ setError(err?.message||"Couldn't send that — try again."); setBusy(false); }
+  }
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+      onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--card)",borderRadius:14,
+        padding:"24px 26px",maxWidth:420,width:"100%",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <i className="ti ti-bug" style={{fontSize:20,color:"var(--amber)"}}/>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>Report a bug</span>
+        </div>
+        <p style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.5}}>
+          What happened, and what were you doing right before it? We'll see which page you're on automatically.
+        </p>
+        <textarea value={message} onChange={e=>setMessage(e.target.value)} autoFocus
+          placeholder="e.g. The Save button on Study Preferences didn't do anything when I clicked it"
+          style={{width:"100%",minHeight:100,fontFamily:"inherit",fontSize:14,resize:"vertical",marginBottom:10}}/>
+        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn btn-action" onClick={submit} disabled={busy}>
+            {busy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send report</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Hook for confirm dialog — use anywhere
 export function useConfirm(){
   const [state,setState]=React.useState(null);
@@ -503,6 +544,18 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
     if(error){setPwErr(error.message);return;}
     closePwForm();
     toast2("Password updated");
+  }
+
+  // Invite a friend — fetched once when the modal opens (create-on-first-view, via
+  // lib/invites.js's getMyInviteInfo). Sharing the link is the whole feature; use_count/max_uses
+  // is just a light "did this actually reach anyone" signal, not a hard cap the user manages here.
+  const [inviteInfo,setInviteInfo]=useState(null);
+  const [inviteLoading,setInviteLoading]=useState(true);
+  useEffect(()=>{getMyInviteInfo().then(info=>{setInviteInfo(info);setInviteLoading(false);});},[]);
+  const inviteLink=inviteInfo&&typeof window!=="undefined"?`${window.location.origin}/?invite=${inviteInfo.code}`:"";
+  async function copyInviteLink(){
+    try{ await navigator.clipboard.writeText(inviteLink); toast2("Invite link copied!"); }
+    catch{ toast2("Couldn't copy — select and copy the link manually",true); }
   }
 
   // "Reset all data" — moved here from Preferences and hardened with two real gates: the account
@@ -595,6 +648,31 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+        {userEmail&&(
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b1)"}}>
+            <div style={{fontSize:13,color:"var(--t1)",fontWeight:600,marginBottom:8}}>
+              <i className="ti ti-heart-handshake" style={{marginRight:6,color:"var(--amber)"}}/>Invite a friend
+            </div>
+            {inviteLoading?(
+              <div style={{fontSize:12,color:"var(--t3)"}}>Loading your invite link...</div>
+            ):inviteInfo?(
+              <>
+                <p style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.5}}>
+                  Signing up needs an invite — share this link so a friend's account is ready to go.
+                </p>
+                <div style={{display:"flex",gap:8,marginBottom:6}}>
+                  <input readOnly value={inviteLink} onFocus={e=>e.target.select()} style={{fontSize:12}}/>
+                  <button className="btn btn-ghost btn-sm" onClick={copyInviteLink} style={{flexShrink:0}}>
+                    <i className="ti ti-copy"/> Copy
+                  </button>
+                </div>
+                <div style={{fontSize:12,color:"var(--t3)"}}>{inviteInfo.use_count} of {inviteInfo.max_uses} used</div>
+              </>
+            ):(
+              <div style={{fontSize:12,color:"var(--red)"}}>Couldn't load your invite link — try reopening this.</div>
             )}
           </div>
         )}
