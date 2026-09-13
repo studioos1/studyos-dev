@@ -199,7 +199,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           <div className="card">
             <div className="g2" style={{marginBottom:12}}>
               <div><label>First name</label><input value={p.name} onChange={e=>updP({name:e.target.value})} placeholder="Alex"/></div>
-              <div><label>WhatsApp</label><input value={p.phone} onChange={e=>updP({phone:e.target.value})} placeholder="+1 408 555 0000"/></div>
+              <div><label>Mobile phone</label><input value={p.phone} onChange={e=>updP({phone:e.target.value})} placeholder="+1 408 555 0000"/></div>
             </div>
             <div><label>Home address</label><input value={p.homeAddress} onChange={e=>updP({homeAddress:e.target.value})} placeholder="Los Gatos, CA"/></div>
           </div>

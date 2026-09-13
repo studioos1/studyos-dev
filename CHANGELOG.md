@@ -1,5 +1,93 @@
 # StudyOS Changelog
 
+## v2.54.1 — 2026-09-13
+
+**Landing: smaller headline, dropped redundant bullets, aligned feature boxes**
+
+- "Your Personal Study Assistant" sized down again: clamp(28,3.2vw,38) → clamp(23,2.5vw,30).
+- Removed the 3-item compact bullet list under the CTA — it duplicated the 4 feature boxes' own titles one screen below.
+- The 4 feature boxes are now genuinely uniform: `.feature-flow` switched from `align-items:center` (each card sized to its own content, so a 2-line title made that card taller than its neighbors) to `align-items:stretch`, so the grid stretches every card to the row's tallest. On top of that, `.feature-card-title` got a fixed 2-line `min-height` so a 1-line title and a 2-line title both leave their card's body text starting at the exact same row — actual row alignment, not just matching card heights.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.54.0 — 2026-09-13
+
+**Landing feature boxes: one-row flow with hand-drawn connector arrows + new copy**
+
+- The 4 feature cards now sit in a single row (`.feature-flow`, explicit `1fr auto 1fr auto 1fr auto 1fr` grid track list) connected by a hand-drawn-style `SketchArrow` — a wobbly curved SVG path with an open chevron head, not a crisp geometric arrow — showing the syllabus→plan→difficulty→check-ins flow explicitly. Collapses to a single stacked column below 820px, with the same arrows rotated 90° so the flow still reads top-to-bottom instead of breaking.
+- Cards themselves are smaller (`.feature-card-sm`: 14px/16px padding vs 20px/22px) with a tightened internal hierarchy — bold 13px title on top, 11px muted body below (`.feature-card-title`/`.feature-card-body`), smaller 30px icon badge — so four of them fit one row without crowding.
+- Copy updated: "A plan built for you" → "Study Plan Built for You", "Real difficulty research" → "Class Difficulty, Based on Research", "Daily check-ins" → "Stay on Track with Daily Check-ins" (also picked up by the compact bullet list in the hero, which shares the same `FEATURES` data).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (including a zoomed check that the arrow's hand-drawn wobble reads clearly at actual size).
+
+## v2.53.3 — 2026-09-13
+
+**Landing hero headline sized down**
+
+- "Your Personal Study Assistant" from clamp(36px,4.6vw,56px) → clamp(28px,3.2vw,38px) — was overpowering the page; still the largest, most prominent text (the visual anchor), just proportionate to the rest of the hero.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.53.2 — 2026-09-13
+
+**Landing hero: swapped headline hierarchy**
+
+- "Your Personal Study Assistant" is now the big H1 (clamp(36px,4.6vw,56px)) — was a small eyebrow line above the headline. "From Syllabus to a Complete Study Plan" moved to a small uppercase amber kicker line beneath it.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.53.1 — 2026-09-13
+
+**Landing page: new hero copy**
+
+- Eyebrow: "Your Personal Study Assistant" · Headline: "From Syllabus to a Complete Study Plan" · Body: "Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day." · Primary CTA relabeled "Sign up" → "Get Started" (user-supplied copy).
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.53.0 — 2026-09-13
+
+**Landing page redesign — a real product preview instead of another icon-and-caption grid**
+
+- The previous version (v2.52.1) was a fairly generic "centered hero + 2x2 feature card" template. Replaced with a two-column layout: headline + copy + CTA on the left, and on the right an honest small preview modeled directly on the real Today tab's Deadline Awareness list (colored course dot, due-in-N badge, ✓ planned, a streak line) — made-up example content, but the identical structure the product actually shows, so a visitor sees something concrete instead of reading abstractions. A slimmer 4-item feature grid still sits below for supporting detail.
+- Headline set in the display font (Syne, already used for the wordmark) instead of the body font, for more visual character: "Your syllabus, turned into a study plan." — the actual mechanic, not generic motivational copy.
+- Sign up is now the clear single primary CTA (button); "Already have an account? Log in" is a plain text link beside it, instead of two equal-weight buttons competing for attention.
+- Small top-left brand mark instead of a big centered logo — reads more like a product page, less like an app's splash screen.
+- Auth views (sign in/up/reset/update) are completely unchanged — still their own compact layout; the ToS/Privacy checkbox stays exactly where it was, on the Sign up form, required and active.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (landing → sign up → back via wordmark).
+
+## v2.52.1 — 2026-09-13
+
+**Landing page design pass — matches the polish just applied to the auth card**
+
+- The landing view now has its own hero treatment instead of reusing the compact wordmark+tagline shared with the sign-in/sign-up views: a real headline ("Get things done, on time.", clamp(28px,4.2vw,40px)/700) plus a one-sentence supporting line grounded in what's actually built (syllabus upload → planned term → daily schedule) instead of the terse two-line tagline. Auth views (sign in/up/reset) are untouched — still the original compact version, since screen space there is shared with the form.
+- Feature cards get real depth (border + shadow, new `.feature-card` class) and a subtle hover lift, plus each icon now sits in an amber badge instead of floating bare — matches the "icon in a colored box" pattern common to polished product pages.
+- Log in / Sign up buttons enlarged (bigger padding/font) to read as the page's actual call to action, not incidental buttons.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
+## v2.52.0 — 2026-09-13
+
+**Polished the sign-in/sign-up card to look more like a real product, less like a bare form**
+
+- Two soft brand-colored ambient glows (blue/teal, matching the wordmark gradient) behind the page instead of a flat single-tone background.
+- The auth card now has real depth — a subtle border + shadow — instead of blending flat into the page.
+- Heading ("Log in to your account" etc.) bumped from 15px/600 to 20px/700 with tighter letter-spacing, more presence.
+- "Forgot your password?" and the "Sign up"/"Log in" switch link, both previously boxed buttons, are now plain text links (new `.link-btn` utility class) — reads as secondary actions instead of competing with the real submit button.
+- The Sign up form's Terms/Privacy checkbox replaced a bare unstyled native checkbox with the app's existing custom `.chk` toggle (same pattern used elsewhere, e.g. Progress's check-in rows) — green check, consistent sizing, matches the rest of the form's styling instead of looking like a stray browser default.
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live (sign-in card, sign-up card + checkbox toggle).
+
+## v2.51.1 — 2026-09-13
+
+**Renamed "WhatsApp" everywhere it was used — nothing actually sends via WhatsApp**
+
+- Today tab: the "View WhatsApp message" icon/tooltip → "View daily message"; the modal title "WhatsApp Morning Message" → "Morning Message"; the WhatsApp brand icon (green) → a generic message-circle icon (neutral, matching the calendar-preview icon beside it). Its own caption already said "Sends automatically via Twilio" — corrected to "via SMS" (the user-facing channel name, not the vendor).
+- Internal field names to match: `whatsAppGreeting/whatsAppLines/whatsAppClosing` → `dailyGreeting/dailyLines/dailyClosing` (AI prompt + every read site), `.wapp` CSS class → `.daily-msg`. The version-gated brief cache (`briefVersion===APP_VERSION`) means this version bump self-invalidates any stale cached brief with the old field names — no migration needed.
+- Two phone-number fields were also mislabeled "WhatsApp" (Account modal, onboarding Welcome step) — relabeled "Mobile phone," matching the Sign up form's own label.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.51.0 — 2026-09-12
 
 **Landing page** (launch-readiness item 5/6) **+ a real bug the smoke test caught**

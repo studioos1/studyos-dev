@@ -1,8 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { APP_VERSION } from "@/lib/version";
 import { PasswordInput } from "@/components/shared";
 import { redeemInviteCode } from "@/lib/invites";
+
+// Hand-drawn-style connector between the landing page's flow cards — a wobbly curve (not a
+// straight line) plus an open chevron head, rather than a crisp geometric arrow, to read as
+// "sketched," not "generated." Purely decorative (aria-hidden), so a plain module-scope function
+// is fine — no props that change per keystroke, nothing that needs remount-safety.
+function SketchArrow({ className }) {
+  return (
+    <svg className={className} width="46" height="22" viewBox="0 0 46 22" fill="none" aria-hidden="true">
+      <path d="M2,14 C 9,5 16,17 23,9 C 27,4 30,10 33,11" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" />
+      <path d="M29,5 L38,11 L28,17" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 // Auth gate shown by components/App.jsx whenever there's no active session (and, in recoveryMode,
 // even with one — App renders this to let the user set a new password after a reset-email link).
@@ -97,10 +110,15 @@ export function Login({ recoveryMode = false, onDone }) {
   // The heading lives INSIDE the card as its title — the card itself stays put between the
   // "log in" and "sign up" states, only its title and fields change.
   const cardTitle = (
-    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 14 }}>
+    <div style={{ fontSize: 20, fontWeight: 700, color: "var(--t1)", marginBottom: 18, letterSpacing: "-0.01em" }}>
       {heading}
     </div>
   );
+  // Depth the auth card visually off the background it sits on — the base .card class alone
+  // (shared with every card app-wide) reads flat here since there's no surrounding page chrome to
+  // separate it from. Applied as inline style (not a new global class) so this stays scoped to
+  // just the auth forms.
+  const authCardStyle = { border: "1px solid var(--b1)", boxShadow: "0 24px 60px rgba(0,0,0,0.45)" };
 
   // NB: field markup is written inline in each view rather than via a helper component — a
   // component defined inside Login() gets a fresh identity every render, which would remount the
@@ -114,35 +132,132 @@ export function Login({ recoveryMode = false, onDone }) {
   );
   const switchRow = (prompt, to, label) => (
     <div style={{
-      display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14,
-      marginTop: 12, fontSize: 13, color: "var(--t3)",
+      display: "flex", justifyContent: "center", alignItems: "center", gap: 6,
+      marginTop: 18, fontSize: 13, color: "var(--t3)",
     }}>
       <span>{prompt}</span>
-      <button className="btn btn-ghost btn-sm" type="button" onClick={() => go(to)}>{label}</button>
+      <button className="link-btn" type="button" onClick={() => go(to)} style={{ fontWeight: 600 }}>{label}</button>
     </div>
   );
 
   const FEATURES = [
     { icon: "ti-file-upload", title: "Upload your syllabus", body: "Assignments, exams, and grading weights get pulled out automatically — no manual typing." },
-    { icon: "ti-calendar-time", title: "A plan built for you", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
-    { icon: "ti-search", title: "Real difficulty research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
-    { icon: "ti-flame", title: "Daily check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
+    { icon: "ti-calendar-time", title: "Study Plan Built for You", body: "Study time scheduled around your real class hours, prioritized by what's due soonest and weighted heaviest." },
+    { icon: "ti-search", title: "Class Difficulty, Based on Research", body: "A course's difficulty comes from an actual web search — reviews, workload discussion — not a guess. Always yours to override." },
+    { icon: "ti-flame", title: "Stay on Track with Daily Check-ins", body: "Track what got done, build a streak, and see your habits improve over the term." },
   ];
+
+  // A small, honest preview of the real Today tab's Deadline Awareness list — same structure
+  // (colored course dot, due-in-N badge, planned checkmark) as the actual product, with made-up
+  // example content. Showing this instead of another row of icon-and-caption cards is the whole
+  // point of the redesign: prove the product does something concrete rather than describe it.
+  const PREVIEW_ROWS = [
+    { dot: "#7ab4cc", title: "Lab 4", course: "DSC 10", due: "3d", amber: false },
+    { dot: "#c8a860", title: "Midterm", course: "MATH 180A", due: "in 6 days", amber: true },
+    { dot: "#9080c0", title: "Essay 1", course: "MMW 122", due: "6d", amber: false },
+  ];
+
+  if (view === "landing") return (
+    <div style={{
+      minHeight: "100vh", color: "var(--t1)",
+      background: "radial-gradient(ellipse 900px 560px at 15% -10%, rgba(94,163,224,0.14), transparent 60%), "
+        + "radial-gradient(ellipse 900px 560px at 85% 10%, rgba(94,224,197,0.10), transparent 60%), var(--bg)",
+      fontFamily: "'Inter',sans-serif",
+    }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "36px 24px 64px" }}>
+        <span style={{
+          fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 700,
+          background: "linear-gradient(120deg,var(--blue),var(--teal))",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>StudyOS</span>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))",
+          gap: 48, alignItems: "center", margin: "44px 0 60px",
+        }}>
+          <div>
+            <h1 style={{
+              fontFamily: "'Syne',sans-serif", fontSize: "clamp(23px, 2.5vw, 30px)", fontWeight: 700,
+              lineHeight: 1.2, color: "var(--t1)", textWrap: "balance", marginBottom: 14,
+            }}>
+              Your Personal Study Assistant
+            </h1>
+            <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.35, marginBottom: 18 }}>
+              From Syllabus to a Complete Study Plan
+            </div>
+            <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
+              Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+              <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Get Started</button>
+              <button className="link-btn" style={{ fontSize: 14 }} onClick={() => go("signin")}>Already have an account? Log in</button>
+            </div>
+          </div>
+
+          <div className="feature-card" style={{ padding: "22px 24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Deadline awareness</span>
+              <span className="badge badge-blue" style={{ fontSize: 11 }}>Fall 2026</span>
+            </div>
+            {PREVIEW_ROWS.map((r, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                borderBottom: i < PREVIEW_ROWS.length - 1 ? "1px solid var(--b1)" : "none",
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.dot, flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: 13.5, color: "var(--t1)", minWidth: 0 }}>
+                  {r.title} <span style={{ color: "var(--t3)" }}>— {r.course}</span>
+                </div>
+                <span className={`badge ${r.amber ? "badge-amber" : "badge-blue"}`} style={{ fontSize: 11, flexShrink: 0 }}>{r.due}</span>
+                <span style={{ fontSize: 11, color: "var(--green)", flexShrink: 0 }}>✓ planned</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--b1)" }}>
+              <i className="ti ti-flame" style={{ color: "var(--amber)", fontSize: 15 }} />
+              <span style={{ fontSize: 12.5, color: "var(--t2)" }}>7-day study streak</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="feature-flow">
+          {FEATURES.map((f, i) => (
+            <Fragment key={f.title}>
+              <div className="feature-card feature-card-sm">
+                <div className="feature-icon feature-icon-sm"><i className={`ti ${f.icon}`} /></div>
+                <div className="feature-card-title">{f.title}</div>
+                <div className="feature-card-body">{f.body}</div>
+              </div>
+              {i < FEATURES.length - 1 && <SketchArrow className="feature-arrow" />}
+            </Fragment>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
+          <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
+          {" · "}
+          <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
+          <div style={{ marginTop: 8 }}>v{APP_VERSION}</div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{
-      minHeight: "100vh", background: "var(--bg)", color: "var(--t1)",
+      minHeight: "100vh", color: "var(--t1)",
+      background: "radial-gradient(ellipse 900px 560px at 18% -8%, rgba(94,163,224,0.16), transparent 60%), "
+        + "radial-gradient(ellipse 900px 560px at 82% -8%, rgba(94,224,197,0.12), transparent 60%), var(--bg)",
       fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "flex-start",
       justifyContent: "center", padding: 20,
       paddingTop: "clamp(48px, 12vh, 130px)",
     }}>
-      <div style={{ width: "100%", maxWidth: view === "landing" ? 720 : 380 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <span onClick={!recoveryMode && view !== "landing" ? () => go("landing") : undefined} style={{
+          <span onClick={!recoveryMode ? () => go("landing") : undefined} style={{
             fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            cursor: !recoveryMode && view !== "landing" ? "pointer" : "default",
+            cursor: !recoveryMode ? "pointer" : "default",
           }}>StudyOS</span>
           <div style={{ marginTop: 10, lineHeight: 1.4 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>
@@ -154,36 +269,6 @@ export function Login({ recoveryMode = false, onDone }) {
           </div>
         </div>
 
-        {view === "landing" && (
-          <div style={{ maxWidth: 380, margin: "0 auto" }}>
-            <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => go("signin")}>Log in</button>
-              <button className="btn btn-action" style={{ flex: 1 }} onClick={() => go("signup")}>Sign up</button>
-            </div>
-          </div>
-        )}
-        {view === "landing" && (
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
-            gap: 14, marginBottom: 28,
-          }}>
-            {FEATURES.map(f => (
-              <div key={f.title} className="card" style={{ marginBottom: 0 }}>
-                <i className={`ti ${f.icon}`} style={{ fontSize: 22, color: "var(--amber)", marginBottom: 10, display: "block" }} />
-                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 5 }}>{f.title}</div>
-                <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.5 }}>{f.body}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        {view === "landing" && (
-          <div style={{ textAlign: "center", fontSize: 12, color: "var(--t3)" }}>
-            <a href="/terms" style={{ color: "var(--t3)" }}>Terms of Service</a>
-            {" · "}
-            <a href="/privacy" style={{ color: "var(--t3)" }}>Privacy Policy</a>
-          </div>
-        )}
-
         {error && (
           <div style={{ fontSize: 13, color: "var(--red)", background: "var(--red-bg)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>{error}</div>
         )}
@@ -193,7 +278,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "signin" && (
           <>
-            <form onSubmit={signIn} className="card">
+            <form onSubmit={signIn} className="card" style={authCardStyle}>
               {cardTitle}
               {emailField}
               <div style={{ marginBottom: 8 }}>
@@ -201,8 +286,8 @@ export function Login({ recoveryMode = false, onDone }) {
                 <PasswordInput value={password} autoComplete="current-password"
                   onChange={e => setPassword(e.target.value)} />
               </div>
-              <div style={{ textAlign: "right", marginBottom: 14 }}>
-                <button className="btn btn-ghost btn-sm" type="button" onClick={() => go("reset")}>
+              <div style={{ textAlign: "right", marginBottom: 16 }}>
+                <button className="link-btn" type="button" onClick={() => go("reset")}>
                   Forgot your password?
                 </button>
               </div>
@@ -216,7 +301,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "signup" && (
           <>
-            <form onSubmit={signUp} className="card">
+            <form onSubmit={signUp} className="card" style={authCardStyle}>
               {cardTitle}
               <div style={{ marginBottom: 12 }}>
                 <label>Full name</label>
@@ -239,21 +324,19 @@ export function Login({ recoveryMode = false, onDone }) {
                 <input type="text" value={inviteCode} autoCapitalize="characters"
                   onChange={e => setInviteCode(e.target.value)} placeholder="From whoever invited you" />
               </div>
-              <label style={{
-                display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 16,
-                fontSize: 13, color: "var(--t2)", textTransform: "none", letterSpacing: "normal",
-                fontWeight: 400, cursor: "pointer",
+              <div onClick={() => setAgreedToTerms(a => !a)} style={{
+                display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 18, cursor: "pointer",
               }}>
-                <input type="checkbox" checked={agreedToTerms}
-                  onChange={e => setAgreedToTerms(e.target.checked)}
-                  style={{ width: "auto", marginTop: 2, flexShrink: 0 }} />
-                <span>
+                <div className={`chk${agreedToTerms ? " on" : ""}`} style={{ marginTop: 1 }}>
+                  {agreedToTerms && <i className="ti ti-check" style={{ fontSize: 12, color: "var(--green)" }} />}
+                </div>
+                <span style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
                   I agree to the{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Terms of Service</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Terms of Service</a>
                   {" "}and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "var(--blue)" }}>Privacy Policy</a>
                 </span>
-              </label>
+              </div>
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy || !agreedToTerms}>
                 {busy ? "Working…" : "Create account"}
               </button>
@@ -264,7 +347,7 @@ export function Login({ recoveryMode = false, onDone }) {
 
         {view === "reset" && (
           <>
-            <form onSubmit={sendReset} className="card">
+            <form onSubmit={sendReset} className="card" style={authCardStyle}>
               {cardTitle}
               {emailField}
               <button className="btn btn-action" style={{ width: "100%" }} disabled={busy}>
@@ -276,7 +359,7 @@ export function Login({ recoveryMode = false, onDone }) {
         )}
 
         {view === "update" && (
-          <form onSubmit={updatePassword} className="card">
+          <form onSubmit={updatePassword} className="card" style={authCardStyle}>
             {cardTitle}
             <div style={{ marginBottom: 12 }}>
               <label>New password</label>
