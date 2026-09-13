@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.55.0 — 2026-09-13
+
+**Full Privacy Policy rewrite — comprehensive, 15 numbered sections**
+
+Replaced the short informal Privacy Policy with a full, professionally-structured version, formatted to match the site's existing legal-page style (wordmark header, numbered sections):
+
+1. Information We Collect (account, academic/study data, uploaded content, usage/technical, connected services)
+2. How We Use Information
+3. Artificial Intelligence — including a direct statement that StudyOS does not permit third-party AI providers to use personal StudyOS content to train their general-purpose models (matches Anthropic's current commercial API terms — worth Avishai re-verifying against Anthropic's terms if those ever change)
+4. How We Share Information (service providers, legal disclosures)
+5. Student Data — no sale to data brokers/advertisers; explicitly states StudyOS doesn't engage in CCPA/CPRA "sharing" (true — the app has no ad-tech)
+6. Cookies and Analytics
+7. Data Retention
+8. Your Privacy Rights
+9. California Privacy Rights
+10. Children's Privacy (under-13 statement)
+11. Data Security
+12. Educational Institutions / FERPA-adjacent scoping
+13. International Users
+14. Changes to This Policy
+15. Contact Us — StudyOS · California, United States · privacy@studyos.io
+
+**Validation:** 81 tests pass, `npm run build` clean, browser-verified live.
+
 ## v2.54.2 — 2026-09-13
 
 **Landing/signup polish: new 4-step flow titles, readable box text, rounder sketch arrows, checkbox wording**
