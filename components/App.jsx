@@ -142,17 +142,22 @@ function App(){
   function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
   // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
-  // stakes. Error/important toasts (e:true — e.g. "N items came up short") used to auto-dismiss
-  // on the exact same fixed 3s regardless of length, which for a longer actionable message meant
-  // it was gone before it could be read. Those now persist until closed via the toast's own ×,
-  // never on a timer. toastTimer tracks the pending auto-dismiss so a second toast2() call (of
-  // either kind) while one is already showing cancels the old timer instead of both racing to
-  // clear the (now different) toast early.
+  // stakes. `e:true` used to mean both "persist + show ×" AND "color it red" at once — but red is
+  // this app's established color for something that actually FAILED (delete buttons, overdue
+  // badges), and not every persistent toast is a failure: "N items came up short" after a
+  // successful replan is a heads-up needing attention, not an error, so it belongs in amber (this
+  // app's established attention/warning color — missing-due-date badges, "Changes not applied
+  // yet" banners) instead. The optional 3rd arg lets a call override the color without changing
+  // the persist behavior; `e:true` alone still defaults to red, so every existing call site keeps
+  // working exactly as before. toastTimer tracks the pending auto-dismiss so a second toast2()
+  // call while one is already showing cancels the old timer instead of two racing to clear
+  // whichever toast happens to be up.
   const toastTimer=useRef(null);
-  function toast2(m,e){
+  function toast2(m,e,severity){
+    const sev=severity||(e?"error":"success");
     if(toastTimer.current){clearTimeout(toastTimer.current);toastTimer.current=null;}
-    setToast({m,e});
-    if(!e)toastTimer.current=setTimeout(()=>{setToast(null);toastTimer.current=null;},3000);
+    setToast({m,sev});
+    if(sev==="success")toastTimer.current=setTimeout(()=>{setToast(null);toastTimer.current=null;},3000);
   }
   async function sendBugReport(message){
     await submitBugReport({message,page:tab,appVersion:APP_VERSION});
@@ -301,13 +306,20 @@ function App(){
 
       // Summary message — completion is never silent. Names any shortfall with exact hours, per
       // the agreed "plan shall not miss completion" rule, instead of a generic "done!" toast that
-      // hides a real shortage.
+      // hides a real shortage. Structured (title/lines/footer), not one run-on sentence — one item
+      // per line actually reads at a glance instead of needing to be parsed out of a paragraph.
+      // Amber, not red: the replan itself succeeded — this is "needs your attention", not a
+      // failure, and red is reserved for things that actually failed elsewhere in the app.
       const totalBlocks=Object.values(placedByDate).reduce((s,b)=>s+b.length,0);
       if(result.shortfalls.length===0){
         toast2(`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
       }else{
-        const names=result.shortfalls.slice(0,3).map(it=>`${it.title} (${it.plannedHours}h of ${it.desiredHours}h)`).join("; ");
-        toast2(`Re-planned ${allDates.length} days — but ${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short: ${names}${result.shortfalls.length>3?"…":""}. Check Academics → Study Preferences.`,true);
+        toast2({
+          title:`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
+          sub:`Re-planned ${allDates.length} days through ${termRange.end} — the rest scheduled fine.`,
+          lines:result.shortfalls.slice(0,6).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
+          footer:`${result.shortfalls.length>6?`+${result.shortfalls.length-6} more. `:""}Check Academics → Study Preferences.`,
+        },true,"warning");
         setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
       // Nudge if the typed term-end doesn't match the real last deadline — planning is fine either
@@ -366,8 +378,12 @@ function App(){
     if(result.shortfalls.length===0){
       toast2("Week updated — everything fits!");
     }else{
-      const names=result.shortfalls.slice(0,2).map(it=>`${it.title} (${it.plannedHours}h of ${it.desiredHours}h)`).join("; ");
-      toast2(`Week updated — ${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short: ${names}. Check Academics → Study Preferences.`,true);
+      toast2({
+        title:`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
+        sub:"Week updated — the rest scheduled fine.",
+        lines:result.shortfalls.slice(0,6).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
+        footer:`${result.shortfalls.length>6?`+${result.shortfalls.length-6} more. `:""}Check Academics → Study Preferences.`,
+      },true,"warning");
       setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer
     }
   }
@@ -511,19 +527,48 @@ function App(){
           :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg}/>
         }
       </div>
-      {toast&&(
-        <div className="toast" style={{background:toast.e?"var(--red-bg)":"var(--card2)",color:toast.e?"var(--red)":"var(--t2)"}}>
-          <span>{toast.m}</span>
-          {/* Only the persistent (error/important) toasts get a close button — routine ones still
-              just fade out on their own, no extra control needed for something that's gone in 3s. */}
-          {toast.e&&(
-            <button onClick={()=>setToast(null)} aria-label="Dismiss"
-              style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",padding:2,marginLeft:4,display:"flex",flexShrink:0}}>
-              <i className="ti ti-x" style={{fontSize:15}}/>
-            </button>
-          )}
-        </div>
-      )}
+      {toast&&(()=>{
+        const colors={error:["var(--red-bg)","var(--red)"],warning:["var(--amber-bg)","var(--amber)"],success:["var(--card2)","var(--t2)"]};
+        const[bg,fg]=colors[toast.sev]||colors.success;
+        const structured=typeof toast.m==="object";
+        return(
+          <div className="toast" style={{background:bg,color:fg}}>
+            {/* Top row: content (title+lines, or a plain string) on the left, × pinned to the
+                top-right corner of the box via alignItems:flex-start on this row — not inline at
+                the end of a single line of text, which is where it sat before. Only persistent
+                (non-success) toasts get it; routine ones just fade on their own. */}
+            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                {structured?(
+                  <>
+                    <div style={{fontWeight:700,fontSize:14}}>{toast.m.title}</div>
+                    {toast.m.sub&&<div style={{fontSize:12,opacity:0.85,marginTop:2}}>{toast.m.sub}</div>}
+                  </>
+                ):<span>{toast.m}</span>}
+              </div>
+              {toast.sev!=="success"&&(
+                <button onClick={()=>setToast(null)} aria-label="Dismiss"
+                  style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",padding:2,display:"flex",flexShrink:0}}>
+                  <i className="ti ti-x" style={{fontSize:15}}/>
+                </button>
+              )}
+            </div>
+            {/* Structured body: one line per item, not run together in a sentence. */}
+            {structured&&toast.m.lines?.length>0&&(
+              <ul style={{margin:"8px 0 0",padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:4}}>
+                {toast.m.lines.map((l,i)=>(
+                  <li key={i} style={{fontSize:13,paddingLeft:12,position:"relative"}}>
+                    <span style={{position:"absolute",left:0}}>·</span>{l}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {structured&&toast.m.footer&&(
+              <div style={{fontSize:12,opacity:0.85,marginTop:8}}>{toast.m.footer}</div>
+            )}
+          </div>
+        );
+      })()}
       {modalApp}
       {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
         onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}

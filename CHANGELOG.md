@@ -1,5 +1,27 @@
 # StudyOS Changelog
 
+## v2.59.19 — 2026-09-14
+
+**Shortfall toast redesigned: structured, amber (not red), × in the top-right corner**
+
+- **Readability**: the "N items came up short: A (Xh of Yh); B (Xh of Yh)…" run-on sentence is
+  now a real structure — bold title ("N items came up short"), a context subtitle ("Re-planned N
+  days…"), one line per item, and a footer pointing to Study Preferences. `toast2()` now accepts
+  a structured object (`{title, sub, lines, footer}`) as its message in addition to a plain
+  string, which the toast renders as title+list+footer instead of one paragraph.
+- **Why red, and why it's not anymore**: red is this app's established color for something that
+  actually *failed* (delete buttons, overdue badges) — but a shortfall toast fires after a
+  replan that *succeeded*; it's a heads-up needing attention, not an error. It's amber now,
+  matching every other "needs your attention" surface in the app (missing-due-date badges,
+  "Changes not applied yet" banners). `toast2(m, e, severity)` takes an optional 3rd argument to
+  set this explicitly — every other existing call site is unaffected (`e:true` alone still
+  defaults to red, unchanged).
+- **× moved to the top-right corner** of the toast box (`alignItems:flex-start` on the title row)
+  instead of sitting inline at the end of a single line of text — matters more now that toasts can
+  be genuinely multi-line.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.59.18 — 2026-09-14
 
 **Plan status: Replan button pinned to a fixed banner instead of buried in scroll**
