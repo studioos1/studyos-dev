@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.62.2 — 2026-09-14
+
+**Today tab: fixed a real overflow bug at true iPhone widths, not just the widest phone tested**
+
+All prior mobile testing this session was done in a desktop browser resized down (≥500px) —
+narrower than every real iPhone in the current lineup (iPhone 17 / 17 Pro: 402×874 CSS px;
+17 Pro Max: 440×956; even the smallest current model is ~390px). That gap hid a real bug:
+
+- The Progress bar's `flex:0 0 240px` (added to stop it silently shrinking to a stub on desktop —
+  see v2.62.1) was unconditional, so it also applied below 768px — 240px alone is more than half
+  of an actual iPhone's width, before the label/percentage next to it are even counted. Now fluid
+  on mobile (`flex:1`, 60–240px) and only switches to the fixed 240px at the same 768px tier the
+  two metrics go side-by-side at, where there's actually room for it.
+- Audited the rest of the Today tab for the same root-cause bug (a `flex:1` content column
+  missing `min-width:0`, so a long string it holds can't actually shrink and forces its row to
+  overflow instead) and found two more real instances: Today's Classes' course-name/room column
+  (room names like "Room ERC Administration Bldg 115" are genuinely long) and Today's Other
+  Activities' gym/chore/event column. Both fixed the same way.
+- Focus Time's fixed 170px time-range column was deliberately left alone — it's intentional
+  (documented in-code: keeps times aligned across rows) and already degrades safely, since the
+  task-text column next to it has `min-width:0` and absorbs any real space pressure first.
+
+**Validation:** 83 tests pass, `npm run build` clean. Verified live in a real browser at every
+width the tooling could reach (desktop down to ~500px) — the automation environment has a ~500px
+floor and couldn't reach a true 402px iPhone viewport directly, so the actual iPhone-width fix
+is verified by CSS math + the same root-cause pattern already fixed and confirmed working
+elsewhere this session, not a live screenshot at 402px. Worth a real-device check.
+
 ## v2.62.1 — 2026-09-14
 
 **Today tab: Progress card layout/alignment polish pass**

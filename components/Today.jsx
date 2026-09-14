@@ -469,7 +469,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <div key={c.id} style={{display:"flex",alignItems:"center",gap:14,
                   padding:"11px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
                   <div style={{width:9,height:9,borderRadius:"50%",background:c.color.border,flexShrink:0}}/>
-                  <div style={{flex:1}}>
+                  <div style={{flex:1,minWidth:0}}>
                     {/* Course name — larger */}
                     <div style={{fontSize:16,color:"var(--t1)",marginBottom:3}}>{c.name}</div>
                     {/* Time — amber, then secondary info */}
@@ -627,7 +627,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   <span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{gd.s} – {gd.e}</span>
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-gym-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>💪 Gym</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{gymWk}/{gymTarget} sessions this week</div>
                 </div>
@@ -644,7 +644,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   {c.time&&<span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{f12(c.time)}</span>}
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-chore-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>{c.e||"📋"} {c.n}</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{c.dur} min</div>
                 </div>
@@ -657,7 +657,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   {e.time&&<span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{f12(e.time)}</span>}
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-fun-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>{e.title}</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{e.dur} min</div>
                 </div>

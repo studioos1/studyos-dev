@@ -423,12 +423,16 @@
        rows never actually lined up. A fixed width + right-align guarantees both bars start at
        the same x regardless of digit count. */
     .pace-pct{font-family:'Syne',sans-serif; font-size:19px; font-weight:700; flex-shrink:0; width:52px; text-align:right; font-variant-numeric:tabular-nums;}
-    /* flex-shrink:0 is load-bearing: with the two metric rows now competing for space on one
-       desktop line, a shrinkable bar was quietly getting squeezed all the way down to min-width
-       instead of showing its actual target length — the bug behind "you shortened them to the
-       extreme". A fixed-length bar that wraps its row to a new line if it must beats one that
-       silently shrinks to a stub. */
-    .pace-bar-wrap{flex:0 0 240px; position:relative; padding-bottom:12px;}
+    /* Fluid on mobile (flex:1, shrinks/grows with the actual phone width — a real iPhone is
+       390-440px wide, nowhere near what a desktop browser window was tested at, and a bare fixed
+       240px here was more than half of that all by itself, before the label/pct/gaps even next
+       to it — that's the "crossing the right edge" bug). Fixed 240px only kicks in at the same
+       768px tier the two metric rows go side-by-side at, where flex-shrink:0 is what stops it
+       from being silently squeezed to min-width once both rows share the line (see below). */
+    .pace-bar-wrap{flex:1 1 auto; min-width:60px; max-width:240px; position:relative; padding-bottom:12px;}
+    @media (min-width:768px){
+      .pace-bar-wrap{flex:0 0 240px;}
+    }
     .pace-bar{height:8px; border-radius:4px; background:var(--b1); overflow:hidden;}
     .pace-bar-fill{height:100%; border-radius:4px; transition:width 0.4s ease;}
     .pace-bar-arrow{position:absolute; top:9px; transform:translateX(-50%); font-size:9px; line-height:1; transition:left 0.4s ease;}
