@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.63.0 — 2026-09-14
+
+**Progress tab: Catch Up — a forgotten day no longer permanently deflates Study Pace**
+
+Real gap found while reviewing the Progress card: `saveBlockToDay` has a hard "history is
+read-only" guard (`if(dateStr<iso())return;`), added earlier to stop the planner's regeneration
+path from clobbering history. Correct for that, but it had no other door — a study session
+someone forgot to mark done on the day it happened could never be corrected, and since Study
+Pace sums every block's live `completed` flag from the term start to today, that miss was baked
+into the denominator forever with no way back.
+
+- New "Catch Up" card on the Progress tab, right under Evening Check-in, using the exact same
+  list/checkbox/submit pattern — appears only when there's something to catch up on (hidden
+  entirely otherwise, same as every other conditional section in this app).
+- Lists the last 3 days' (`CATCHUP_DAYS`) still-unmarked study sessions, grouped by day, newest
+  first. Check off what actually happened, submit, done — Study Pace picks it up immediately
+  since it just reads the same `completed` flags.
+- **Deliberately a separate, narrower write path** (`catchUpMarkComplete` in
+  `lib/calendar/weeks.js`), not a loosening of `saveBlockToDay`'s guard — that guard also
+  protects the planner's regeneration path, and loosening it broadly would risk reopening the
+  exact bug it was built to stop. This one only ever flips a `completed` flag on an existing
+  block the user is explicitly confirming happened, within its own explicit bound.
+- **Real bug avoided, not just theoretical:** catching up several sessions has to be ONE `upd()`
+  call building the complete result, not a loop of one call per item — a loop would have each
+  call compute its patch from the same stale `data` closure, and `upd()`'s merge in App.jsx is
+  shallow (`{...prev,...p}`), so only the *last* item's patch would actually stick, silently
+  losing the rest. Caught this before it shipped and wrote a regression test for it specifically.
+- Assignment catch-up needed no changes — marking an assignment done was already date-unguarded
+  (only the study-block path had the read-only wall), so that half of the picture already worked.
+
+**Validation:** 11 new tests in `lib/calendar/weeks.test.js` (94 total, all pass) — including the
+multi-item-single-pass regression above, window-boundary edges, and completedAt never getting
+overwritten once set. `npm run build` clean. Verified live end-to-end in a real browser: checked
+2 forgotten sessions, submitted, watched them disappear from the list, then watched Study Pace on
+the Today tab move from 8% to 11%.
+
 ## v2.62.2 — 2026-09-14
 
 **Today tab: fixed a real overflow bug at true iPhone widths, not just the widest phone tested**
