@@ -110,12 +110,15 @@ function ClassDivider({ name }) {
   );
 }
 
-// Exam titles render in red — the "*" prefix this used to add for Exam/Project/Essay was removed
-// per feedback (miscommunication on the marking approach; see PlanDrawer's git history/CHANGELOG
-// for the follow-up proposal on a simpler way to mark all three).
+// Color only, no symbol — reuses the exact colors the rest of the app already uses for these
+// types (Today's Focus Time stripes, the Calendar month-view dots/list), so there's nothing new
+// to learn here. Exam = red; Project and Essay = amber (both "the next tier of critical" per
+// feedback, one color, not split into two); regular homework = default text color, unmarked.
 function ItemTitle({ it }) {
   const isExam = it.kind === "exam";
-  return <span style={{ color: isExam ? "var(--red)" : undefined }}>{it.title}</span>;
+  const isHeavy = it.isProject || /essay/i.test(it.title || "");
+  const color = isExam ? "var(--red)" : isHeavy ? "var(--amber)" : undefined;
+  return <span style={{ color }}>{it.title}</span>;
 }
 
 function ColGroup() {

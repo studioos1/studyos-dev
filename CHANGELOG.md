@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.60.3 — 2026-09-14
+
+**Plan status: settled on color-only item marking**
+
+- `ItemTitle` now colors the title text only, no symbol: **Exam = red**, **Project/Essay = amber**
+  (one shared color for "the next tier of critical," not split into two), regular homework
+  unmarked in the default text color. Reuses the exact colors the rest of the app already uses
+  for these types, so there's nothing new to learn.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.2 — 2026-09-14
 
 **Plan status: removed the "*" marker and the star icon per feedback**
