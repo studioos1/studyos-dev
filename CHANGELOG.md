@@ -1,5 +1,159 @@
 # StudyOS Changelog
 
+## v2.60.4 — 2026-09-14
+
+**Star icon restored; ⭐ now consistent between the drawer and the replan result toast**
+
+- Put the star icon back on a forced row in the Per-item table — it's the only control that
+  clears `forced` (`setForced(it, false)`); removing it earlier silently blocked un-prioritising
+  anything from this drawer.
+- The replan result toast already showed "⭐ Item — still short" for a prioritised item that came
+  up short; the success case ("fully scheduled 🎯") didn't have the same marker. Added it there
+  too, in both the full-replan and single-week toasts, so the star means the same thing in the
+  drawer and in the result you see right after clicking Replan — not two different signals for
+  the same "this item was prioritised" fact.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
+## v2.60.3 — 2026-09-14
+
+**Plan status: settled on color-only item marking**
+
+- `ItemTitle` now colors the title text only, no symbol: **Exam = red**, **Project/Essay = amber**
+  (one shared color for "the next tier of critical," not split into two), regular homework
+  unmarked in the default text color. Reuses the exact colors the rest of the app already uses
+  for these types, so there's nothing new to learn.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
+## v2.60.2 — 2026-09-14
+
+**Plan status: removed the "*" marker and the star icon per feedback**
+
+- `ItemTitle` no longer prefixes Exam/Project/Essay with `*` — red text for Exam titles stays.
+- Removed the star icon (⭐) that showed on a forced item's row to un-prioritise it.
+  **Functional note, not just visual**: that icon was the only way to clear an item's `forced`
+  flag from this drawer (`setForced(it, false)`) — it's now unreachable from here. `setForced`
+  itself is left in place (unused for now) rather than deleted, in case this needs to come back
+  in whatever form replaces it.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
+## v2.60.1 — 2026-09-14
+
+**Plan status: Exam/Project/Essay items marked with *, Exams also in red**
+
+- Both tables (Overdue, Per item) now prefix the title with `*` for Exam, Project, or Essay
+  items — the "heavier"/higher-stakes item types — and render Exam titles in red specifically,
+  so the denser tables still surface which rows carry more weight at a glance.
+- Exam and Project both key off a real structural field: `kind==="exam"` (already used elsewhere
+  in this file) and a new `isProject` field threaded through from `buildItemDemand`'s own kind
+  ("homework"/"project"/"study") via `lib/planDiagnostics.js` — the diagnostics item shape only
+  exposed "assignment" vs "exam" before, collapsing homework and project together.
+- Essay has no structural type field to key off (unlike exam/project) — display-only title match
+  (`/essay/i`), same spirit as the existing `looksLikeProject` heuristic elsewhere in the app.
+  Purely visual, doesn't touch scheduling.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
+## v2.60.0 — 2026-09-14
+
+**Real fix: forcing an exam or project didn't actually give it priority over competing items**
+
+Reported multiple times, and rightly so — the earlier "explanation" (capacity constraints) wasn't
+the whole story. Traced the actual allocator (`lib/planner/schedule.js`) line by line and found a
+genuine bug: `forced` only ever worked for regular homework (`priority=1e9` in `planDayV2`'s
+candidates). Exams and projects never consulted it when deciding who gets first claim on
+genuinely scarce SHARED capacity:
+
+- **Exams**: `forced` widened an exam's own start window, but the loop that hands out leftover
+  shared capacity when an exam's own dedicated days (eve + lead-in) aren't enough processed exams
+  strictly in **due-date order** — a forced exam due later than a competing exam still got served
+  after it, and could still lose the shared capacity to a non-forced exam that got there first.
+- **Projects**: `forced` wasn't consulted **at all** in the project-placement loop — zero special
+  treatment.
+- **Preflight risk check**: same gap — computed priority without ever checking `forced`.
+
+Fixed all three: exams' and projects' allocation now sort forced items first (stable sort, so
+due-date order is otherwise unchanged); preflight now does the same. Added two regression tests
+that reproduce the exact failure mode (two exams / two projects competing for capacity too tight
+for both, one forced due *later* than the other) — verified they actually fail without the fix
+(reverted schedule.js, confirmed both new tests fail; restored it, confirmed they pass) before
+calling this done. 83 tests pass now (81 + 2 new), `npm run build` clean.
+
+**Also, per explicit request**: the replan result toast (both the full replan and single-week
+versions) now specifically calls out currently-prioritised items by name — "⭐ Item — still short:
+Xh of Yh" listed first, or "'Item' is fully scheduled 🎯" on success — instead of only a generic
+top-N shortfall list that never answered "did the thing I just prioritised actually work."
+
+## v2.59.19 — 2026-09-14
+
+**Shortfall toast redesigned: structured, amber (not red), × in the top-right corner**
+
+- **Readability**: the "N items came up short: A (Xh of Yh); B (Xh of Yh)…" run-on sentence is
+  now a real structure — bold title ("N items came up short"), a context subtitle ("Re-planned N
+  days…"), one line per item, and a footer pointing to Study Preferences. `toast2()` now accepts
+  a structured object (`{title, sub, lines, footer}`) as its message in addition to a plain
+  string, which the toast renders as title+list+footer instead of one paragraph.
+- **Why red, and why it's not anymore**: red is this app's established color for something that
+  actually *failed* (delete buttons, overdue badges) — but a shortfall toast fires after a
+  replan that *succeeded*; it's a heads-up needing attention, not an error. It's amber now,
+  matching every other "needs your attention" surface in the app (missing-due-date badges,
+  "Changes not applied yet" banners). `toast2(m, e, severity)` takes an optional 3rd argument to
+  set this explicitly — every other existing call site is unaffected (`e:true` alone still
+  defaults to red, unchanged).
+- **× moved to the top-right corner** of the toast box (`alignItems:flex-start` on the title row)
+  instead of sitting inline at the end of a single line of text — matters more now that toasts can
+  be genuinely multi-line.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.18 — 2026-09-14
+
+**Plan status: Replan button pinned to a fixed banner instead of buried in scroll**
+
+- The button lived inside the scrollable "Per item · today forward" section, past "Last full
+  replan," the stats row, and potentially the Overdue table — scrollable out of view once
+  checked. Moved to a fixed amber banner right below the header (`flexShrink:0`, same spot/style
+  as the "Changes not applied yet" and staged-completions banners already there), so it's always
+  visible the instant a row is checked, matching where this kind of action used to live before
+  the recent rework.
+- No behavior change — same `prioritiseSelected()` handler, same one-click result.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.17 — 2026-09-14
+
+**Disabled Next.js's dev-mode "N" indicator badge**
+
+- Not part of the app — a framework-level debugging badge `next dev` shows in a screen corner,
+  dev-only (never appears in production builds). Turned off via `devIndicators:false` in
+  `next.config.mjs`.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.16 — 2026-09-13
+
+**Toasts: error/important ones move higher, persist until closed, and wrap instead of overflowing**
+
+Prompted by the "N items came up short" toast after a replan being gone before it could be read.
+
+- `toast2(m,e)` used to auto-dismiss everything on a fixed 3s timer regardless of message length
+  or importance. Routine confirmations ("Added!", "Saved!") still do — fine to miss, low stakes.
+  Error/important toasts (`e:true`) now persist until dismissed via a new × button, never on a
+  timer. A second `toast2()` call while one's already showing now cancels any pending auto-dismiss
+  timer instead of two timers racing to clear whichever toast happens to be up at the time.
+- Moved from `bottom:22px` to just below the header (`top:92px` desktop, `top:58px` mobile — same
+  split `.header-spacer-nav` already uses), so it's immediately visible instead of easy to miss at
+  the screen's bottom edge.
+- Also fixed a real overflow bug this surfaced: `white-space:nowrap` meant a longer message (like
+  a multi-item shortfall list) just stretched the toast pill wider than the viewport instead of
+  wrapping — clipped by the page's own `overflow-x:hidden` guard, so part of the message was
+  literally cut off, not just hard to read in time. Wraps within `max-width:min(480px,100vw-32px)`
+  now.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.59.15 — 2026-09-13
 
 **Plan status: single "Replan → fill 100%" action, correctly sequenced**

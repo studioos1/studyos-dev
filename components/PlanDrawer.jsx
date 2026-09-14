@@ -110,6 +110,17 @@ function ClassDivider({ name }) {
   );
 }
 
+// Color only, no symbol — reuses the exact colors the rest of the app already uses for these
+// types (Today's Focus Time stripes, the Calendar month-view dots/list), so there's nothing new
+// to learn here. Exam = red; Project and Essay = amber (both "the next tier of critical" per
+// feedback, one color, not split into two); regular homework = default text color, unmarked.
+function ItemTitle({ it }) {
+  const isExam = it.kind === "exam";
+  const isHeavy = it.isProject || /essay/i.test(it.title || "");
+  const color = isExam ? "var(--red)" : isHeavy ? "var(--amber)" : undefined;
+  return <span style={{ color }}>{it.title}</span>;
+}
+
 function ColGroup() {
   return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
 }
@@ -284,6 +295,25 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
         </div>
       )}
 
+      {/* Fixed banner, not inside the scrollable content below — same spot/style as the two
+          banners above it. The button used to live inside the scrollable "Per item" section
+          itself, meaning it could be scrolled out of view past "Last full replan"/the stats
+          row/the Overdue table; pinned here instead, it's always visible the moment a row is
+          checked, exactly where this kind of "changes need your action" banner already lives. */}
+      {sel.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "9px 16px",
+          background: "var(--amber-bg)", color: "var(--amber)", fontSize: 12.5, flexShrink: 0,
+        }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 14 }} />
+          {sel.size} item{sel.size !== 1 ? "s" : ""} selected to prioritise.
+          <button className="btn btn-sm" style={{ marginLeft: "auto", background: "var(--amber)", color: "#1a0e00" }}
+            onClick={prioritiseSelected}>
+            Replan → fill 100%
+          </button>
+        </div>
+      )}
+
       <div style={{ padding: "14px 16px", overflowY: "auto", flex: 1 }}>
 
         <SectionLabel>Last full replan</SectionLabel>
@@ -367,7 +397,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                 opacity: staged ? 0.5 : 1,
                               }}>
                                 <Td><DoneCheckbox checked={staged} onToggle={() => toggleComplete(it.id)} /></Td>
-                                <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
+                                <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}><ItemTitle it={it} /></Td>
                                 <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{fmtShortDate(it.dueDate)}</Td>
                                 <Td align="right" muted>{it.difficulty || "—"}</Td>
                                 <Td align="right" muted>—</Td>
@@ -384,19 +414,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
               </>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 7px" }}>
-              <SectionLabel>Per item · today forward</SectionLabel>
-              {/* The one action for a checked row — click does the whole job (prioritise + the
-                  actual replan) in one go, not a staging step that needs a second button
-                  elsewhere. Disappears the moment sel is empty again — nothing to click, nothing
-                  shown, matching the "uncheck removes it" ask exactly. */}
-              {sel.size > 0 && (
-                <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
-                  onClick={prioritiseSelected}>
-                  <i className="ti ti-sparkles" style={{ fontSize: 12 }} /> Replan {sel.size} → fill 100%
-                </button>
-              )}
-            </div>
+            <SectionLabel>Per item · today forward</SectionLabel>
             {diag.items.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--t3)" }}>No active assignments or exams in range.</div>
             ) : (
@@ -423,12 +441,15 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                   style={{ width: 14, height: 14, cursor: "pointer" }} />
                               </Td>
                               <Td clip>
+                                {/* Not decorative — this is the only control in this drawer that
+                                    clears a forced item (setForced(it,false)). Removing it
+                                    earlier silently blocked un-prioritising anything from here. */}
                                 {it.forced && (
                                   <i className="ti ti-star-filled" title="Prioritised — click to clear"
                                     onClick={() => setForced(it, false)}
                                     style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
                                 )}
-                                {it.title}
+                                <ItemTitle it={it} />
                               </Td>
                               <Td muted nowrap>{fmtShortDate(it.dueDate)}</Td>
                               <Td align="right" muted>{it.difficulty || "—"}</Td>
