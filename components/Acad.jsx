@@ -685,6 +685,24 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     </colgroup>
   );
 
+  // Same fixed-layout pattern as ASSIGN_COLS/EXAM_COLS/GPA_COLS above, applied to the last table
+  // in this file still missing it (Difficulty's review table) — same exposure to the same bug
+  // class those had before the fix: no table-layout:fixed meant auto-layout, not a deterministic
+  // width, for every column. Assignment is the one unconstrained <col/> (the free-text title +
+  // icon + EXAM/PROJECT badge chip); everything else gets a width sized to its actual content.
+  const DIFF_COLS=(
+    <colgroup>
+      <col/>{/* assignment */}
+      <col style={{width:100}}/>{/* due */}
+      <col style={{width:60}}/>{/* weight */}
+      <col style={{width:130}}/>{/* type */}
+      <col style={{width:70}}/>{/* AI planning */}
+      <col style={{width:104}}/>{/* student planning */}
+      <col style={{width:150}}/>{/* hours */}
+      <col style={{width:60}}/>{/* priority */}
+    </colgroup>
+  );
+
   // `short` is only shown below 480px (see .acad-tab-label-short in globals.css) — abbreviated
   // enough that all 6 tabs fit one row within a phone's width with no scrolling needed at all,
   // rather than just being individually smaller and still relying on horizontal scroll.
@@ -1458,7 +1476,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>
               ):(
                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                  <table style={{width:"100%",minWidth:680,borderCollapse:"collapse"}}>
+                  <table style={{width:"100%",minWidth:820,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                    {DIFF_COLS}
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Assignment</th>
@@ -1466,7 +1485,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                         <TableHead label="Weight" col="weight" sortBy={diffSortBy} setSortBy={setDiffSortBy} align="center"/>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Type</th>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600}}>AI Planning</th>
-                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600,width:104}}>Student Planning</th>
+                        <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",padding:"0 8px 8px",fontWeight:600}}>Student Planning</th>
                         <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Hours</th>
                         <TableHead label="Priority" col="priority" sortBy={diffSortBy} setSortBy={setDiffSortBy}/>
                       </tr>

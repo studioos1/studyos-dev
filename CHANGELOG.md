@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.60.5 — 2026-09-14
+
+**Web-Mobile Enablement: last untreated Academics table fixed (Difficulty tab)**
+
+Doing a status check on what's left from the mobile backlog surfaced this: the Difficulty tab's
+review table (Assignment/Due/Weight/Type/AI Planning/Student Planning/Hours/Priority) never got
+`table-layout:fixed`, unlike Assignments/Exams/GPA — same exposure to the same auto-layout bug
+class those had before. Added `DIFF_COLS` (same pattern as `ASSIGN_COLS`/`EXAM_COLS`/`GPA_COLS`):
+Assignment is the one unconstrained `<col/>` (title + icon + EXAM/PROJECT badge), everything else
+sized to its real content. `minWidth` 680→820 to match the new fixed-column sum.
+
+Also verified clean, no action needed: School Info and History tabs (no tables/wide grids, same
+responsive patterns already in place), and the Courses tab (already card-based, verified earlier
+this session).
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.4 — 2026-09-14
 
 **Star icon restored; ⭐ now consistent between the drawer and the replan result toast**
