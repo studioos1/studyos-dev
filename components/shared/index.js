@@ -28,3 +28,4 @@ export {
 } from "./modals";
 export { WeekGrid } from "./WeekGrid";
 export { Timeline } from "./Timeline";
+export { PaceRunner } from "./PaceRunner";

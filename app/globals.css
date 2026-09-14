@@ -301,6 +301,16 @@
     }
     .row{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
 
+    /* Sub-project: Web-Mobile Enablement item #6 — Today header. "Good afternoon, <name>" at the
+       h1 size plus the 3 header icon buttons (check-in/calendar/message) don't both fit one line
+       at phone widths, so the icon group was wrapping onto its own row. Abbreviate instead of
+       shrinking the font and hoping it fits. */
+    .today-greet-short{display:none;}
+    @media (max-width:560px){
+      .today-greet-full{display:none;}
+      .today-greet-short{display:inline;}
+    }
+
     /* List row — a leading checkbox/icon, flexible label text, optional trailing badge/button,
     all on one line. Used across Progress/History/Onboard/Preferences; was referenced everywhere
     but never actually defined, so every "list-item" row silently stacked its children in block
@@ -391,6 +401,87 @@
     @keyframes rot{to{transform:rotate(360deg);}}
     @keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .fade{animation:up 0.25s ease;}
+
+    /* Progress card — Today tab. One status headline + the PaceRunner mascot on top, two metric
+       rows (Study Pace, On-time Assignments) below. Bar is a capped width, not flex:1 — it
+       doesn't need to stretch to the card's full edge to be readable, and a shorter bar reads
+       cleaner. Labels are the real metric names at a legible size/color (not tiny muted caps)
+       so "Study Pace" and "On-time" carry equal visual weight. */
+    .pace-headline{font-size:14.5px; font-weight:600; color:var(--blue);}
+    .pace-metrics{flex:1; min-width:0; display:flex; flex-direction:column; gap:16px;}
+    /* Side by side once there's real width for it — stacked rows in a wide card just leave the
+       right two-thirds of the card empty, which is what read as "odd" on desktop. Same 768px
+       tier the top nav already switches on. */
+    @media (min-width:768px){
+      .pace-metrics{flex-direction:row; align-items:center; gap:32px; flex-wrap:wrap;}
+    }
+    .pace-metric-row{display:flex; align-items:center; gap:12px; flex-shrink:0;}
+    .pace-metric-label{font-size:13.5px; color:var(--t2); font-weight:500; flex-shrink:0; width:86px;}
+    /* width (not min-width) is load-bearing: "8%" and "100%" are different lengths even with
+       tabular-nums (that only makes each digit uniform, not the whole string), so a min-width
+       floor let the wider one push its row's bar further right than the other row's — the two
+       rows never actually lined up. A fixed width + right-align guarantees both bars start at
+       the same x regardless of digit count. */
+    .pace-pct{font-family:'Syne',sans-serif; font-size:19px; font-weight:700; flex-shrink:0; width:52px; text-align:right; font-variant-numeric:tabular-nums;}
+    /* flex-shrink:0 is load-bearing: with the two metric rows now competing for space on one
+       desktop line, a shrinkable bar was quietly getting squeezed all the way down to min-width
+       instead of showing its actual target length — the bug behind "you shortened them to the
+       extreme". A fixed-length bar that wraps its row to a new line if it must beats one that
+       silently shrinks to a stub. */
+    .pace-bar-wrap{flex:0 0 240px; position:relative; padding-bottom:12px;}
+    .pace-bar{height:8px; border-radius:4px; background:var(--b1); overflow:hidden;}
+    .pace-bar-fill{height:100%; border-radius:4px; transition:width 0.4s ease;}
+    .pace-bar-arrow{position:absolute; top:9px; transform:translateX(-50%); font-size:9px; line-height:1; transition:left 0.4s ease;}
+
+    /* PaceRunner mascot rig — see components/shared/PaceRunner.jsx for the coordinate-system
+       explanation (leg/arm/knee rotations are SVG user-space, scale-independent; the hop's
+       translateY is real screen px, scaled to render size in that file's --bounce calc). Class
+       names are pr-prefixed so they can't collide with anything else in this file. */
+    .pr-legBack,.pr-legFront,.pr-armBack,.pr-armFront,.pr-shinBack,.pr-shinFront{
+      animation-iteration-count:infinite; animation-timing-function:ease-in-out;
+    }
+    .pr-legBack{transform-origin:36px 62px; animation-name:pr-swingA;}
+    .pr-legFront{transform-origin:36px 62px; animation-name:pr-swingB;}
+    .pr-armBack{transform-origin:38px 32px; animation-name:pr-swingB;}
+    .pr-armFront{transform-origin:38px 32px; animation-name:pr-swingA;}
+    @keyframes pr-swingA{ 0%{transform:rotate(36deg);} 50%{transform:rotate(-36deg);} 100%{transform:rotate(36deg);} }
+    @keyframes pr-swingB{ 0%{transform:rotate(-36deg);} 50%{transform:rotate(36deg);} 100%{transform:rotate(-36deg);} }
+    /* Knee: nested inside the thigh <g>, so its rotate() ADDS to the thigh's current angle.
+       Positive here folds the shin further in the thigh's "swept backward" rotational sense —
+       i.e. curls up behind, like a real knee flexing on recovery — tucked hardest exactly when
+       the thigh is at its trailing extreme, straight exactly at the thigh's forward extreme. */
+    .pr-shinBack{transform-origin:36px 82px; animation-name:pr-kneeA;}
+    .pr-shinFront{transform-origin:36px 82px; animation-name:pr-kneeB;}
+    @keyframes pr-kneeA{
+      0%   { transform:rotate(112deg); }
+      30%  { transform:rotate(38deg); }
+      50%  { transform:rotate(0deg); }
+      75%  { transform:rotate(22deg); }
+      100% { transform:rotate(112deg); }
+    }
+    @keyframes pr-kneeB{
+      0%   { transform:rotate(0deg); }
+      25%  { transform:rotate(22deg); }
+      50%  { transform:rotate(112deg); }
+      70%  { transform:rotate(38deg); }
+      100% { transform:rotate(0deg); }
+    }
+    /* Body bounce — two lows/two highs per cycle (0%/50% down, 25%/75% up), matching the two
+       ground-contacts a full stride actually has (one per leg); a single bounce per cycle reads
+       as disconnected from the legs. No lean here — character stays upright. */
+    .pr-runner{transform-origin:50% 92%; display:block; animation-name:pr-hop; animation-iteration-count:infinite; animation-timing-function:ease-in-out;}
+    @keyframes pr-hop{
+      0%   { transform: translateY(0)                            scaleY(0.95); }
+      25%  { transform: translateY(calc(var(--bounce,4px) * -1)) scaleY(1.05); }
+      50%  { transform: translateY(0)                            scaleY(0.95); }
+      75%  { transform: translateY(calc(var(--bounce,4px) * -1)) scaleY(1.05); }
+      100% { transform: translateY(0)                            scaleY(0.95); }
+    }
+    .pr-hair{transform-origin:41px 8px; animation-name:pr-hairFlop; animation-iteration-count:infinite; animation-timing-function:ease-in-out;}
+    @keyframes pr-hairFlop{ 0%,50%,100%{transform:rotate(-3deg);} 25%,75%{transform:rotate(var(--hair,3deg));} }
+    @media (prefers-reduced-motion: reduce){
+      .pr-runner,.pr-legBack,.pr-legFront,.pr-armBack,.pr-armFront,.pr-shinBack,.pr-shinFront,.pr-hair{animation:none !important;}
+    }
 
     /* Diff badges */
     .d1,.d2,.d3{background:var(--green-bg); color:var(--green);}
