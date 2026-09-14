@@ -284,6 +284,25 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
         </div>
       )}
 
+      {/* Fixed banner, not inside the scrollable content below — same spot/style as the two
+          banners above it. The button used to live inside the scrollable "Per item" section
+          itself, meaning it could be scrolled out of view past "Last full replan"/the stats
+          row/the Overdue table; pinned here instead, it's always visible the moment a row is
+          checked, exactly where this kind of "changes need your action" banner already lives. */}
+      {sel.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "9px 16px",
+          background: "var(--amber-bg)", color: "var(--amber)", fontSize: 12.5, flexShrink: 0,
+        }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 14 }} />
+          {sel.size} item{sel.size !== 1 ? "s" : ""} selected to prioritise.
+          <button className="btn btn-sm" style={{ marginLeft: "auto", background: "var(--amber)", color: "#1a0e00" }}
+            onClick={prioritiseSelected}>
+            Replan → fill 100%
+          </button>
+        </div>
+      )}
+
       <div style={{ padding: "14px 16px", overflowY: "auto", flex: 1 }}>
 
         <SectionLabel>Last full replan</SectionLabel>
@@ -384,19 +403,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
               </>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 7px" }}>
-              <SectionLabel>Per item · today forward</SectionLabel>
-              {/* The one action for a checked row — click does the whole job (prioritise + the
-                  actual replan) in one go, not a staging step that needs a second button
-                  elsewhere. Disappears the moment sel is empty again — nothing to click, nothing
-                  shown, matching the "uncheck removes it" ask exactly. */}
-              {sel.size > 0 && (
-                <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
-                  onClick={prioritiseSelected}>
-                  <i className="ti ti-sparkles" style={{ fontSize: 12 }} /> Replan {sel.size} → fill 100%
-                </button>
-              )}
-            </div>
+            <SectionLabel>Per item · today forward</SectionLabel>
             {diag.items.length === 0 ? (
               <div style={{ fontSize: 12.5, color: "var(--t3)" }}>No active assignments or exams in range.</div>
             ) : (

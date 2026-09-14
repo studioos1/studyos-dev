@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.59.18 — 2026-09-14
+
+**Plan status: Replan button pinned to a fixed banner instead of buried in scroll**
+
+- The button lived inside the scrollable "Per item · today forward" section, past "Last full
+  replan," the stats row, and potentially the Overdue table — scrollable out of view once
+  checked. Moved to a fixed amber banner right below the header (`flexShrink:0`, same spot/style
+  as the "Changes not applied yet" and staged-completions banners already there), so it's always
+  visible the instant a row is checked, matching where this kind of action used to live before
+  the recent rework.
+- No behavior change — same `prioritiseSelected()` handler, same one-click result.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.59.17 — 2026-09-14
 
 **Disabled Next.js's dev-mode "N" indicator badge**
