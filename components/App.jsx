@@ -132,6 +132,7 @@ function App(){
   const {confirm:confirmApp,modal:modalApp}=useConfirm();
   const [showAccount,setShowAccount]=useState(false);
   const [showBugReport,setShowBugReport]=useState(false);
+  const [showMobileMenu,setShowMobileMenu]=useState(false); // hamburger dropdown, mobile-only (<768px)
   // App is the root component and never unmounts — the render gates below just swap in <Login/>.
   // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
   // would still be open on the next login. Force it shut whenever there's no session.
@@ -393,7 +394,7 @@ function App(){
   const isAdmin=ADMIN_EMAILS.includes(session.user?.email);
   const TABS=data.onboarded?[
     {id:"today",   icon:"ti-sun",          label:"Today"},
-    {id:"week",    icon:"ti-calendar-week",label:"Weekly"},
+    {id:"week",    icon:"ti-calendar-week",label:"Calendar"},
     {id:"acad",    icon:"ti-school",       label:"Academics"},
     {id:"prog",    icon:"ti-chart-bar",    label:"Progress"},
     {id:"history", icon:"ti-history",      label:"History"},
@@ -407,48 +408,83 @@ function App(){
       {/* FIXED HEADER — top bar + nav never scroll, only the content below does */}
       <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100}}>
         {/* TOP BAR */}
-        <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",alignItems:"center",gap:12,height:50,borderBottom:"1px solid var(--b1)"}}>
+        <div className="topbar-row">
+          {/* Hamburger — mobile-only (<768px, see .mobile-menu-btn in globals.css), replaces the
+              icon-row nav entirely on narrow screens instead of squeezing it down further. The
+              standard "square with a few lines" mobile menu icon, opening a dropdown with full
+              tab labels — more recognizable than the cramped icon+tiny-label row it replaces, and
+              it also gives back the vertical space that row used to take. */}
+          {data.onboarded&&(
+            <div style={{position:"relative"}}>
+              <button className="mobile-menu-btn icon-btn-28" onClick={()=>setShowMobileMenu(v=>!v)}
+                style={{borderRadius:8,border:"1px solid var(--b1)",background:showMobileMenu?"var(--card2)":"transparent",
+                  color:"var(--t1)",cursor:"pointer",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                <i className="ti ti-menu-2" style={{fontSize:18}}/>
+              </button>
+              {showMobileMenu&&(
+                <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:200,
+                  background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
+                  boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
+                  {TABS.map(t=>(
+                    <button key={t.id} onClick={()=>{setTab(t.id);setShowMobileMenu(false);}}
+                      style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",
+                        padding:"11px 12px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:14,
+                        background:tab===t.id?"var(--amber-bg)":"transparent",
+                        color:tab===t.id?"var(--amber)":"var(--t1)",cursor:"pointer"}}>
+                      <i className={`ti ${t.icon}`} style={{fontSize:16,width:18,textAlign:"center"}}/>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>StudyOS</span>
           <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
-          {data.onboarded&&p.name&&<span style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
-          {q&&<span className="badge badge-blue">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
-          {missing>0&&<span className="badge badge-amber" style={{cursor:"pointer"}} onClick={()=>setTab("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
+          {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
+          {q&&<span className="badge badge-blue topbar-term">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
+          {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>setTab("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
-            {api!==null&&<span className={`badge ${api?"badge-green":"badge-red"}`}>{api?"✓ Connected":"✗ No API key"}</span>}
-            <span className="tt" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
+            {api!==null&&<span className={`badge ${api?"badge-green":"badge-red"} topbar-api`}>{api?"✓ Connected":"✗ No API key"}</span>}
+            <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
             {data.onboarded&&(
-              <button className="tt tt-below tt-right" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
-                style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+              <button className="tt tt-below tt-right icon-btn-28" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
+                style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                   color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
                 <i className="ti ti-bug" style={{fontSize:15}}/>
               </button>
             )}
-            <button className="tt tt-below tt-right" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
-              style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+            {/* Account button is the only way to sign out — same icon-btn-28 touch-target bump as
+                Today's Focus Time buttons applies here too. */}
+            <button className="tt tt-below tt-right icon-btn-28" data-tt="Account &amp; sign out" onClick={()=>setShowAccount(true)}
+              style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                 color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
               <i className="ti ti-user-circle" style={{fontSize:16}}/>
             </button>
           </div>
         </div>
-        {/* NAV — Sub-project: Web-Mobile Enablement item #3: this row previously clipped
-            (overflowX hidden) once the 8 tabs didn't fit a narrow screen, making the clipped
-            ones genuinely unreachable, not just hard to tap. Scrollable instead: nothing is
-            ever invisible, and desktop is unaffected since all tabs already fit there. */}
+        {/* NAV — Sub-project: Web-Mobile Enablement item #3 made this scrollable instead of
+            clipped once the 8 tabs didn't fit a narrow screen. Below 768px this whole row is
+            replaced by the hamburger dropdown above (see .nav-row in globals.css) rather than
+            squeezed further — desktop (≥768px) is unaffected. */}
         {data.onboarded&&(
-          <div style={{background:"var(--surface)",padding:"0 20px",display:"flex",gap:2,overflowX:"auto",WebkitOverflowScrolling:"touch",borderBottom:"1px solid var(--b1)"}}>
+          <div className="nav-row">
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"11px 15px",fontSize:13,color:tab===t.id?"var(--amber)":"var(--t3)",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:400,borderBottom:tab===t.id?"2px solid var(--amber)":"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>
+              <button key={t.id} className="nav-tab-btn" onClick={()=>setTab(t.id)}
+                style={{color:tab===t.id?"var(--amber)":"var(--t3)",borderBottom:tab===t.id?"2px solid var(--amber)":"2px solid transparent"}}>
                 <i className={`ti ${t.icon}`} style={{fontSize:14}}/>{t.label}
               </button>
             ))}
           </div>
         )}
       </div>
-      {/* Spacer — reserves the space the fixed header would otherwise occupy, since fixed elements are removed from normal flow */}
-      <div style={{height:data.onboarded?92:50}}/>
+      {/* Spacer — reserves the space the fixed header would otherwise occupy, since fixed
+          elements are removed from normal flow. .header-spacer-nav shrinks to just the top bar's
+          height below 768px, matching .nav-row's display:none there — otherwise a dead gap of
+          empty space would sit where the nav row used to be. */}
+      <div className={data.onboarded?"header-spacer-nav":undefined} style={data.onboarded?undefined:{height:50}}/>
       {/* MAIN */}
       <div style={{maxWidth:tab==="week"?"100%":960,margin:"0 auto",padding:tab==="week"?"10px 14px":"20px 16px"}}>
         {!data.onboarded

@@ -268,18 +268,22 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               <div style={{width:9,height:9,borderRadius:"50%",background:lvlColor[item.lvl],flexShrink:0}}/>
               {/* Main text */}
               <span style={{flex:1,fontSize:15,color:"var(--t1)"}}>{item.text}</span>
-              {/* Time tag — amber normally, red if missing date */}
+              {/* Time tag — amber normally, red if missing date. Fixed width + centered so
+                  "3d"/"6d"/"in 6 days"/"⚠ Enter date" all occupy the same column width — without
+                  this, the Focus-status column right after it (below) shifts left/right per row
+                  depending on how long that row's tag text happens to be. */}
               <span style={{fontSize:13,fontWeight:500,whiteSpace:"nowrap",
                 color:item.tag==="⚠ Enter date"?"var(--red)":"var(--amber)",
                 background:item.tag==="⚠ Enter date"?"var(--red-bg)":"var(--amber-bg)",
-                padding:"2px 9px",borderRadius:8}}>
+                padding:"2px 9px",borderRadius:8,minWidth:72,textAlign:"center"}}>
                 {item.tag}
               </span>
-              {/* Focus status */}
+              {/* Focus status — fixed width so "not yet" and "✓ planned" always start at the
+                  same x, regardless of the tag column's width on that row. */}
               {item.planned
-                ?<span style={{fontSize:12,color:"var(--green)",whiteSpace:"nowrap"}}>✓ planned</span>
+                ?<span style={{fontSize:12,color:"var(--green)",whiteSpace:"nowrap",minWidth:64,display:"inline-block"}}>✓ planned</span>
                 :<span className="tt" data-tt="Study time gets scheduled closer to the due date — this isn't a gap, it's intentional (see Study Preferences for when each item's window opens)"
-                  style={{fontSize:12,color:"var(--t3)",whiteSpace:"nowrap",cursor:"help"}}>not yet</span>
+                  style={{fontSize:12,color:"var(--t3)",whiteSpace:"nowrap",cursor:"help",minWidth:64,display:"inline-block"}}>not yet</span>
               }
             </div>
           ))}
@@ -370,7 +374,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             const isRunning=runningBlockId===b.id;
             const mm=Math.floor(secsLeft/60).toString().padStart(2,"0");
             const ss=(secsLeft%60).toString().padStart(2,"0");
-            const rowIconBtn={width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",cursor:"pointer",
+            // width/height live in the "icon-btn-28" CSS class (not here) so the mobile touch-
+            // target media query in globals.css can bump them on narrow screens — 28px is under
+            // Apple/Google's ~44px minimum recommended tap target, cramped for the button you hit
+            // most often on this tab (start/pause/complete a session). Desktop keeps 28px.
+            const rowIconBtn={borderRadius:"50%",border:"1px solid var(--b1)",cursor:"pointer",
               display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,background:"var(--card2)"};
             return(
               <div key={i} style={{
@@ -408,11 +416,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   {isRunning?(
                     <>
                       <div style={{flex:"0 0 auto",display:"flex",alignItems:"center",gap:8}}>
-                        <button className="tt" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
+                        <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
                           style={{...rowIconBtn,color:"var(--amber)"}}>
                           <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
                         </button>
-                        <button className="tt" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
+                        <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
                           style={{...rowIconBtn,color:"var(--green)"}}>
                           <i className="ti ti-check" style={{fontSize:14}}/>
                         </button>
@@ -427,12 +435,17 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                         {b.completed?(
                           <i className="ti ti-circle-check" style={{fontSize:20,color:"var(--green)"}}/>
                         ):(
-                          <button className="tt" data-tt="Start" onClick={()=>startSession(b)}
+                          <button className="tt icon-btn-28" data-tt="Start" onClick={()=>startSession(b)}
                             style={{...rowIconBtn,background:"var(--amber-bg)",color:"var(--amber)"}}>
                             <i className="ti ti-player-play" style={{fontSize:13}}/>
                           </button>
                         )}
-                        <span style={{fontSize:13,color:"var(--t3)"}}>
+                        {/* Fixed width regardless of "30m" vs "1h" text — without this, rows
+                            with different duration labels have a different min-content width for
+                            this whole button+duration group, which shifts how much the task-text
+                            column to its left gets squeezed, and the play button visibly drifts
+                            left/right from row to row. */}
+                        <span style={{fontSize:13,color:"var(--t3)",minWidth:34,display:"inline-block"}}>
                           {fmtDur(b.duration||25)}
                         </span>
                       </div>

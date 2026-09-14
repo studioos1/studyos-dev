@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { computePlanDiagnostics } from "@/lib/planDiagnostics";
 import { HoursInput } from "@/components/shared";
 
@@ -61,9 +61,54 @@ function Td({ children, align = "left", muted, nowrap, clip, style }) {
 // Both tables share ONE fixed column layout so every column lines up exactly between them —
 // table-layout:fixed + this colgroup, applied identically to both. The Overdue table just leaves
 // the planner-only columns blank.
-const COLS = ["", "Item", "Class", "Due", "Diff", "Priority", "Need", "Short", ""];
-const COL_W = ["30px", "auto", "108px", "104px", "62px", "70px", "78px", "70px", "44px"];
-const COL_ALIGN = ["left", "left", "left", "left", "right", "right", "center", "center", "center"];
+//
+// Rebalanced for mobile: the trailing "" column was dead weight (both tables always render <Td />
+// there — nothing has ever used it), so it's dropped entirely. Class is gone as a per-row column
+// too — replaced by a section-divider row instead (see ClassDivider + groupByClass below): every
+// item belonging to a course is listed together under ONE divider, not interspersed with other
+// courses' rows. Item went back to a fixed width rather than an unconstrained "auto" column —
+// auto meant it silently absorbed 100% of whatever space Class's removal freed, which just moved
+// the density problem onto Item instead of fixing it. Every column here is now a deliberate,
+// bounded width — no column is left to soak up arbitrary leftover space.
+const COLS = ["", "Item", "Due", "Diff", "Pri", "Need", "Shrt"];
+// col0 must fit its checkbox (DoneCheckbox is 18x18, the native one 14x14) plus Td's own 16px
+// horizontal padding — 22px was narrower than the checkbox alone, let alone padding, so it was
+// visibly bleeding into the Item column next to it. That's almost certainly what broke clicking:
+// the checkbox you can see doesn't line up with the cell that's actually catching the click, so
+// toggling it back off can land on something else (the Item column's own star-icon handler, for
+// one) instead. 34px is the real minimum (18 + 16); Item gave back a few px to cover it.
+const COL_W = ["34px", "122px", "44px", "40px", "38px", "74px", "54px"];
+const COL_ALIGN = ["left", "left", "left", "right", "right", "center", "center"];
+// Compact M/D date instead of the raw ISO string ("2026-09-20") the Due column was showing —
+// that alone was most of why it read as "too much space, too generous a format."
+const fmtShortDate = ds => ds ? (() => { const d = new Date(ds + "T12:00:00"); return `${d.getMonth() + 1}/${d.getDate()}`; })() : "—";
+
+// Groups a list into [{name, rows}] by courseName, preserving the list's existing order (already
+// priority/due-date sorted) as the ORDER GROUPS APPEAR IN — a Map keeps first-insertion order, so
+// whichever course has the most urgent item first also gets shown first — but every row for that
+// course moves up to sit together under it, rather than staying wherever its own date happened to
+// sort it. That's the actual ask: one line for Class, then ALL its items, then the next divider.
+function groupByClass(list) {
+  const groups = new Map();
+  list.forEach(it => {
+    if (!groups.has(it.courseName)) groups.set(it.courseName, []);
+    groups.get(it.courseName).push(it);
+  });
+  return Array.from(groups.entries()).map(([name, rows]) => ({ name, rows }));
+}
+
+// Section-divider row replacing the per-row Class column — course name, colSpan across every
+// remaining column so it reads as a clean partition line rather than another data row.
+function ClassDivider({ name }) {
+  return (
+    <tr>
+      <td colSpan={COLS.length} style={{
+        padding: "10px 4px 4px", fontSize: 11, color: "var(--t3)", textTransform: "uppercase",
+        letterSpacing: "0.05em", fontWeight: 600, borderBottom: "1px solid var(--b1)",
+      }}>{name}</td>
+    </tr>
+  );
+}
 
 function ColGroup() {
   return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
@@ -96,6 +141,19 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
   const [sel, setSel] = useState(() => new Set());          // "today forward" rows ticked for Prioritise
   const [toComplete, setToComplete] = useState(() => new Set()); // Overdue rows staged as completed (not yet saved)
   const [confirmingClose, setConfirmingClose] = useState(false);
+  // Armed by prioritiseSelected right after upd({forced:true}) — NOT used to call
+  // refreshQuarterPlan directly from that click handler, because upd() (a functional setState)
+  // hasn't actually applied by the time the handler finishes running; refreshQuarterPlan is a
+  // plain function in App.jsx closing over THAT render's `data`, so calling it immediately would
+  // run the real replan against the pre-update snapshot — the forced:true flag it had just set
+  // wouldn't be visible to it yet. This just arms the effect below, which fires once `data` itself
+  // changes (i.e. once React has actually applied the flags) — at that point refreshQuarterPlan
+  // closes over current data, so it's safe. One click either way; this only changes when, not
+  // whether, refreshQuarterPlan runs. Deliberately does NOT set data.planStale — that flag drives
+  // the separate "Changes not applied yet" banner (for setHours/setForced's manual edits, which
+  // are genuinely not auto-replanned), and setting it here just for the instant before this effect
+  // clears it again was what produced two overlapping "please replan" prompts for one click.
+  const [pendingAutoReplan, setPendingAutoReplan] = useState(false);
 
   // Close is guarded: staged completions that aren't saved yet block the X / Esc.
   const attemptClose = () => (toComplete.size > 0 ? setConfirmingClose(true) : onClose());
@@ -111,6 +169,12 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
   useEffect(() => {
     if (!open) { setSel(new Set()); setToComplete(new Set()); setConfirmingClose(false); }
   }, [open]);
+
+  useEffect(() => {
+    if (!pendingAutoReplan) return;
+    setPendingAutoReplan(false);
+    refreshQuarterPlan?.();
+  }, [data]); // eslint-disable-line -- deliberately keyed on `data` itself changing, not pendingAutoReplan
 
   const diag = useMemo(() => (open ? computePlanDiagnostics(data) : null), [open, data]);
   if (!open) return null;
@@ -142,6 +206,10 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
     setToComplete(new Set());
   }
 
+  // One click: mark the selected items forced, then arm pendingAutoReplan so the effect above
+  // runs the actual replan itself once `data` reflects it — no second manual click, and no
+  // planStale so the separate "Changes not applied yet" banner (meant for setHours/setForced's
+  // manual, not-auto-replanned edits) doesn't also show up for this one.
   function prioritiseSelected() {
     const chosen = (diag?.items || []).filter(it => sel.has(it.id));
     if (!chosen.length) return;
@@ -152,7 +220,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
       exams: data.exams.map(e => (eIds.has(e.id) ? { ...e, forced: true } : e)),
     });
     setSel(new Set());
-    refreshQuarterPlan?.();
+    setPendingAutoReplan(true);
   }
 
   const toggleSel = id => setSel(s => {
@@ -162,8 +230,8 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
   });
 
   return (
-    <div style={{
-      position: "fixed", top: 92, right: 0, bottom: 0, width: "min(880px,100vw)", zIndex: 95,
+    <div className="plandrawer-panel" style={{
+      position: "fixed", right: 0, bottom: 0, width: "min(880px,100vw)", zIndex: 95,
       background: "var(--card)", borderLeft: "1px solid var(--b1)", boxShadow: "-10px 0 34px rgba(0,0,0,0.4)",
       display: "flex", flexDirection: "column",
     }}>
@@ -278,8 +346,8 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                     </button>
                   )}
                 </div>
-                <div style={{ marginBottom: 18 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <div style={{ marginBottom: 18, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                  <table style={{ width: "100%", minWidth: 406, borderCollapse: "collapse", tableLayout: "fixed" }}>
                     <ColGroup />
                     <thead>
                       <tr style={{ borderBottom: "1px solid var(--b1)" }}>
@@ -287,25 +355,29 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {diag.overdue.map((it, i) => {
-                        const staged = toComplete.has(it.id);
-                        return (
-                          <tr key={it.id} style={{
-                            borderBottom: i < diag.overdue.length - 1 ? "1px solid var(--b1)" : "none",
-                            opacity: staged ? 0.5 : 1,
-                          }}>
-                            <Td><DoneCheckbox checked={staged} onToggle={() => toggleComplete(it.id)} /></Td>
-                            <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
-                            <Td muted clip>{it.courseName}</Td>
-                            <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{it.dueDate}</Td>
-                            <Td align="right" muted>{it.difficulty || "—"}</Td>
-                            <Td align="right" muted>—</Td>
-                            <Td align="center" muted nowrap>{it.desiredHours}h</Td>
-                            <Td align="center" muted>—</Td>
-                            <Td />
-                          </tr>
-                        );
-                      })}
+                      {groupByClass(diag.overdue).map((group, gi, garr) => (
+                        <Fragment key={group.name}>
+                          <ClassDivider name={group.name} />
+                          {group.rows.map((it, ri) => {
+                            const staged = toComplete.has(it.id);
+                            const isLast = gi === garr.length - 1 && ri === group.rows.length - 1;
+                            return (
+                              <tr key={it.id} style={{
+                                borderBottom: isLast ? "none" : "1px solid var(--b1)",
+                                opacity: staged ? 0.5 : 1,
+                              }}>
+                                <Td><DoneCheckbox checked={staged} onToggle={() => toggleComplete(it.id)} /></Td>
+                                <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
+                                <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{fmtShortDate(it.dueDate)}</Td>
+                                <Td align="right" muted>{it.difficulty || "—"}</Td>
+                                <Td align="right" muted>—</Td>
+                                <Td align="center" muted nowrap>{it.desiredHours}h</Td>
+                                <Td align="center" muted>—</Td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -314,10 +386,14 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 7px" }}>
               <SectionLabel>Per item · today forward</SectionLabel>
+              {/* The one action for a checked row — click does the whole job (prioritise + the
+                  actual replan) in one go, not a staging step that needs a second button
+                  elsewhere. Disappears the moment sel is empty again — nothing to click, nothing
+                  shown, matching the "uncheck removes it" ask exactly. */}
               {sel.size > 0 && (
                 <button className="btn btn-sm btn-action" style={{ marginLeft: "auto", padding: "3px 10px" }}
                   onClick={prioritiseSelected}>
-                  <i className="ti ti-star" style={{ fontSize: 12 }} /> Prioritise {sel.size} → fill 100%
+                  <i className="ti ti-sparkles" style={{ fontSize: 12 }} /> Replan {sel.size} → fill 100%
                 </button>
               )}
             </div>
@@ -325,7 +401,8 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
               <div style={{ fontSize: 12.5, color: "var(--t3)" }}>No active assignments or exams in range.</div>
             ) : (
               <div>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table style={{ width: "100%", minWidth: 406, borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <ColGroup />
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--b1)" }}>
@@ -333,40 +410,47 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {diag.items.map((it, i) => (
-                      <tr key={it.id} style={{ borderBottom: i < diag.items.length - 1 ? "1px solid var(--b1)" : "none" }}>
-                        <Td>
-                          <input type="checkbox" checked={sel.has(it.id)} onChange={() => toggleSel(it.id)}
-                            title="Select to prioritise" aria-label="Select to prioritise"
-                            style={{ width: 14, height: 14, cursor: "pointer" }} />
-                        </Td>
-                        <Td clip>
-                          {it.forced && (
-                            <i className="ti ti-star-filled" title="Prioritised — click to clear"
-                              onClick={() => setForced(it, false)}
-                              style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
-                          )}
-                          {it.title}
-                        </Td>
-                        <Td muted clip>{it.courseName}</Td>
-                        <Td muted nowrap>{it.dueDate || "—"}</Td>
-                        <Td align="right" muted>{it.difficulty || "—"}</Td>
-                        <Td align="right" muted>{it.priority != null ? it.priority : "—"}</Td>
-                        <Td align="center" style={{ padding: "3px 8px" }}>
-                          <HoursInput value={it.desiredHours} isOverridden={it.forced}
-                            onCommit={v => v != null && setHours(it, v)} />
-                        </Td>
-                        <Td align="center" nowrap style={{ color: it.fullyCovered ? "var(--t3)" : "var(--amber)", fontWeight: it.fullyCovered ? 400 : 600 }}>
-                          {it.fullyCovered ? "—" : `−${round1(it.shortfallHours)}h`}
-                        </Td>
-                        <Td />
-                      </tr>
+                    {groupByClass(diag.items).map((group, gi, garr) => (
+                      <Fragment key={group.name}>
+                        <ClassDivider name={group.name} />
+                        {group.rows.map((it, ri) => {
+                          const isLast = gi === garr.length - 1 && ri === group.rows.length - 1;
+                          return (
+                            <tr key={it.id} style={{ borderBottom: isLast ? "none" : "1px solid var(--b1)" }}>
+                              <Td>
+                                <input type="checkbox" checked={sel.has(it.id)} onChange={() => toggleSel(it.id)}
+                                  title="Select to prioritise" aria-label="Select to prioritise"
+                                  style={{ width: 14, height: 14, cursor: "pointer" }} />
+                              </Td>
+                              <Td clip>
+                                {it.forced && (
+                                  <i className="ti ti-star-filled" title="Prioritised — click to clear"
+                                    onClick={() => setForced(it, false)}
+                                    style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
+                                )}
+                                {it.title}
+                              </Td>
+                              <Td muted nowrap>{fmtShortDate(it.dueDate)}</Td>
+                              <Td align="right" muted>{it.difficulty || "—"}</Td>
+                              <Td align="right" muted>{it.priority != null ? Math.round(it.priority) : "—"}</Td>
+                              <Td align="center" style={{ padding: "3px 4px" }}>
+                                <HoursInput value={it.desiredHours} isOverridden={it.forced}
+                                  onCommit={v => v != null && setHours(it, v)} />
+                              </Td>
+                              <Td align="center" style={{ color: it.fullyCovered ? "var(--t3)" : "var(--amber)", fontWeight: it.fullyCovered ? 400 : 600 }}>
+                                {it.fullyCovered ? "—" : `−${round1(it.shortfallHours)}h`}
+                              </Td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
+                </div>
                 <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 8, lineHeight: 1.6 }}>
-                  Tick items and <b>Prioritise</b> to make the planner fill them to 100% (taking time from the rest).
-                  Edit <b>Need</b> hours to lower an estimate. Then <b>Replan</b> to apply.
+                  Tick items and hit <b>Replan → fill 100%</b> to give them priority over the rest and
+                  apply it immediately. Edit <b>Need</b> hours first to lower an estimate instead.
                 </div>
               </div>
             )}

@@ -179,17 +179,22 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
   return(
     <div className="fade" style={{maxWidth:560,margin:"0 auto"}}>
-      {/* Step bar */}
-      <div className="row" style={{marginBottom:24,gap:4}}>
+      {/* Step bar — sizes/label live in onboard-step-* CSS classes (not inline) so the mobile
+          shrink media query in globals.css can override them; only the per-step state colors
+          (which segment is done/current/upcoming) stay inline. */}
+      <div className="row onboard-stepbar" style={{marginBottom:24,gap:4}}>
         {STEPS.map((s,i)=>(
           <div key={i} className="row" style={{gap:4}}>
-            <div style={{width:26,height:26,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0,background:i<step?"var(--green-bg)":i===step?"var(--blue-bg)":"var(--card2)",color:i<step?"var(--green)":i===step?"var(--blue)":"var(--t3)"}}>
+            <div className="onboard-step-circle" style={{background:i<step?"var(--green-bg)":i===step?"var(--blue-bg)":"var(--card2)",color:i<step?"var(--green)":i===step?"var(--blue)":"var(--t3)"}}>
               {i<step?<i className="ti ti-check"/>:<i className={`ti ${s.i}`}/>}
             </div>
-            {i<STEPS.length-1&&<div style={{width:12,height:1.5,background:i<step?"var(--green-bg)":"var(--b1)"}}/>}
+            {i<STEPS.length-1&&<div className="onboard-step-connector" style={{background:i<step?"var(--green-bg)":"var(--b1)"}}/>}
           </div>
         ))}
-        <span style={{fontSize:11,color:"var(--t3)",marginLeft:6}}>{STEPS[step]?.l} · {step+1}/{STEPS.length}</span>
+        <span style={{fontSize:11,color:"var(--t3)",marginLeft:6,flexShrink:0}}>
+          <span className="onboard-step-label-full">{STEPS[step]?.l} · {step+1}/{STEPS.length}</span>
+          <span className="onboard-step-label-short">{step+1}/{STEPS.length}</span>
+        </span>
       </div>
 
       {step===IDX.welcome&&(

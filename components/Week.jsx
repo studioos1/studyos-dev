@@ -1,25 +1,36 @@
-import { useState } from "react";
-import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
+import { useState, useRef, useEffect } from "react";
+import { iso, t2m, sundayOf, fmtWeekRange, f12, m2t } from "@/lib/time";
 import { GYM0 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
-import { weekHasBeenPlanned, realDayBlocks, weekStartOf } from "@/lib/calendar";
-import { Sp, SecHead, useConfirm, Timeline, WeekGrid } from "@/components/shared";
+import { weekHasBeenPlanned, realDayBlocks, weekStartOf, buildBlocks, tc, saveBlockToDay, deleteBlockFromDay, logCompletion } from "@/lib/calendar";
+import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal } from "@/components/shared";
 import { PlanDrawer } from "@/components/PlanDrawer";
 
 // ── WEEK ─────────────────────────────────────────────────────────────────────
 export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg,planDrawerOpen,setPlanDrawerOpen}){
   const {confirm,modal}=useConfirm();
   // Sub-project: Web-Mobile Enablement item #2 — the 7-column time-block grid genuinely can't fit
-  // a phone screen (each day column would be well under 50px). Default straight into the existing
-  // single-day agenda view (today) on narrow screens instead of forcing the grid; desktop is
-  // unaffected since window.innerWidth there is always above the breakpoint. The "← Weekly"
-  // button in day mode still lets a narrow-screen user reach the grid on purpose if they want it.
+  // a phone screen (each day column would be well under 50px). Default straight into "agenda"
+  // mode (expandable week cards — see the agenda branch below) on narrow screens instead of
+  // forcing the grid; desktop is unaffected since window.innerWidth there is always above the
+  // breakpoint. "day" mode is a separate thing, kept as-is: the single-day drill-down reached by
+  // tapping a cell in the full grid (WeekGrid's onDay), on either desktop or mobile.
   const isNarrow=typeof window!=="undefined"&&window.innerWidth<768;
-  const [selDay,setSel]=useState(()=>isNarrow?iso():null);
-  const [mode,setMode]=useState(()=>isNarrow?"day":"week");
+  const [selDay,setSel]=useState(iso()); // "day" mode's day, and month view's selected day
+  const [mode,setMode]=useState(()=>isNarrow?"month":"week");
   const [editState,setEditState]=useState(null); // {dateStr, block|null} — lifted up from WeekGrid so the Add Activity button can live in this header row, next to Clear plan/Refresh Plan
   const [replanMenu,setReplanMenu]=useState(false); // the Replan split-button's ▾ menu
   const p=data.profile;
+
+  // Month view's calendar pane auto-scrolls to the current month on open — a hook, so it must be
+  // called unconditionally every render (not inside the "month" branch below) per rules of hooks;
+  // the body itself just no-ops when mode isn't "month".
+  const monthScrollRef=useRef(null);
+  useEffect(()=>{
+    if(mode!=="month")return;
+    const key=`${new Date().getFullYear()}-${new Date().getMonth()}`;
+    monthScrollRef.current?.querySelector(`[data-month="${key}"]`)?.scrollIntoView({block:"start"});
+  },[mode]);
 
   // Clear the generated study plan from today forward — extracted from the old inline onClick so
   // the Replan menu can call it. Past days (history) are never touched.
@@ -94,10 +105,33 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
   const weekKey=iso(weekStart);
   const isWeekPlanned=!!data.studyPlan?.weeks?.[weekKey];
 
-  if(mode==="day"&&selDay)return(
+  if(mode==="day")return(
     <div className="fade">
+      <div className="row" style={{marginBottom:4,justifyContent:"space-between"}}>
+        <span style={{fontSize:12,color:"var(--t3)"}}>Week of {rangeLabel}</span>
+        <button className="btn btn-ghost btn-sm" onClick={()=>setMode("week")}>Full grid <i className="ti ti-layout-grid"/></button>
+      </div>
+      {/* Day-picker strip — without this, day mode was just a lone Timeline that read as "Today
+          again", not "the Week tab". This makes the week context visible and lets you switch
+          days without leaving to the 7-column grid at all. */}
+      <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {Array.from({length:7},(_,i)=>{
+          const d=new Date(weekStart);d.setDate(d.getDate()+i);
+          const ds=iso(d);
+          const isSel=ds===selDay,isToday=ds===iso();
+          return(
+            <button key={ds} onClick={()=>setSel(ds)}
+              style={{flex:"1 0 0",minWidth:40,padding:"7px 4px",borderRadius:10,
+                border:isToday?"1px solid var(--blue)":"1px solid transparent",
+                background:isSel?"var(--amber-bg)":"var(--card2)",color:isSel?"var(--amber)":"var(--t2)",
+                cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+              <div style={{fontSize:10,textTransform:"uppercase",opacity:0.7}}>{d.toLocaleDateString("en-US",{weekday:"short"})}</div>
+              <div style={{fontSize:15,fontWeight:600}}>{d.getDate()}</div>
+            </button>
+          );
+        })}
+      </div>
       <div className="row" style={{marginBottom:16}}>
-        <button className="btn btn-ghost btn-sm" onClick={()=>{setMode("week");setSel(null);}}><i className="ti ti-arrow-left"/> Weekly</button>
         <h2 style={{fontSize:19}}>{new Date(selDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</h2>
         {selDay===iso()&&<span className="badge badge-blue">Today</span>}
       </div>
@@ -118,6 +152,235 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
       )}
     </div>
   );
+
+  // ── MONTH — mobile default (<768px). A phone genuinely can't show "a week" as a useful unit —
+  // replaces the earlier expandable-week-cards concept entirely, not just tunes it. Apple-
+  // Calendar-style instead: a month grid, scrollable up/down through every month in the term (no
+  // per-week paging, no "Full grid" escape hatch to a view with no way back — the grid simply
+  // isn't offered on mobile at all now). Tapping any day selects it and shows its activities in a
+  // fixed panel below — a real two-pane split, not a long page, so the day detail never needs
+  // hunting for. Auto-scrolls to the current month on open (see the useEffect above). ──
+  if(mode==="month"){
+    const today=iso();
+    const monthsList=(()=>{
+      const out=[];
+      let start,end;
+      if(termRange){
+        start=new Date(termRange.start+"T12:00:00");
+        end=new Date(termRange.end+"T12:00:00");
+      }else{
+        const now=new Date();
+        start=new Date(now.getFullYear(),now.getMonth()-1,1);
+        end=new Date(now.getFullYear(),now.getMonth()+1,1);
+      }
+      let cur=new Date(start.getFullYear(),start.getMonth(),1);
+      const last=new Date(end.getFullYear(),end.getMonth(),1);
+      let guard=0;
+      while(cur<=last&&guard<36){ // 36-month hard cap, safety valve — matches termWeeks' pattern above
+        out.push({year:cur.getFullYear(),month:cur.getMonth()});
+        cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+        guard++;
+      }
+      return out;
+    })();
+    const monthGridDays=(year,month)=>{
+      const first=new Date(year,month,1);
+      const last=new Date(year,month+1,0);
+      const gridStart=new Date(first);gridStart.setDate(gridStart.getDate()-gridStart.getDay());
+      const gridEnd=new Date(last);gridEnd.setDate(gridEnd.getDate()+(6-gridEnd.getDay()));
+      const days=[];
+      for(let d=new Date(gridStart);d<=gridEnd;d.setDate(d.getDate()+1))days.push(new Date(d));
+      return days;
+    };
+    const selBlocks=realDayBlocks(data,selDay);
+    // Flat chronological list for the day-detail pane — buildBlocks already returns every real
+    // activity (classes, meals, gym, commute, sleep, the actual study blocks) sorted by start
+    // time, so no lane/overlap logic is needed the way the graphical Timeline grid requires; a
+    // plain top-to-bottom list is both simpler and a better fit for this panel's width. Sleep is
+    // filtered out — it's not a schedulable "activity" the way the rest of this list is, it's
+    // just the wake↔sleep boundary, and showing it as two separate rows (midnight→wake,
+    // bedtime→midnight) added nothing anyone asked to see.
+    const dayBlocks=buildBlocks(selDay,data,selBlocks).filter(b=>b.type!=="sleep");
+    // Which activity types earn a dot marker under a day's number — routine/filler ones (sleep,
+    // commute, meals) are on every in-term day regardless of anything actually being scheduled,
+    // so they'd just add noise rather than signal; these are the ones worth knowing about at a
+    // glance, same idea as Apple Calendar's dots representing actual events, not routine state.
+    const NOTABLE_TYPES=["class","study","homework","project","gym","exam","chore","fun","deadline"];
+
+    return(
+      <div className="fade" style={{height:"calc(100vh - 90px)",display:"flex",flexDirection:"column"}}>
+        {/* Calendar pane — its own scroll, independent of the day-detail pane below */}
+        <div ref={monthScrollRef} style={{flex:"0 0 46%",overflowY:"auto",WebkitOverflowScrolling:"touch",
+          borderBottom:"1px solid var(--b1)",paddingBottom:8}}>
+          <div style={{position:"sticky",top:0,zIndex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",
+            background:"var(--bg)",padding:"2px 0 4px"}}>
+            {["S","M","T","W","T","F","S"].map((l,i)=>(
+              <div key={i} style={{textAlign:"center",fontSize:13,color:"var(--t3)",fontWeight:600}}>{l}</div>
+            ))}
+          </div>
+          {monthsList.map(({year,month})=>(
+            <div key={`${year}-${month}`} data-month={`${year}-${month}`} style={{marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",padding:"6px 4px"}}>
+                {new Date(year,month,1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                {monthGridDays(year,month).map(d=>{
+                  const ds=iso(d);
+                  const inMonth=d.getMonth()===month;
+                  // Leading/trailing days from adjacent months fill out the grid to whole weeks,
+                  // but each month is its own scrollable section here (unlike a single-month
+                  // paged calendar) — that adjacent month gets its own full grid right above or
+                  // below, so showing its dates again here would just be a dim, non-interactive
+                  // preview of it. Left blank instead, keeping the grid's alignment intact.
+                  if(!inMonth)return<div key={ds}/>;
+                  const isToday=ds===today;
+                  const isSel=ds===selDay;
+                  // Outside the actual term (not just outside this calendar month) — no data
+                  // exists for these days, so they're disabled rather than clickable-but-empty.
+                  // A day merely from an adjacent month but still inside the term (e.g. the first
+                  // few days of next month trailing off this grid) stays fully interactive.
+                  const outOfTerm=!!termRange&&(ds<termRange.start||ds>termRange.end);
+                  const dotTypes=outOfTerm?[]:
+                    Array.from(new Set(buildBlocks(ds,data,realDayBlocks(data,ds)).map(b=>b.type)))
+                      .filter(t=>NOTABLE_TYPES.includes(t)).slice(0,4);
+                  return(
+                    <button key={ds} onClick={()=>setSel(ds)} disabled={outOfTerm}
+                      style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                        gap:2,border:"none",cursor:outOfTerm?"default":"pointer",fontFamily:"inherit",borderRadius:8,
+                        background:isSel?"var(--amber-bg)":"transparent"}}>
+                      {/* Today = a solid filled circle around the date number (Apple Calendar's
+                          convention); selection is a separate, lighter cue (the cell's own amber
+                          tint above) so a day can be both at once without the two fighting. */}
+                      <span style={{width:26,height:26,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+                        fontSize:14,fontWeight:isToday?700:400,
+                        background:isToday?"var(--amber)":"transparent",
+                        color:isToday?"var(--bg)":outOfTerm?"var(--t3)":isSel?"var(--amber)":"var(--t1)",
+                        opacity:outOfTerm?0.3:1}}>
+                        {d.getDate()}
+                      </span>
+                      <div style={{display:"flex",gap:2,height:4}}>
+                        {dotTypes.map(t=>(
+                          <span key={t} style={{width:4,height:4,borderRadius:"50%",background:tc(t).line}}/>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Day-detail pane — always on screen, independently scrollable if that day runs long */}
+        <div style={{flex:"1 1 auto",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingTop:12}}>
+          <div className="row" style={{marginBottom:10,justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+              <h2 style={{fontSize:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {new Date(selDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+              </h2>
+              {selDay===today&&<span className="badge badge-blue" style={{flexShrink:0}}>Today</span>}
+            </div>
+            {/* Actions for the selected day/week — the desktop grid's toolbar (Add activity, plan
+                diagnostics, Replan) isn't reachable from month view at all otherwise, since there's
+                no path from here into that toolbar. Scoped to selDay, not "today" — matches what
+                you're actually looking at. marginRight keeps the group off the pane's true edge. */}
+            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,marginRight:6}}>
+              <button className="tt tt-below tt-right icon-btn-28" data-tt="Add activity to this day"
+                style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",
+                  cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}
+                onClick={()=>setEditState({dateStr:selDay,block:null})}>
+                <i className="ti ti-plus" style={{fontSize:14}}/>
+              </button>
+              <button className="tt tt-below tt-right icon-btn-28" data-tt="Plan status & diagnostics"
+                style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",
+                  cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,position:"relative"}}
+                onClick={()=>setPlanDrawerOpen(true)}>
+                <i className="ti ti-stethoscope" style={{fontSize:14}}/>
+                {data.planStale&&<span style={{position:"absolute",top:1,right:2,width:6,height:6,borderRadius:"50%",background:"var(--amber)"}}/>}
+              </button>
+              <div style={{display:"flex",position:"relative"}}>
+                <button className="tt tt-below tt-right" data-tt="Replan this day's week"
+                  style={{background:"var(--red)",color:"#fff",border:"none",borderRadius:"14px 0 0 14px",
+                    width:28,height:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}
+                  onClick={()=>refreshWeekPlan(weekStartOf(selDay))} disabled={planning}>
+                  {planning?<Sp sz={12}/>:<i className="ti ti-sparkles" style={{fontSize:13}}/>}
+                </button>
+                <button className="tt tt-below tt-right" data-tt="More replan options"
+                  onClick={()=>setReplanMenu(o=>!o)} disabled={planning}
+                  style={{background:"var(--red)",color:"#fff",border:"none",borderLeft:"1px solid rgba(255,255,255,0.28)",
+                    borderRadius:"0 14px 14px 0",width:20,height:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                  <i className="ti ti-chevron-down" style={{fontSize:11}}/>
+                </button>
+                {replanMenu&&(
+                  <>
+                    <div onClick={()=>setReplanMenu(false)} style={{position:"fixed",inset:0,zIndex:60}}/>
+                    <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:61,minWidth:200,
+                      background:"var(--card)",border:"1px solid var(--b1)",borderRadius:9,padding:5,
+                      boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                      <button className="btn btn-ghost btn-sm" style={{width:"100%",justifyContent:"flex-start"}}
+                        onClick={()=>{setReplanMenu(false);refreshQuarterPlan();}} disabled={planning}>
+                        <i className="ti ti-sparkles"/> Replan whole term
+                      </button>
+                      <div style={{borderTop:"1px solid var(--b1)",margin:"4px 0"}}/>
+                      <button className="btn btn-ghost btn-sm" style={{width:"100%",justifyContent:"flex-start",color:"var(--amber)"}}
+                        onClick={()=>{setReplanMenu(false);clearPlan();}}>
+                        <i className="ti ti-calendar-off"/> Clear plan (today forward)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* The list below always shows the day's real fixed schedule (classes, meals, gym —
+              buildBlocks includes these regardless of AI planning status) — it's never hidden
+              behind a "not planned yet" wall the way it used to be. This is just a status note —
+              no action button here, since it'd only duplicate the Replan icon above. */}
+          {!weekHasBeenPlanned(data,selDay)&&(
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",marginBottom:10,
+              background:"var(--amber-bg)",color:"var(--amber)",borderRadius:10,fontSize:12.5}}>
+              <i className="ti ti-sparkles" style={{fontSize:14,flexShrink:0}}/>
+              <span>Study time isn't planned for this week yet.</span>
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {dayBlocks.map((b,i)=>{
+              const c=tc(b.type);
+              const isDeadline=b.type==="deadline";
+              return(
+                <div key={i} className="card" style={{
+                  display:"flex",alignItems:"center",gap:10,padding:"9px 11px",margin:0,
+                  borderLeft:`4px solid ${c.line}`,borderRadius:6,
+                  opacity:b.type==="commute"?0.6:b.completed?0.55:1}}>
+                  <div style={{flexShrink:0,minWidth:isDeadline?68:112,fontSize:12,color:c.text,fontWeight:600,whiteSpace:"nowrap"}}>
+                    {isDeadline?f12(m2t(b.s)):`${f12(m2t(b.s))} – ${f12(m2t(b.e))}`}
+                  </div>
+                  <div style={{flex:1,minWidth:0,fontSize:14,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {b.completed&&"✓ "}{b.autoMoved&&"↻ "}{b.label}
+                  </div>
+                </div>
+              );
+            })}
+            {dayBlocks.length===0&&(
+              <div style={{textAlign:"center",padding:"20px 0",color:"var(--t3)",fontSize:13}}>Nothing scheduled.</div>
+            )}
+          </div>
+        </div>
+        {editState&&(
+          <BlockEditModal
+            dateStr={editState.dateStr}
+            block={editState.block}
+            courses={data.courses}
+            onSave={(d,b)=>saveBlockToDay(data,upd,d,b)}
+            onDelete={editState.block?(d,id)=>deleteBlockFromDay(data,upd,d,id):null}
+            onComplete={entry=>logCompletion(data,upd,entry)}
+            onClose={()=>setEditState(null)}
+          />
+        )}
+        <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan}/>
+      </div>
+    );
+  }
 
   const gymD=(p.gymDays||GYM0).filter(g=>g.on);
   const gymTarget=gymD.length;

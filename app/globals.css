@@ -45,13 +45,23 @@
     }
 
     /* Base font size increased to 17px (was 15px) */
-    html{font-size:17px;}
+    html{font-size:17px; overflow-x:hidden;}
     body{
       background:var(--bg); color:var(--t1);
       font-family:'Inter',sans-serif; min-height:100vh;
       line-height:1.6; font-weight:400;
       -webkit-font-smoothing:antialiased;
+      overflow-x:hidden; max-width:100vw;
     }
+    /* Hard page-level guarantee: the page itself must never scroll or overflow horizontally,
+       full stop — this is the backstop, not the fix. Every genuine horizontal-scroll case (data
+       tables, the nav row, day-picker strips) already scrolls inside its own explicit
+       overflow-x:auto container; this rule only catches something that SHOULDN'T scroll but
+       would otherwise push the page wider than the viewport (the acad-tabs-row flex/min-width
+       bug was exactly that class of bug, caught after the fact — this exists so the next one like
+       it clips instead of creating a page-wide horizontal scrollbar). If something looks clipped
+       rather than reflowed, that's this rule surfacing a real layout bug elsewhere to fix at the
+       source — not a reason to remove it. */
 
     /* Typography — all sizes increased proportionally */
     h1{font-size:1.65rem; font-weight:600; color:var(--t1); line-height:1.3;}
@@ -203,6 +213,92 @@
     @media (max-width: 480px){
       .g2, .g3, .g4 { grid-template-columns: 1fr; }
     }
+
+    /* Top bar + nav — Sub-project: Web-Mobile Enablement item #4. The top bar packs brand +
+       greeting + term badge + missing-due-dates warning + API status + version + two icon
+       buttons into one 50px row, and the nav row packs 8 full-label tab buttons — neither has
+       remotely enough width on a phone. Layout properties live here (not inline) specifically so
+       the media queries below can override them without !important fighting App.jsx's inline
+       styles. Desktop (>768px / >640px) renders identically to before — nothing here changes
+       above those widths. */
+    .topbar-row{background:var(--surface); padding:0 20px; display:flex; align-items:center; gap:12px; height:50px; border-bottom:1px solid var(--b1);}
+    .nav-row{background:var(--surface); padding:0 20px; display:flex; gap:2px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-bottom:1px solid var(--b1);}
+    .nav-tab-btn{display:flex; align-items:center; gap:5px; padding:11px 15px; font-size:13px; background:transparent; border:none; cursor:pointer; font-family:inherit; font-weight:400; margin-bottom:-1px; white-space:nowrap; flex-shrink:0;}
+    /* Revised from the original item #4: an icon+tiny-label row (8 shrunk tabs crammed in one
+       line) read as cramped even though it technically fit — the standard mobile pattern is a
+       hamburger button opening a full-label dropdown instead, which is also one fewer full-width
+       row taking up vertical space permanently. .header-spacer-nav below shrinks to match. */
+    .mobile-menu-btn{display:none;}
+    .header-spacer-nav{height:92px;}
+    @media (max-width:768px){
+      .nav-row{display:none;}
+      .mobile-menu-btn{display:flex;}
+      .header-spacer-nav{height:50px;}
+    }
+    @media (max-width:640px){
+      /* Keep only what's essential on a phone: hamburger + brand mark and the actionable
+         missing-due-dates warning on the left, account (and bug-report) on the right. Greeting,
+         term badge, API status and the version stamp are all either decorative or diagnostic —
+         cut them rather than let them force a second row or clip. */
+      .topbar-row{padding:0 12px; gap:8px;}
+      .topbar-greet, .topbar-term, .topbar-api, .topbar-version{display:none;}
+      .topbar-missing{max-width:150px; overflow:hidden; text-overflow:ellipsis;}
+    }
+
+    /* Plan status drawer — top offset matches the fixed header's real height, same 92→50 split as
+       .header-spacer-nav (nav row disappears below 768px); without this the drawer left a 42px
+       gap at its top on mobile, exposing whatever sat behind it. Its own width already handles
+       mobile correctly via width:"min(880px,100vw)" inline. */
+    .plandrawer-panel{top:92px;}
+    @media (max-width:768px){
+      .plandrawer-panel{top:50px;}
+    }
+
+    /* Sub-project: Web-Mobile Enablement item #4 — Today tab touch-target pass. The Focus Time
+       play/pause/complete buttons are the one control on this tab tapped most often, and at 28px
+       they're under Apple/Google's ~44px recommended minimum tap target. Bumped on narrow screens
+       only; desktop keeps the tighter 28px since a mouse doesn't need the extra margin. */
+    .icon-btn-28{width:28px; height:28px;}
+    @media (max-width:640px){
+      .icon-btn-28{width:38px; height:38px;}
+    }
+
+    /* Sub-project: Web-Mobile Enablement item #5 — onboarding step-bar. 8 circles + 7 connectors
+       + a "<Step name> · n/N" label sum to well over a phone's width, with no wrap/shrink
+       handling. Shrinks below 640px and swaps to a compact "n/N" label; overflow-x:auto stays on
+       as a safety net so a step is never truly inaccessible even on the narrowest phones. */
+    .onboard-stepbar{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    .onboard-step-circle{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
+    .onboard-step-connector{width:12px; height:1.5px; flex-shrink:0;}
+    .onboard-step-label-short{display:none;}
+    @media (max-width:640px){
+      .onboard-step-circle{width:20px; height:20px; font-size:9.5px;}
+      .onboard-step-connector{width:7px;}
+      .onboard-step-label-full{display:none;}
+      .onboard-step-label-short{display:inline;}
+    }
+
+    /* Academics sub-tab bar (Courses/Assignments/Exams/GPA/Difficulty/Update Syllabus) — 6
+       icon-less pill tabs wrapped to a second line on narrow screens instead of scrolling, and
+       the pills themselves are desktop-sized regardless of viewport.
+       min-width:0 is load-bearing: this div is a flex CHILD of the tab-bar row in Acad.jsx, and
+       flex items default to min-width:auto ("never shrink below my content"), which overrides
+       overflow-x:auto entirely — it can't be the one that scrolls if it's not allowed to shrink,
+       so instead of scrolling internally it pushed past its container and overflowed the whole
+       page. min-width:0 is what actually lets it shrink and activates the scroll — kept on as a
+       defensive fallback, but below 480px the labels themselves abbreviate (acad-tab-label-full/
+       -short) so all 6 tabs actually fit one row without needing to scroll at all. */
+    .acad-tabs-row{overflow-x:auto; -webkit-overflow-scrolling:touch; min-width:0;}
+    .acad-tab-btn{padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-size:14px; font-weight:400; position:relative; transition:all 0.15s; white-space:nowrap; flex-shrink:0;}
+    .acad-tab-label-short{display:none;}
+    @media (max-width:640px){
+      .acad-tab-btn{padding:7px 12px; font-size:13px;}
+    }
+    @media (max-width:480px){
+      .acad-tab-btn{padding:6px 8px; font-size:12px;}
+      .acad-tab-label-full{display:none;}
+      .acad-tab-label-short{display:inline;}
+    }
     .row{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
 
     /* List row — a leading checkbox/icon, flexible label text, optional trailing badge/button,
@@ -261,8 +357,16 @@
        leave their card's body text starting at the exact same row — actual alignment, not just
        equal card heights. */
     .feature-card-sm{padding:14px 16px; display:flex; flex-direction:column;}
-    .feature-icon-sm{width:30px; height:30px; border-radius:8px; font-size:14px; margin-bottom:9px;}
-    .feature-card-title{font-size:13px; font-weight:700; color:var(--t1); line-height:1.3; margin-bottom:4px; min-height:2.6em;}
+    /* margin:0 overrides .feature-icon's margin-bottom:14px (meant for the standalone hero icon
+       above) — without it, this small icon's taller margin-box throws off align-items:center on
+       .feature-card-header, so the icon renders visibly above center instead of level with the
+       title text beside it. */
+    .feature-icon-sm{width:30px; height:30px; border-radius:8px; font-size:14px; flex-shrink:0; margin:0;}
+    .feature-card-title{font-size:13px; font-weight:700; color:var(--t1); line-height:1.3;}
+    /* Icon sits beside the title instead of above it (saves a row of vertical space per card).
+       min-height keeps this header the same height whether the title wraps 1 or 2 lines, so the
+       body text below still starts at the same row across all 4 cards. */
+    .feature-card-header{display:flex; align-items:center; gap:9px; margin-bottom:8px; min-height:34px;}
     .feature-card-body{font-size:11px; color:var(--t2); line-height:1.4;}
 
     /* Calendar — larger fonts */
