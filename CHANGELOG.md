@@ -1,5 +1,572 @@
 # StudyOS Changelog
 
+## v2.59.15 — 2026-09-13
+
+**Plan status: single "Replan → fill 100%" action, correctly sequenced**
+
+Per explicit clarification: one button, one click — not a stage-then-separately-replan flow.
+
+- Renamed the button `Prioritise N → fill 100%` → `Replan N → fill 100%` (`ti-sparkles` icon) —
+  it now does the whole job on click: marks the items forced *and* runs the actual replan, not
+  just a staging step.
+- Brought back the `pendingAutoReplan` effect from v2.59.13 (armed by the click, fires
+  `refreshQuarterPlan` once `data` has genuinely updated) — this part was correct before; what
+  broke it was also setting `planStale:true`, which drives a *separate*, pre-existing banner
+  ("Changes not applied yet") meant for setHours/setForced's manual, not-auto-replanned edits.
+  Setting it here just for the instant before this effect cleared it again produced two
+  overlapping "please replan" prompts for what should be one action. `prioritiseSelected` no
+  longer touches `planStale` at all — only this one button appears, and only while `sel` is
+  non-empty, exactly matching "uncheck removes it unless another item is still checked."
+- Updated the stale "Then Replan to apply" help text below the table, which no longer described
+  the actual flow.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.14 — 2026-09-13
+
+**Plan status: reverted Prioritise to the one pattern that's actually proven correct**
+
+v2.59.13's auto-trigger (an effect watching `data`) fixed the stale-data bug but created a new
+problem: since the "Changes not applied yet — Replan now" banner is driven purely by
+`planStale` (true the instant `prioritiseSelected` runs), it appeared immediately, and then the
+auto-triggered replan's own confirm dialog popped up on top of it — two overlapping "replan"
+prompts for one action, with the banner's own button now redundant and confusing.
+
+- `prioritiseSelected` is back to setting `forced:true` + `planStale:true` and stopping there —
+  exactly matching `setForced` (the per-item star-icon toggle), which was never touched and never
+  had this bug. The "Changes not applied yet — Replan now" banner is the one, single place that
+  actually triggers the replan, as its own deliberate click — by which point React has already
+  applied the forced flags, so `refreshQuarterPlan` closes over current data, not stale data.
+  Removed the `pendingAutoReplan` effect entirely rather than trying to patch it further.
+- Removed the amber background added to the Need cell on check (v2.59.13) — reported as
+  rendering black, and per feedback not wanted regardless of color.
+- The "Prioritise N → fill 100%" button's position and wording are unchanged throughout all of
+  this — only the mechanism behind what happens after you click it changed.
+
+**Expected flow now:** check items → **Prioritise N → fill 100%** (marks them) → the amber banner
+appears → **Replan now** → confirm → the item should no longer show Short, assuming there's
+enough free time before its due date to actually fit it — forced priority means "goes first, ahead
+of everything else," not a way to manufacture calendar time that doesn't exist. If it's still
+short after a completed replan with real available capacity, that's still worth reporting as a bug.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.13 — 2026-09-13
+
+**Prioritise back to one click — auto-replans once the data actually lands, not before**
+
+v2.59.12's fix was correct about the root cause but overcorrected to a manual two-step flow. This
+keeps the fix and removes the extra click.
+
+- `prioritiseSelected()` now sets `forced:true` and arms a `pendingAutoReplan` flag instead of
+  calling `refreshQuarterPlan()` directly. A new effect watches `data` itself and fires
+  `refreshQuarterPlan()` exactly once `data` has genuinely changed — i.e. once React has actually
+  applied the forced flags — rather than in the same synchronous tick as the `upd()` call that
+  scheduled them. Net effect for you: still one click on "Prioritise → fill 100%"; the correct
+  sequencing now happens automatically instead of needing a second "Replan now" click.
+- Checking a row now highlights its **Need** cell (amber background) — visual confirmation of
+  which row is about to be pinned to 100% before you commit to Prioritise.
+
+**Validation:** 81 tests pass, `npm run build` clean. Please re-test the full one-click flow
+(check → Prioritise → confirm the replan prompt) and confirm the item no longer comes back Short.
+
+## v2.59.12 — 2026-09-13
+
+**Fix: "Prioritise → fill 100%" replanned against stale data — a real bug, not the UI**
+
+- Root cause: `prioritiseSelected()` called `upd({...forced:true})` and then, in the same
+  synchronous call, `refreshQuarterPlan()` — but `upd` schedules a React state update, it doesn't
+  apply it immediately, and `refreshQuarterPlan` is a plain function in App.jsx closing over
+  *that render's* `data`. Calling it right after `upd()` meant it ran the actual replan against
+  the pre-update snapshot — the `forced:true` flag this function had just set wasn't visible to
+  the replan supposed to apply it, so the real, persisted schedule never actually prioritised the
+  item. That's why it came back "Short" — the replan genuinely never saw the flag.
+- `setForced` (the per-item star-icon toggle, same file) already had this right: set
+  `planStale:true` and stop, no chained replan call. `prioritiseSelected` now follows the same
+  pattern — the flow is now check items → **Prioritise** (marks them, no longer force-replans
+  itself) → the existing "Changes not applied yet — Replan now" banner appears → clicking it runs
+  the replan as a separate click, by which point React has re-rendered and `refreshQuarterPlan`
+  closes over real, current data.
+
+**Validation:** 81 tests pass, `npm run build` clean. This was a genuine logic bug (not something
+visual to eyeball) — please re-test the full flow (check → Prioritise → Replan now) and let me
+know if the checkbox/indicator persistence issue was this same root cause or something separate.
+
+## v2.59.11 — 2026-09-13
+
+**Fix: unchecking a Plan status checkbox didn't dismiss its action button**
+
+- Root cause: the checkbox column was 22px wide, but `DoneCheckbox` is 18x18px and `Td`'s own
+  padding adds 16px horizontal on top of that — a real 34px minimum, 12px more than the column
+  had. The checkbox was visibly bleeding into the Item column next to it, so what you saw didn't
+  line up with what was actually catching the click — toggling it back off could land on
+  something else in that space instead (the Item column's own star-icon handler, for one), so
+  the underlying selection never actually cleared and the action button stayed visible.
+- Widened col0 to 34px (the real minimum), Item gave back a few px to cover it (130→122).
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.10 — 2026-09-13
+
+**Plan status: 2 follow-ups + a question answered**
+
+- **Class divider was a run-length check, not real grouping** — it inserted a divider whenever
+  the course changed from the row *directly above*, so a course whose items weren't already
+  adjacent in the priority/date-sorted list could get split across multiple dividers instead of
+  one clean section. Replaced with actual grouping (`groupByClass`): every item for a course is
+  now listed together under exactly one divider — "one line for Class, then all its items, then
+  the next divider" — using a `Map` to preserve first-appearance order, so the most urgent course
+  still leads.
+- **Item was too wide** — it went back to a fixed 130px column instead of the unconstrained
+  `auto` column it became when Class was removed. `auto` meant it silently absorbed 100% of the
+  freed space; every column here is now a deliberate, bounded width, so none of them is left to
+  soak up arbitrary leftover room. Table `minWidth` 360→402 to match the fully-fixed sum.
+- **The left checkbox isn't new** — it's original functionality, unrelated to any of this
+  session's changes: on the Overdue table it stages items you've actually finished (via "Save"),
+  on the Per-item table it selects items to force-prioritise in the next replan (via
+  "Prioritise → fill 100%"). Likely just easier to notice now that the table isn't as visually
+  crowded.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.9 — 2026-09-13
+
+**Plan status: Class moved from a column to a section-divider line**
+
+- Class repeated the same course name down every row (rows are sorted by priority/due date, not
+  grouped by course) — a whole column spent on a value that often didn't change row to row.
+  Replaced with a `ClassDivider` row, inserted only where the course actually changes from the
+  row before it — same information, without a dedicated column. Row order is unchanged; this
+  doesn't regroup by course, it just stops repeating the name every row.
+- Freed width split between Item (still gets the most, as the one `auto` column) and a bit more
+  breathing room for Due/Diff/Priority/Short, per feedback that all the saved space shouldn't
+  just go to one column. Table `minWidth` 390→360 to match.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.8 — 2026-09-13
+
+**Plan status drawer: column widths actually rebalanced, not just made scrollable**
+
+v2.59.7 made the tables scroll instead of overflow the page; this pass fixes the columns
+themselves per specific feedback on each one.
+
+- **Dropped the trailing empty column** — both tables always rendered `<Td />` there; it never
+  held content in either one, just 44px of dead space plus a column's worth of padding.
+- **Due**: was showing the raw ISO date ("2026-09-20") in a 104px column. Now a compact "9/20" in
+  44px — this alone was most of the "too much space, too generous a format" complaint.
+- **Class/Diff shrunk** to what their real content needs (108px→50px, 62px→36px) — both already
+  degrade safely at a tight width (Class truncates with an ellipsis, Diff wraps a rare "Very
+  High" to two lines) rather than breaking, so there was genuinely spare room to give back.
+- **Priority rounded to a whole number** ("129" not "128.7") and its column tightened — the extra
+  decimal precision wasn't worth the width it cost in a compact diagnostic column.
+- **Item** (the one column that was actually cramped) gets all the space freed up by the above —
+  it's the only `auto`-width column, so every pixel reclaimed elsewhere goes straight to it.
+- **Need** stays a deliberately generous 74px — `HoursInput` (components/shared/ui.jsx) has its
+  own hardcoded 64px input; shrinking the column below that would just reintroduce the same
+  bleed-into-neighbor bug fixed on the Exams table earlier this session.
+- Table `minWidth` dropped 600→390, matching the new fixed-column sum (~310px) plus a reasonable
+  minimum for Item — the table now genuinely fits most phone widths without scrolling at all;
+  `overflow-x:auto` stays on purely as a fallback for the narrowest devices.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.7 — 2026-09-13
+
+**Plan status drawer too wide on mobile**
+
+- The drawer's own width already handled mobile correctly (`width:"min(880px,100vw)"`), but its
+  two data tables (Overdue, Per-item) didn't — 9 columns with a fixed-width sum around 566px,
+  `width:"100%"` but no `overflowX:"auto"` wrapper and no `minWidth`, so on a ~380px-wide mobile
+  drawer they had nowhere to go but overflow. Wrapped both in `overflow-x:auto` with
+  `minWidth:600`, matching the same pattern already proven on the Academics tables.
+- Also fixed while in here: the drawer's `top:92` assumed the old two-row header height — below
+  768px the nav row is hidden (v2.58.0's hamburger menu) and the header is only 50px, so the
+  drawer was leaving a 42px gap at its top on mobile, exposing whatever sat behind it. Moved to a
+  `.plandrawer-panel` CSS class with the same 92→50 breakpoint `.header-spacer-nav` already uses.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.6 — 2026-09-13
+
+**Month grid: adjacent-month days no longer shown**
+
+- Each month's grid was filling its leading/trailing cells with the previous/next month's actual
+  dates (dimmed, since `monthsList` renders every month in the term as its own full section, that
+  adjacent month already gets its own complete grid right above or below — showing it again here
+  was just a redundant, non-interactive preview). Those cells are now blank, keeping the grid's
+  weekday alignment intact without displaying another month's days inside this one.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.5 — 2026-09-13
+
+**3 small fixes to the nav and month view**
+
+- Nav tab renamed "Weekly" → "Calendar" (App.jsx's `TABS`, so it updates everywhere the label is
+  used — the desktop row and the hamburger dropdown both read from the same array).
+- Removed the "Plan this week" button from the day-detail's amber status banner — it duplicated
+  the Replan icon in the header above (both called `refreshWeekPlan` on the same week, with no
+  indication they were the same action, reading as two different features). The banner is now
+  just a status note ("Study time isn't planned for this week yet."), no redundant action.
+- Action-icon group (Add / diagnostics / Replan) now sits `marginRight:6` off the pane's true edge
+  instead of flush against it.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.4 — 2026-09-13
+
+**Month view: 3 fixes + action buttons added to the day-detail pane**
+
+- **Sleep rows removed** from the day-detail list — it's not a schedulable activity, just the
+  wake↔sleep boundary, and it was showing as two separate rows (midnight→wake, bedtime→midnight)
+  that added nothing.
+- **"Not planned yet" no longer hides the real schedule.** It used to replace the whole list with
+  just a prompt whenever AI study blocks hadn't been generated for that week — but `buildBlocks`
+  already includes the real fixed schedule (classes, meals, gym) regardless of AI-planning
+  status, so a day with real class time was being hidden behind an unrelated gate. Now the list
+  always shows; an amber banner above it (not a replacement) offers "Plan this week" only when
+  actually relevant.
+- **Action buttons added** — Add activity / plan diagnostics / Replan (this week, whole term, or
+  clear) now live in the day-detail pane's header, scoped to the selected day/week. These existed
+  only in the desktop grid's toolbar before, genuinely unreachable from month view since there's
+  no path from here into that toolbar anymore (the grid itself isn't offered on mobile, v2.59.0).
+
+**Not fixed here — needs your input:** the term-start date shown (8/21) not matching what you
+typed (8/12) is very likely because `getTermRange()` prefers an active **College Calendar
+quarter's** dates over the profile's typed Term Start field whenever one exists (`lib/data/
+calendar.js`) — the month view is just the first place that visualizes that boundary directly.
+Worth checking School Info → the college calendar's quarter dates if 8/21 isn't actually your
+first day of classes; happy to dig further with specifics if that's not it.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.3 — 2026-09-13
+
+**Academics: 3 fixes, one a real regression from earlier this session**
+
+- **Sub-tab bar**: below 480px, labels abbreviate (Assign/Exams/GPA/Diff/Sync) and padding
+  tightens further, so all 6 tabs genuinely fit within the page width — not just scrollable
+  in-place, actually fitting, per feedback that scrolling wasn't the answer here.
+- **Exams table — a real regression from v2.57.10**: that change widened Topics to 220px but
+  left the table's `minWidth` at 680 — the six *fixed* columns alone already summed to 734px, so
+  the "flexible" Exam-title column had negative space to work with and collapsed to ~0, forcing
+  every character onto its own line (the "overlapped, many lines" bug just reported). Topics
+  brought back to a more reasonable 170px and `minWidth` raised to 850 — comfortably above the
+  684px fixed-column sum, giving Exam title a genuine ~166px minimum.
+- **GPA table**: Class was left as the one flexible column, which on the horizontal-scroll
+  fallback ballooned to whatever was left over at the table's `minWidth`, pushing Grade %/
+  Credits/Letter far enough right that Credits read as pinned to whichever edge was in view after
+  scrolling. Converted to four fixed, tightly-sized columns instead (150/95/80/62, `minWidth`
+  520→387) — no more ambiguity about who absorbs leftover space, and the table now needs far less
+  scroll room on a phone. Course name gets ellipsis overflow as the safety net instead of room to
+  grow, matching how Assignments/Exams already protect their own fixed columns.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.2 — 2026-09-13
+
+**Month view calendar pane: 5 tuning fixes**
+
+- **Days outside the term are now disabled**, not just dimmed — a real `<button disabled>`, so
+  they can't be selected or show a (nonexistent) activity list. Distinct from "outside this
+  calendar month": a trailing day from next month still inside the term stays fully clickable,
+  same as before — only the term's actual start/end boundary disables a day.
+- **Today's circle is now amber/orange** (was blue), matching the app's actual orange accent.
+- **Dots under each day now show one per distinct activity type present** (was a single generic
+  dot for "any block exists"), colored via the same `tc(type).line` function as the day-detail
+  list below it — so a day with both a class and study time shows an amber dot and a green dot,
+  not one dot meaning nothing in particular. Capped at 4 and skips routine/filler types (sleep,
+  commute, meals) that are on every day regardless of anything actually scheduled — Apple
+  Calendar's dots represent real events, not routine state, and this follows that.
+- Day-number font: 13px → 14px. Weekday header letters (S M T W T F S): 11px → 13px.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.1 — 2026-09-13
+
+**Month view's day-detail panel: plain chronological list instead of the 3-column Timeline grid**
+
+- The day-detail pane was using the shared `Timeline` component — a graphical Morning/Afternoon/
+  Evening 3-column grid with absolutely-positioned blocks, designed for a much wider surface. At
+  the panel's actual width it would have rendered three ~110px columns, unusably cramped.
+- Replaced with a plain top-to-bottom list: one row per activity, "9:30am – 10:30am  MATH180"
+  format, sorted morning→evening. Built directly on `buildBlocks()` (the same function `Timeline`
+  itself uses) — every real activity (classes, meals, gym, commute, sleep, actual study blocks)
+  in one flat sorted list, no lane/overlap logic needed the way the graphical grid requires.
+- **Same color code as everywhere else in the app**: each row's left edge is a 4px stripe in that
+  block's `tc(type).line` color — the exact function `Timeline` and `WeekGrid` already use, so
+  green study blocks, amber classes, purple gym, etc. all mean the same thing here as everywhere
+  else. Sleep/commute rows are dimmed, completed blocks get a ✓, auto-shifted ones a ↻ — matching
+  `Timeline`'s existing conventions rather than inventing new ones.
+- A real cross-component bug caught in the process: giving each row `className="card"` without
+  overriding its `margin-bottom:14px` would have doubled up with the list's own `gap:6` spacing —
+  added `margin:0` on each row so only the intended 6px gap applies.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.59.0 — 2026-09-13
+
+**Weekly tab, mobile: rebuilt again — Apple-Calendar-style month view**
+
+v2.58.0's expandable week cards had a real bug (its "Full grid" button led to the 7-column grid
+with no way back) and, more fundamentally per Avishai's read: a phone can't usefully show "a
+week" as a unit at all, in any form. Rebuilt around a different unit entirely — the month —
+instead of iterating on the week concept again.
+
+- Below 768px, Weekly now opens to a **month calendar**: a scrollable grid spanning every month
+  in the current term (scroll up/down for adjacent months, like Apple Calendar's month view),
+  auto-scrolled to the current month on open. Today's date sits in a solid filled circle; a small
+  dot below any date marks a day with scheduled blocks; tapping a day selects it (amber tint).
+- **Selecting a day shows its activities in a fixed panel below the calendar** — a real two-pane
+  split (`display:flex; flex-direction:column`, each pane independently `overflow-y:auto`), not a
+  long page, so the day's schedule is always on screen the moment you tap a date, never requiring
+  a scroll to find it.
+- **The 7-column grid is no longer offered on mobile at all** — directly answering "why do we
+  offer grid view for mobile users if there's no way back": there isn't a path to it anymore, so
+  there's nothing to get stuck in. Desktop's grid (`mode==="week"`) and the single-day drill-down
+  reached by tapping a grid cell (`mode==="day"`) are both untouched — this only changes what
+  narrow screens default into.
+- The month grid uses `grid-template-columns:repeat(7,1fr)` with no fixed pixel widths anywhere —
+  inherently immune to the class of overflow bug fixed in v2.57.9/v2.57.11, not just guarded by
+  the global backstop.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live in this
+session; worth checking on an actual phone before iterating further.
+
+## v2.58.0 — 2026-09-13
+
+**Weekly tab, mobile: new "expandable week cards" concept replaces the single-day default**
+
+Rather than iterate again on the single-day-plus-day-picker-strip approach (v2.57.7), picked a
+genuinely different concept with Avishai first (3 options presented, this one chosen): a week
+gives more useful information as an overview than as one day at a time.
+
+- Below 768px, Weekly now opens to a new **agenda** mode: all 7 days of the current week as
+  stacked cards, each showing weekday/date/Today badge + a block-count and total-duration summary
+  when collapsed. Tapping a card expands it inline into that day's full Timeline (accordion — one
+  open at a time), collapsing whichever was open before. Today's card opens by default.
+  - Gives the "shape of the week" at a glance — which days are packed vs. light — something the
+    single-day view couldn't show at all without switching days repeatedly.
+  - Week nav (prev/next arrows, "This week"/date-range label) sits above the cards, deliberately
+    built with no fixed-width elements (unlike the grid toolbar's 300px week-select dropdown) so
+    it can't reintroduce the page-overflow class of bug fixed in v2.57.9/v2.57.11.
+  - "Full grid" still reaches the 7-column grid on purpose (e.g. desktop-like use on a tablet).
+- The old single-day view (`mode==="day"`) is **not removed** — it's still what opens when you tap
+  a specific day cell in the full grid (`WeekGrid`'s `onDay`), on desktop or mobile alike; only
+  its role as the narrow-screen *default* changed. Desktop's default (the full grid) is untouched.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live in this
+session; worth checking on an actual phone.
+
+## v2.57.11 — 2026-09-13
+
+**Global guard against page-level horizontal overflow, plus a full audit**
+
+- Added `overflow-x:hidden` on both `html` and `body` (plus `max-width:100vw` on body) — a hard
+  backstop so the page itself can never scroll or overflow left/right, regardless of what causes
+  it. This doesn't replace fixing root causes (the acad-tabs-row bug was fixed properly, not
+  papered over) — it's insurance against the *next* one: something that shouldn't scroll but
+  would otherwise widen the page now clips instead of creating a page-wide scrollbar.
+- Audited every `overflow-x`/`overflowX` container in the app (7 in Acad.jsx, one each in
+  Week.jsx and globals.css's nav-row/onboard-stepbar/acad-tabs-row) for the exact flex-child +
+  missing-`min-width:0` bug found in acad-tabs-row — none of the others are flex children of
+  another flex row the same way, so that was genuinely isolated, not systemic.
+- Also checked every modal (`width:100%` + `maxWidth` pattern throughout — already correctly
+  responsive) and every fixed pixel width/min-width ≥300px in the codebase for narrow-viewport
+  risk — nothing else stood out as a live bug. One dropdown menu (Week.jsx's "Replan options",
+  right-anchored) could theoretically run off the left edge on an unusually narrow phone; the new
+  global guard means that now clips harmlessly instead of breaking the page, so it's noted rather
+  than separately reworked.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.57.10 — 2026-09-13
+
+**Exams table: Topics column crowding/overstepping into Due**
+
+- Topics was the one unconstrained column (absorbing all leftover table width), which on a wide
+  screen could balloon, and — since a single long unbroken token isn't force-wrapped by default —
+  a long enough one could visually bleed past its own cell into Due instead of wrapping.
+- Swapped which column flexes: **Exam** (title) now absorbs the slack instead of Topics — moving
+  the flexible space to the left column, as asked. Topics gets a fixed, bounded 220px instead of
+  an unbounded width. Both cells also get `overflow-wrap:break-word` as an independent guard, so
+  even an unusually long single word wraps within its own column instead of bleeding into the next.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.57.9 — 2026-09-13
+
+**Fix: Academics tab row was overflowing the whole page, not just scrolling internally**
+
+- Root cause: `.acad-tabs-row` (v2.57.7) has `overflow-x:auto`, but it's also a flex *child* of
+  the tab-bar row in Acad.jsx — flex items default to `min-width:auto` ("never shrink below my
+  own content"), which silently overrides `overflow-x:auto`. It couldn't be the thing that
+  scrolls if it was never allowed to shrink in the first place, so instead of scrolling
+  internally it just pushed past its container and overflowed the entire page horizontally.
+  Added `min-width:0`, the standard fix for this exact flexbox interaction — the row now actually
+  shrinks to available width and scrolls within itself as originally intended.
+- Checked the other `overflow-x:auto` rows added this session (main nav, Exams/GPA tables,
+  Week's day-picker strip, onboarding step-bar) for the same bug — none of them are flex children
+  of another flex row the way `.acad-tabs-row` is, so this was an isolated case, not systemic.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.57.8 — 2026-09-13
+
+**Mobile nav, revised again: hamburger dropdown instead of the icon-row tab bar**
+
+- v2.57.4's icon+tiny-label row technically fit all 8 tabs on one line, but read as cramped —
+  and there was unused space to the right of it the whole time. Replaced below 768px with the
+  standard mobile pattern instead: a "☰" (`ti-menu-2`) button in the top bar opens a dropdown
+  listing all 8 tabs with full icon + label (not abbreviated), same visual style as the existing
+  term-switcher dropdown in Academics. Selecting a tab closes the menu.
+  - Desktop (≥768px) is completely unchanged — still the full labeled row, unaffected.
+  - Bonus: the nav row (a full extra 42px-tall bar) now disappears entirely on mobile instead of
+    just shrinking, so `.header-spacer-nav` shrinks to match — that's real vertical space back for
+    content on every screen below 768px, not just a tidier tab bar.
+  - Removed the now-dead short-label plumbing (`TABS[].short`, `.nav-tab-label-full/-short`) that
+    the icon-row approach needed and the dropdown doesn't.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
+## v2.57.7 — 2026-09-13
+
+**Landing copy + Week nav confusion + Academics tables/sub-tabs, all from live phone testing**
+
+- **Landing page**: "...plans your study time for the semester..." → "...for the quarter/semester...",
+  since StudyOS handles both term systems, not just semester schools.
+- **Week tab landing on what looked like Today again**: tapping "Week" on a narrow screen (below
+  768px, per v2.57.0 item #2) drops straight into a single day's Timeline with only a small
+  "← Weekly" ghost button — visually indistinguishable from the Today tab, no week context
+  anywhere. Added a "Week of <range>" label and a 7-day picker strip above the Timeline, so it
+  reads as the Week tab (a week of days) and days can be switched without leaving to the 7-column
+  grid at all. The grid is still one tap away, relabeled "Full grid" for clarity.
+- **Academics sub-tabs (Courses/Assignments/Exams/GPA/Difficulty/Update Syllabus)**: 6 icon-less
+  pills wrapped to a second line on narrow screens. Now scroll horizontally instead (matches the
+  main nav's item #3 treatment) and shrink below 640px so they're not full desktop size on a
+  phone either.
+- **Exams table** had unclaimed empty space on the right; **GPA table**'s Credits/Letter columns
+  bunched up against the right edge with dead space before them. Same root cause in both: no
+  `table-layout:fixed`, so the column meant to flex (Topics; Class) didn't actually absorb the
+  slack — auto-layout under-sized it instead. Fixed by copying the exact pattern the Assignments
+  table already uses correctly (`table-layout:fixed` + an explicit `<colgroup>` with one
+  unconstrained `<col/>`): added `EXAM_COLS`/`GPA_COLS`, applied to all four tables (Exams
+  upcoming + completed, GPA). Exams' completed table was also missing the horizontal-scroll
+  wrapper and `minWidth` its own upcoming table has — added for consistency.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live in this
+session — these are direct fixes for issues Avishai found testing on his actual phone.
+
+## v2.57.6 — 2026-09-13
+
+**Web-Mobile Enablement item #5 — onboarding step-bar**
+
+- 8 step circles + 7 connectors + a "`<Step name>` · n/N" label summed to well over 400px with no
+  wrap or shrink handling — on a phone this either overflowed the card or ran off-screen with no
+  way to see later steps. Below 640px, circles shrink 26px→20px, connectors 12px→7px, and the
+  label swaps to a compact "n/N" (dropping the step name, which is redundant with the highlighted
+  current circle). `overflow-x:auto` stays on as a safety net regardless of width, so a step is
+  never truly unreachable even on the narrowest phones.
+- Same pattern as items #3/#4: static sizing moved out of inline styles into `onboard-step-*` CSS
+  classes so the media query can override them; only the per-step state colors (done/current/
+  upcoming) stay inline.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live.
+
+## v2.57.5 — 2026-09-13
+
+**Web-Mobile Enablement item #4 — Today tab touch-target pass**
+
+- The Focus Time play/pause/complete buttons — the control tapped most often on this tab — were
+  28px, under Apple's/Google's ~44px recommended minimum tap target. New `.icon-btn-28` CSS class
+  keeps them at 28px on desktop (a mouse doesn't need the margin) but bumps to 38px below 640px.
+  Applied the same class to the header's bug-report and account buttons (App.jsx) for consistency
+  — the account button in particular is the only way to sign out, so it's worth the same treatment.
+- Rest of the Today tab (Deadline Awareness alignment, Focus Time row alignment, both fixed
+  earlier this session) already covers the bulk of what this item asked for; this closes the
+  remaining explicit "bump 28px tap targets" note from the MOBILE.md tracking table.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live.
+
+## v2.57.4 — 2026-09-13
+
+**Landing feature-box icon centering + mobile nav tabs get short labels instead of icon-only**
+
+- **Landing page 4 feature boxes**: icon looked visibly above-center against its title text.
+  Root cause: the small header icon uses both `feature-icon` and `feature-icon-sm` classes
+  together, and `feature-icon` carries `margin-bottom:14px` (meant for the large standalone hero
+  icon elsewhere on the page) that `feature-icon-sm` never overrode — the icon's taller margin-box
+  threw off `align-items:center` on the row. Added `margin:0` to `feature-icon-sm`.
+- **Mobile nav tabs, revised from v2.57.3**: that build went icon-only below 768px, relying on the
+  existing "tt" tooltip to carry each label. Caught before shipping further: tooltips fire on
+  `:hover`, which a touchscreen tap doesn't reliably trigger — icon-only would have left every tab
+  unlabeled on exactly the phone-width breakpoint it targets. Replaced with the standard
+  phone-tab-bar pattern instead: icon on top, a tiny (9px) short label below it ("Acad", "Prog",
+  "Prefs", etc.) — still compact enough that all 8 tabs fit one row with no scrolling, but every
+  icon stays identified without depending on hover.
+
+**Validation:** 81 tests pass, `npm run build` clean. Still not visually verified live — same
+in-session resize-tool limitation as prior mobile items; worth checking on an actual phone.
+
+## v2.57.3 — 2026-09-13
+
+**Web-Mobile Enablement item #4 — top bar + nav row, the last piece of the header genuinely
+unusable on a phone**
+
+Both rows packed desktop-density content into one line with no narrow-screen treatment at all —
+worked around by horizontal scroll (nav) or just overflowing (top bar), neither a real fix.
+
+- **Top bar**: below 640px, drops everything non-essential — greeting, term/finals badge, API
+  connection status, version stamp — down to brand mark, the actionable missing-due-dates
+  warning, and the account/bug-report buttons. Reduced side padding (20px→12px) and gap
+  (12px→8px) to match. The missing-due-dates badge also gets a max-width + ellipsis safeguard so
+  a long "N missing due dates" string can't itself force an overflow.
+- **Nav tabs**: below 768px, labels disappear and tabs go icon-only — the existing "tt" tooltip
+  (already used for the bug-report/account icon buttons) carries the label on hover/long-press,
+  same pattern as those. All 8 tabs now fit in one row at phone width with no scrolling needed,
+  instead of the horizontal-scroll workaround from item #3.
+- Layout properties (padding/gap/etc.) for both rows moved from inline styles into two new CSS
+  classes (`.topbar-row`, `.nav-row`, `.nav-tab-btn`) specifically so the media queries could
+  override them cleanly — inline styles otherwise beat a CSS class and would have needed
+  `!important`. Only the selection-state-dependent bits (active tab color/underline) stay inline.
+
+**Validation:** 81 tests pass, `npm run build` clean. Not yet visually verified live — same
+in-session limitation as items #1–3 (the browser automation's resize tool doesn't affect real
+viewport width here) — needs a real check on an actual phone or via Chrome DevTools device mode.
+
+## v2.57.2 — 2026-09-13
+
+**Today tab: fixed two column-alignment bugs (Deadline Awareness + Focus Time), both root-caused to
+missing fixed widths on variable-length text**
+
+- **Deadline Awareness time tags**: the "3d"/"6d"/"in 6 days"/"⚠ Enter date" pill and the
+  "✓ planned"/"not yet" status text after it had no fixed width, so a row with a wider tag (e.g.
+  "in 6 days") pushed its own status text further right than rows with a short tag ("3d") — the
+  whole trailing column looked staggered instead of aligned. Both now have a fixed `minWidth`, so
+  every row's tag and status text start at the same x regardless of content length.
+- **Focus Time play buttons**: root cause was the duration label ("30m" vs "1h") next to the play
+  button having no fixed width — that changed the button+duration group's min-content size per
+  row, which changed how much the task-text column to its left got squeezed (flex-shrink math),
+  which visibly shifted the play button left/right row to row. Gave the duration label a fixed
+  `minWidth` so the group's width — and therefore the button's position — is now identical on
+  every row regardless of duration.
+- Not yet visually re-verified live (the in-session browser resize tool still doesn't affect the
+  actual page viewport — confirmed again this session via `window.innerWidth`) — worth a real
+  check on an actual phone or via Chrome DevTools device mode.
+
+## v2.57.0 — 2026-09-13
+
+**Web-Mobile Enablement items #1–3** — see `MOBILE.md` (`docs/backlog` branch)
+
+All three implemented as additive breakpoints/viewport checks — desktop rendering unaffected (verified live: Weekly still defaults to the full grid on desktop).
+
+- **#1 `.g2/.g3/.g4` grid collapse**: below 480px, these shared 2/3/4-equal-column classes stack to one column instead of crushing labeled inputs to ~65-80px — fixes Preferences, Onboarding wizard, and Account modal simultaneously (they all share these classes).
+- **#2 Weekly auto-day-mode**: below 768px, `Week.jsx` now defaults straight into the existing single-day agenda view (today) instead of forcing the 7-column time grid, which genuinely can't fit a phone screen. The "← Weekly" button still lets a narrow-screen user reach the grid on purpose.
+- **#3 Top nav no longer clips tabs**: the tab row was `overflowX:"hidden"` — once tabs didn't fit a narrow screen, the excess ones were invisible and unreachable, not just cramped. Switched to `overflowX:"auto"` with `flexShrink:0` per tab, so it scrolls horizontally instead — nothing is ever unreachable again.
+
+**Validation:** 81 tests pass, `npm run build` clean. Live-verified desktop is unaffected (Weekly still opens to the grid). The narrow-viewport behavior itself couldn't be visually verified this session — the browser resize tool isn't taking effect in this environment — worth a real check on an actual phone.
+
 ## v2.56.7 — 2026-09-13
 
 **SMS opt-in: added "consent is optional" line, matching Twilio's web-form example 100%**

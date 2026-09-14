@@ -187,7 +187,7 @@ export function Login({ recoveryMode = false, onDone }) {
               From Syllabus to a Complete Study Plan
             </div>
             <p style={{ fontSize: 16, color: "var(--t2)", lineHeight: 1.65, marginBottom: 28, maxWidth: 420 }}>
-              Upload your syllabus. StudyOS understands your courses, plans your study time for the semester, and helps you stay on track every day.
+              Upload your syllabus. StudyOS understands your courses, plans your study time for the quarter/semester, and helps you stay on track every day.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
               <button className="btn btn-action" style={{ padding: "13px 26px", fontSize: 15 }} onClick={() => go("signup")}>Get Started</button>
@@ -224,8 +224,10 @@ export function Login({ recoveryMode = false, onDone }) {
           {FEATURES.map((f, i) => (
             <Fragment key={f.title}>
               <div className="feature-card feature-card-sm">
-                <div className="feature-icon feature-icon-sm"><i className={`ti ${f.icon}`} /></div>
-                <div className="feature-card-title">{f.title}</div>
+                <div className="feature-card-header">
+                  <div className="feature-icon feature-icon-sm"><i className={`ti ${f.icon}`} /></div>
+                  <div className="feature-card-title">{f.title}</div>
+                </div>
                 <div className="feature-card-body">{f.body}</div>
               </div>
               {i < FEATURES.length - 1 && <SketchArrow className="feature-arrow" />}

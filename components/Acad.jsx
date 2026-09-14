@@ -642,13 +642,59 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     </colgroup>
   );
 
+  // Same table-layout:fixed pattern as ASSIGN_COLS above, and for the same reason: without it
+  // (as the Exams table previously was), auto layout leaves leftover width unclaimed instead of
+  // giving it to the one column that should flex — Exam title is the unconstrained <col/> here
+  // (sits left of Topics, per feedback), same role "assignment title" plays in ASSIGN_COLS.
+  // Both cells get overflow-wrap below as a second, independent guard against a single long
+  // unbroken token bleeding into a neighboring cell.
+  //
+  // Regression fixed here: an earlier pass widened Topics to 220px but left the table's minWidth
+  // at 680 — the six FIXED columns alone already summed to 734px, so the "flexible" Exam column
+  // had negative space to work with and collapsed to ~0, forcing every character of its own text
+  // onto its own line (the "overlapped, many lines" bug). Topics brought back down to a more
+  // reasonable 170px, and minWidth raised to 850 — comfortably above the 684px fixed-column sum,
+  // giving Exam a genuine ~166px minimum, matching the ~130px margin ASSIGN_COLS gives its own
+  // flexible column at its minWidth.
+  const EXAM_COLS=(
+    <colgroup>
+      <col style={{width:118}}/>{/* class */}
+      <col/>{/* exam title */}
+      <col style={{width:170}}/>{/* topics */}
+      <col style={{width:104}}/>{/* due */}
+      <col style={{width:70}}/>{/* weight */}
+      <col style={{width:132}}/>{/* grade */}
+      <col style={{width:90}}/>{/* actions */}
+    </colgroup>
+  );
+
+  // GPA table: unlike Assignments/Exams, a course name doesn't need a genuinely unbounded
+  // column — leaving Class as the flexible <col/> made it balloon on the horizontal-scroll
+  // fallback (whatever's left over after the other three at the table's minWidth), which is what
+  // pushed Grade %/Credits/Letter far enough right, and made Credits specifically read as pinned
+  // against whatever edge was currently in view after scrolling. All four columns are fixed here
+  // instead — no ambiguity about who absorbs leftover space — sized tight enough that the whole
+  // table needs far less (ideally no) horizontal scroll on a phone. Class gets ellipsis overflow
+  // instead of room to grow, same safety net Assignments/Exams already rely on for long text.
+  const GPA_COLS=(
+    <colgroup>
+      <col style={{width:150}}/>{/* class */}
+      <col style={{width:95}}/>{/* grade % */}
+      <col style={{width:80}}/>{/* credits */}
+      <col style={{width:62}}/>{/* letter */}
+    </colgroup>
+  );
+
+  // `short` is only shown below 480px (see .acad-tab-label-short in globals.css) — abbreviated
+  // enough that all 6 tabs fit one row within a phone's width with no scrolling needed at all,
+  // rather than just being individually smaller and still relying on horizontal scroll.
   const VIEWS=[
-    {id:"courses",    l:"Courses"},
-    {id:"assignments",l:"Assignments",warn:missing.length>0},
-    {id:"exams",      l:"Exams"},
-    {id:"grades",     l:"GPA"},
-    {id:"difficulty", l:"Difficulty",warn:diffDirty||data.planStale},
-    {id:"sync",       l:"Update Syllabus"},
+    {id:"courses",    l:"Courses",    short:"Courses"},
+    {id:"assignments",l:"Assignments",short:"Assign",warn:missing.length>0},
+    {id:"exams",      l:"Exams",      short:"Exams"},
+    {id:"grades",     l:"GPA",        short:"GPA"},
+    {id:"difficulty", l:"Difficulty", short:"Diff",warn:diffDirty||data.planStale},
+    {id:"sync",       l:"Update Syllabus",short:"Sync"},
   ];
   const gpa=calcGPA(termCourses);
 
@@ -694,19 +740,21 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             );
           })()}
         </div>
-        {/* Tab bar + Review Difficulty button, same row */}
+        {/* Tab bar + Review Difficulty button, same row. Below 480px, labels abbreviate (see
+            .acad-tab-label-short in globals.css) so all 6 tabs actually fit within the page
+            width — no scrolling, no wrapping to a 2nd line. acad-tabs-row's overflow-x:auto stays
+            on purely as a defensive fallback, not the primary fix. */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          <div className="acad-tabs-row" style={{display:"flex",gap:4}}>
             {VIEWS.map(v=>(
-              <button key={v.id}
-                style={{padding:"8px 16px",borderRadius:8,border:"none",cursor:"pointer",
-                  fontFamily:"inherit",fontSize:14,fontWeight:400,
+              <button key={v.id} className="acad-tab-btn"
+                style={{
                   background:view===v.id?"var(--amber-bg)":"var(--card2)",
-                  color:view===v.id?"var(--amber)":"var(--t3)",
-                  position:"relative",transition:"all 0.15s"}}
+                  color:view===v.id?"var(--amber)":"var(--t3)"}}
                 title={v.id==="sync"?"Upload updated syllabus PDFs":undefined}
                 onClick={()=>{setView(v.id);setShowAddAssign(false);setShowAddExam(false);cancelEdit();}}>
-                {v.l}
+                <span className="acad-tab-label-full">{v.l}</span>
+                <span className="acad-tab-label-short">{v.short}</span>
                 {v.warn&&<span style={{position:"absolute",top:-3,right:-3,width:7,height:7,borderRadius:"50%",background:"var(--red)"}}/>}
               </button>
             ))}
@@ -1101,8 +1149,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   return(
                     <tr key={e.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none",opacity:isPast?0.55:1}}>
                       <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{courseNameFor(data.courses,e.courseId)}</td>
-                      <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>{e.title||"Exam"}</td>
-                      <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)"}}>{e.topics||"—"}</td>
+                      <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)",overflowWrap:"break-word"}}>{e.title||"Exam"}</td>
+                      <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",overflowWrap:"break-word"}}>{e.topics||"—"}</td>
                       <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                         {!hasDate?(
                           <span className="tt" data-tt="Click to add exam date" onClick={()=>startEditExam(e)}
@@ -1152,7 +1200,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       <>
                         <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,marginTop:4}}>Upcoming</div>
                         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",marginBottom:20}}>
-                        <table style={{width:"100%",minWidth:680,borderCollapse:"collapse"}}>
+                        <table style={{width:"100%",minWidth:850,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                          {EXAM_COLS}
                           <thead>
                             <tr style={{borderBottom:"1px solid var(--b1)"}}>
                               <TableHead label="Class" col="class" sortBy={examSort} setSortBy={setExamSort}/>
@@ -1174,11 +1223,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     {completed.length>0&&(
                       <>
                         <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Completed</div>
-                        <table style={{width:"100%",borderCollapse:"collapse"}}>
+                        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                        <table style={{width:"100%",minWidth:850,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                          {EXAM_COLS}
                           <tbody>
                             {completed.map((e,i,arr)=>ExamRow(e,i,arr,true))}
                           </tbody>
                         </table>
+                        </div>
                       </>
                     )}
                   </>
@@ -1278,13 +1330,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
               <div style={DIVIDER}/>
               <div style={{...INNER,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:520,borderCollapse:"collapse"}}>
+                <table style={{width:"100%",minWidth:387,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {GPA_COLS}
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
                       <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Class</th>
-                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600,width:110}}>Grade %</th>
-                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600,width:80}}>Credits</th>
-                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600,width:60}}>Letter</th>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Grade %</th>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Credits</th>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Letter</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1293,18 +1346,18 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                       return(
                         <tr key={c.id} style={{borderBottom:i<termCourses.length-1?"1px solid var(--b1)":"none"}}>
                           <td style={{padding:"9px 8px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
                               <div style={{width:8,height:8,borderRadius:"50%",background:c.color.border,flexShrink:0}}/>
-                              <span style={{fontSize:14,color:"var(--t1)"}}>{c.name}</span>
+                              <span style={{fontSize:14,color:"var(--t1)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
                             </div>
                           </td>
                           <td style={{padding:"6px 8px"}}>
-                            <input type="number" min="0" max="100" placeholder="e.g. 91" style={{fontSize:13,padding:"5px 7px",width:80}}
+                            <input type="number" min="0" max="100" placeholder="e.g. 91" style={{fontSize:13,padding:"5px 7px",width:74}}
                               value={c.grade??""}
                               onChange={e=>upd({courses:data.courses.map(x=>x.id===c.id?{...x,grade:e.target.value===""?null:+e.target.value}:x)})}/>
                           </td>
                           <td style={{padding:"6px 8px"}}>
-                            <input type="number" min="0.5" max="10" step="0.5" placeholder="4" style={{fontSize:13,padding:"5px 7px",width:60}}
+                            <input type="number" min="0.5" max="10" step="0.5" placeholder="4" style={{fontSize:13,padding:"5px 7px",width:58}}
                               value={c.credits??4}
                               onChange={e=>upd({courses:data.courses.map(x=>x.id===c.id?{...x,credits:e.target.value===""?4:+e.target.value}:x)})}/>
                           </td>
