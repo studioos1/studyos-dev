@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.59.17 — 2026-09-14
+
+**Disabled Next.js's dev-mode "N" indicator badge**
+
+- Not part of the app — a framework-level debugging badge `next dev` shows in a screen corner,
+  dev-only (never appears in production builds). Turned off via `devIndicators:false` in
+  `next.config.mjs`.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.59.16 — 2026-09-13
 
 **Toasts: error/important ones move higher, persist until closed, and wrap instead of overflowing**
