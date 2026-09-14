@@ -110,6 +110,18 @@ function ClassDivider({ name }) {
   );
 }
 
+// Exam/Project/Essay are the "heavier" item types — marked with a leading * in both tables,
+// exams additionally in red text, so a dense table still surfaces which items carry more weight/
+// stakes at a glance. Exam and Project both have a real structural field to key off (kind==="exam"
+// from source.type; isProject from buildItemDemand's own finer kind — see lib/planDiagnostics.js).
+// Essay has no such field — display-only title match, same spirit as the existing looksLikeProject
+// heuristic elsewhere in the app; doesn't touch scheduling, purely visual.
+function ItemTitle({ it }) {
+  const isExam = it.kind === "exam";
+  const heavy = isExam || it.isProject || /essay/i.test(it.title || "");
+  return <span style={{ color: isExam ? "var(--red)" : undefined }}>{heavy && "* "}{it.title}</span>;
+}
+
 function ColGroup() {
   return <colgroup>{COL_W.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>;
 }
@@ -386,7 +398,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                 opacity: staged ? 0.5 : 1,
                               }}>
                                 <Td><DoneCheckbox checked={staged} onToggle={() => toggleComplete(it.id)} /></Td>
-                                <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}>{it.title}</Td>
+                                <Td clip style={{ textDecoration: staged ? "line-through" : undefined }}><ItemTitle it={it} /></Td>
                                 <Td nowrap style={{ color: staged ? "var(--t3)" : "var(--red)", fontWeight: 600 }}>{fmtShortDate(it.dueDate)}</Td>
                                 <Td align="right" muted>{it.difficulty || "—"}</Td>
                                 <Td align="right" muted>—</Td>
@@ -435,7 +447,7 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                     onClick={() => setForced(it, false)}
                                     style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
                                 )}
-                                {it.title}
+                                <ItemTitle it={it} />
                               </Td>
                               <Td muted nowrap>{fmtShortDate(it.dueDate)}</Td>
                               <Td align="right" muted>{it.difficulty || "—"}</Td>

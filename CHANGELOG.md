@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.60.1 — 2026-09-14
+
+**Plan status: Exam/Project/Essay items marked with *, Exams also in red**
+
+- Both tables (Overdue, Per item) now prefix the title with `*` for Exam, Project, or Essay
+  items — the "heavier"/higher-stakes item types — and render Exam titles in red specifically,
+  so the denser tables still surface which rows carry more weight at a glance.
+- Exam and Project both key off a real structural field: `kind==="exam"` (already used elsewhere
+  in this file) and a new `isProject` field threaded through from `buildItemDemand`'s own kind
+  ("homework"/"project"/"study") via `lib/planDiagnostics.js` — the diagnostics item shape only
+  exposed "assignment" vs "exam" before, collapsing homework and project together.
+- Essay has no structural type field to key off (unlike exam/project) — display-only title match
+  (`/essay/i`), same spirit as the existing `looksLikeProject` heuristic elsewhere in the app.
+  Purely visual, doesn't touch scheduling.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.0 — 2026-09-14
 
 **Real fix: forcing an exam or project didn't actually give it priority over competing items**
