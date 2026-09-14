@@ -1,5 +1,27 @@
 # StudyOS Changelog
 
+## v2.59.16 — 2026-09-13
+
+**Toasts: error/important ones move higher, persist until closed, and wrap instead of overflowing**
+
+Prompted by the "N items came up short" toast after a replan being gone before it could be read.
+
+- `toast2(m,e)` used to auto-dismiss everything on a fixed 3s timer regardless of message length
+  or importance. Routine confirmations ("Added!", "Saved!") still do — fine to miss, low stakes.
+  Error/important toasts (`e:true`) now persist until dismissed via a new × button, never on a
+  timer. A second `toast2()` call while one's already showing now cancels any pending auto-dismiss
+  timer instead of two timers racing to clear whichever toast happens to be up at the time.
+- Moved from `bottom:22px` to just below the header (`top:92px` desktop, `top:58px` mobile — same
+  split `.header-spacer-nav` already uses), so it's immediately visible instead of easy to miss at
+  the screen's bottom edge.
+- Also fixed a real overflow bug this surfaced: `white-space:nowrap` meant a longer message (like
+  a multi-item shortfall list) just stretched the toast pill wider than the viewport instead of
+  wrapping — clipped by the page's own `overflow-x:hidden` guard, so part of the message was
+  literally cut off, not just hard to read in time. Wraps within `max-width:min(480px,100vw-32px)`
+  now.
+
+**Validation:** 81 tests pass, `npm run build` clean.
+
 ## v2.59.15 — 2026-09-13
 
 **Plan status: single "Replan → fill 100%" action, correctly sequenced**

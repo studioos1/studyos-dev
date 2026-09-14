@@ -141,7 +141,19 @@ function App(){
 
   function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
-  function toast2(m,e){setToast({m,e});setTimeout(()=>setToast(null),3000);}
+  // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
+  // stakes. Error/important toasts (e:true — e.g. "N items came up short") used to auto-dismiss
+  // on the exact same fixed 3s regardless of length, which for a longer actionable message meant
+  // it was gone before it could be read. Those now persist until closed via the toast's own ×,
+  // never on a timer. toastTimer tracks the pending auto-dismiss so a second toast2() call (of
+  // either kind) while one is already showing cancels the old timer instead of both racing to
+  // clear the (now different) toast early.
+  const toastTimer=useRef(null);
+  function toast2(m,e){
+    if(toastTimer.current){clearTimeout(toastTimer.current);toastTimer.current=null;}
+    setToast({m,e});
+    if(!e)toastTimer.current=setTimeout(()=>{setToast(null);toastTimer.current=null;},3000);
+  }
   async function sendBugReport(message){
     await submitBugReport({message,page:tab,appVersion:APP_VERSION});
     setShowBugReport(false);
@@ -499,7 +511,19 @@ function App(){
           :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg}/>
         }
       </div>
-      {toast&&<div className="toast" style={{background:toast.e?"var(--red-bg)":"var(--card2)",color:toast.e?"var(--red)":"var(--t2)"}}>{toast.m}</div>}
+      {toast&&(
+        <div className="toast" style={{background:toast.e?"var(--red-bg)":"var(--card2)",color:toast.e?"var(--red)":"var(--t2)"}}>
+          <span>{toast.m}</span>
+          {/* Only the persistent (error/important) toasts get a close button — routine ones still
+              just fade out on their own, no extra control needed for something that's gone in 3s. */}
+          {toast.e&&(
+            <button onClick={()=>setToast(null)} aria-label="Dismiss"
+              style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",padding:2,marginLeft:4,display:"flex",flexShrink:0}}>
+              <i className="ti ti-x" style={{fontSize:15}}/>
+            </button>
+          )}
+        </div>
+      )}
       {modalApp}
       {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
         onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}

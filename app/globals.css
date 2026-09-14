@@ -320,7 +320,18 @@
     .spin{width:16px; height:16px; border:2px solid var(--b2); border-top-color:var(--amber); border-radius:50%; animation:rot 0.7s linear infinite; display:inline-block;}
 
     /* Toast */
-    .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); padding:11px 22px; border-radius:9px; font-size:14px; z-index:9999; background:var(--card2); color:var(--t2); white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+    /* top:92px matches the two-row desktop header; below 768px the nav row disappears (hamburger
+       menu) and the header is only 50px, so the toast moves up to match — same split
+       .header-spacer-nav/.plandrawer-panel already use. Was bottom:22px + white-space:nowrap: a
+       longer message (e.g. a multi-item shortfall list) just stretched the pill wider than the
+       viewport instead of wrapping, clipped by the page's own overflow-x:hidden guard — unreadable
+       both from position (easy to miss at the bottom) and from literally being cut off. Wraps
+       within a bounded max-width now instead. */
+    .toast{position:fixed; top:92px; left:50%; transform:translateX(-50%); padding:11px 18px; border-radius:9px; font-size:14px; z-index:9999; background:var(--card2); color:var(--t2); max-width:min(480px,calc(100vw - 32px)); box-shadow:0 4px 20px rgba(0,0,0,0.5); display:flex; align-items:center; gap:10px;}
+    .toast span{white-space:normal; overflow-wrap:break-word;}
+    @media (max-width:768px){
+      .toast{top:58px;}
+    }
 
     /* Daily message preview (Today tab) */
     .daily-msg{background:var(--card2); border-radius:10px; padding:15px 17px; font-size:14px; line-height:1.7; color:var(--t2); white-space:pre-wrap; max-width:100%;}
