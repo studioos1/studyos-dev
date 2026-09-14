@@ -1,5 +1,36 @@
 # StudyOS Changelog
 
+## v2.64.0 — 2026-09-14
+
+**Nav: easy back-to-Today, hamburger closes on outside click; Assignments On-time gets a real formula**
+
+- **Back to Today**: the check-in shortcut on Today's header (the amber checkbox icon) now takes
+  you to Progress with a small "← Back to Today" link at the top — appears only when you actually
+  arrived via that shortcut, and is cleared on any normal nav click so it never lingers once
+  you've navigated elsewhere on purpose. Tracked via a new `progBackTo` state in App.jsx and a
+  `go(id)` wrapper that every normal nav handler (nav-row, hamburger dropdown, the
+  missing-due-dates badge) now goes through instead of calling `setTab` directly.
+- **Hamburger menu now closes on outside click**, not just on picking an option — same invisible
+  full-screen click-catcher pattern already used for Today's health-dot popover, just applied
+  here too. Real, reported bug: previously the only way to dismiss it was choosing a tab.
+- **Assignments On-time**, reformulated as a continuous per-item score instead of a binary
+  on-time/late count — a student can now score above 100% for submitting early:
+  - On time = 100%. Early = bonus, `+5%` per day early, capped at 10 days (max +50%). Late = the
+    same shrinking credit, `-10%` per day late, floored at 0 — so a late submission gets partial
+    credit back rather than zero. Still-missing items score the same shrinking-credit formula
+    live against *today* (so the score keeps dropping the longer it sits undone), then locks in
+    wherever it landed the moment it's actually marked done.
+  - Extracted to `lib/metrics.js` (`assignmentOnTimeScore`) specifically so this real formula has
+    real unit tests, rather than living untested inside the Today.jsx component — same
+    "pure logic separated from the component" convention the planner already follows.
+  - Tunable constants (`ONTIME_EARLY_BONUS_PER_DAY`, `ONTIME_EARLY_BONUS_CAP_DAYS`,
+    `ONTIME_LATE_PENALTY_PER_DAY`) centralized at the top of that module.
+
+**Validation:** 100 tests pass (6 new for the scoring formula, including a monotonicity check —
+later can never score better than earlier). `npm run build` clean. Verified live end-to-end: the
+check-in shortcut → Back to Today link → return; hamburger open → click elsewhere → closes
+without navigating; confirmed the back link does NOT appear when Progress is reached normally.
+
 ## v2.63.0 — 2026-09-14
 
 **Progress tab: Catch Up — a forgotten day no longer permanently deflates Study Pace**

@@ -8,7 +8,7 @@ import { CATCHUP_DAYS, catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
-export function Prog({data,upd,toast2,ai,busy}){
+export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   const logs=data.dailyLogs||[],gymLogs=data.gymLogs||[],p=data.profile;
   const td=iso(),gymD=(p.gymDays||GYM0).filter(g=>g.on),gymTarget=gymD.length;
   const streak=(()=>{let s=0;for(let i=0;i<30;i++){const d=iso(new Date(Date.now()-i*864e5));const l=logs.find(x=>x.date===d);if(l&&l.completed?.length>0)s++;else if(i>0)break;}return s;})();
@@ -86,6 +86,16 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
 
   return(
     <div className="fade">
+      {/* Only appears right after arriving via Today's check-in shortcut (App.jsx's goCheckIn) —
+          cleared on any normal nav click, so it never lingers once the user's navigated on
+          purpose. The reported ask: an easy, intuitive way back to Daily once done here. */}
+      {backTo&&(
+        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,
+          background:"none",border:"none",padding:0,marginBottom:12,cursor:"pointer",
+          color:"var(--blue)",fontSize:13,fontWeight:500}}>
+          <i className="ti ti-arrow-left" style={{fontSize:14}}/> Back to Today
+        </button>
+      )}
       <h2 style={{marginBottom:16}}>Progress</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"/>

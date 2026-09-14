@@ -11,10 +11,11 @@ import {
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
+import { assignmentOnTimeScore } from "@/lib/metrics";
 import { Sp, DiffBadge, DelBtn, Timeline, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
-export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab}){
+export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
   // Scoped to the current term — otherwise Deadline Awareness, Today's Classes, and everything
   // else here would consider every course/assignment/exam ever created, including years-old
   // completed terms kept for history. Safe: this component never writes directly to
@@ -87,14 +88,22 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const studyPace=paceMinPlanned>0?Math.round(100*paceMinDone/paceMinPlanned):null;
   const paceColor=studyPace===null?"var(--t3)":studyPace<60?"var(--red)":studyPace<85?"var(--amber)":"var(--green)";
 
-  // On-time Assignments — accumulated from the term's start through today: of everything that
-  // came due by today, how much was actually turned in on time. completedAt (stamped the moment
-  // status flips to "done" — see Acad.jsx / Prog.jsx) decides on-time vs late; an assignment
-  // marked done before that field existed has no completedAt and defaults to on-time rather than
-  // being penalized retroactively for data that was never recorded.
+  // Assignments On-time — accumulated from the term's start through today: every assignment due
+  // by today scored individually via assignmentOnTimeScore() above (on time=100%, early=bonus,
+  // late/still-missing=shrinking partial credit), then averaged — a continuous score, not a
+  // binary on-time/late count, so it can exceed 100% when enough items were done early.
+  // completedAt (stamped the moment status flips to "done" — see Acad.jsx / Prog.jsx) is the
+  // reference date; an assignment marked done before that field existed has no completedAt and
+  // defaults to its own due date (i.e. exactly on time) rather than being penalized retroactively
+  // for data that was never recorded. A still-open item scores against TODAY, so it keeps
+  // shrinking until it's actually done, then locks in wherever it landed.
   const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&a.dueDate<=td):[];
-  const onTimeCount=dueToDate.filter(a=>a.status==="done"&&(!a.completedAt||a.completedAt.slice(0,10)<=a.dueDate)).length;
-  const onTimePct=dueToDate.length>0?Math.round(100*onTimeCount/dueToDate.length):null;
+  const onTimeScores=dueToDate.map(a=>{
+    const refDate=a.status==="done"?(a.completedAt?a.completedAt.slice(0,10):a.dueDate):td;
+    const diffDays=Math.round((new Date(a.dueDate)-new Date(refDate))/864e5);
+    return assignmentOnTimeScore(diffDays);
+  });
+  const onTimePct=onTimeScores.length>0?Math.round(onTimeScores.reduce((s,v)=>s+v,0)/onTimeScores.length):null;
   const onTimeColor=onTimePct===null?"var(--t3)":onTimePct<60?"var(--red)":onTimePct<85?"var(--amber)":"var(--green)";
 
   // One headline for the whole card, driven by whichever metric is currently worse — saying
@@ -287,7 +296,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               icon row instead (amber-tinted so it still reads as "needs attention" without text).
               Same destination (Progress tab) either way. */}
           {!(data.dailyLogs||[]).some(l=>l.date===iso())&&(
-            <button className="tt" data-tt="Evening check-in not done yet — mark off what you finished" onClick={()=>setTab?.("prog")}
+            <button className="tt" data-tt="Evening check-in not done yet — mark off what you finished" onClick={()=>(onCheckIn?onCheckIn():setTab?.("prog"))}
               style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",
                 color:"var(--amber)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <i className="ti ti-checkbox" style={{fontSize:16}}/>
@@ -343,7 +352,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               )}
               {onTimePct!==null&&(
                 <div className="pace-metric-row">
-                  <span className="tt pace-metric-label" data-tt="Assignments due to date, submitted on time">On-time</span>
+                  <span className="tt pace-metric-label" data-tt="Assignments On-time: 100% for on time, bonus for early, shrinking credit for late or still missing">On-time</span>
                   <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
