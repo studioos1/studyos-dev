@@ -11,7 +11,7 @@ import {
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
-import { assignmentOnTimeScore } from "@/lib/metrics";
+import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
 import { Sp, DiffBadge, DelBtn, Timeline, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
@@ -103,7 +103,10 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
     const diffDays=Math.round((new Date(a.dueDate)-new Date(refDate))/864e5);
     return assignmentOnTimeScore(diffDays);
   });
-  const onTimePct=onTimeScores.length>0?Math.round(onTimeScores.reduce((s,v)=>s+v,0)/onTimeScores.length):null;
+  const onTimeRaw=onTimeScores.length>0?Math.round(onTimeScores.reduce((s,v)=>s+v,0)/onTimeScores.length):null;
+  // The raw average can exceed 100 (early-submission bonus) — split so the main number/bar/color
+  // stay a normal capped 0-100% reading, with any bonus earned above that as its own small badge.
+  const {pct:onTimePct,bonus:onTimeBonus}=splitOnTimeScore(onTimeRaw);
   const onTimeColor=onTimePct===null?"var(--t3)":onTimePct<60?"var(--red)":onTimePct<85?"var(--amber)":"var(--green)";
 
   // One headline for the whole card, driven by whichever metric is currently worse — saying
@@ -354,6 +357,9 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <div className="pace-metric-row">
                   <span className="tt pace-metric-label" data-tt="Assignments On-time: 100% for on time, bonus for early, shrinking credit for late or still missing">On-time</span>
                   <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
+                  {onTimeBonus>0&&
+                    <span className="tt pace-bonus" data-tt="Bonus for submitting early">+{onTimeBonus}</span>
+                  }
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
                     <div className="pace-bar-arrow" style={{left:`${onTimePct}%`,color:onTimeColor}}>▲</div>

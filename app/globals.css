@@ -423,6 +423,10 @@
        rows never actually lined up. A fixed width + right-align guarantees both bars start at
        the same x regardless of digit count. */
     .pace-pct{font-family:'Syne',sans-serif; font-size:19px; font-weight:700; flex-shrink:0; width:52px; text-align:right; font-variant-numeric:tabular-nums;}
+    /* Early-submission bonus — shown as its own small badge next to the (capped-at-100%) main
+       number, not folded into it. "112% submitted on time" reads as confusing on its own; "100%
+       +12" reads as exactly what it is. */
+    .pace-bonus{font-size:11px; font-weight:700; color:var(--green); background:var(--green-bg); border-radius:6px; padding:2px 6px; flex-shrink:0;}
     /* Fluid on mobile (flex:1, shrinks/grows with the actual phone width — a real iPhone is
        390-440px wide, nowhere near what a desktop browser window was tested at, and a bare fixed
        240px here was more than half of that all by itself, before the label/pct/gaps even next

@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.64.1 — 2026-09-14
+
+**On-time metric: capped at 100%, early bonus split into its own badge**
+
+Follow-up on v2.64.0's formula — "112% submitted on time" reads as confusing on its own, even
+though the underlying score legitimately exceeds 100. Split instead of changed: the raw
+(possibly >100) average still exists, `splitOnTimeScore()` (`lib/metrics.js`) just divides it
+into a normal capped 0-100% reading (drives the number, bar, and color, same as before) and
+whatever was earned above that, shown as a small separate green "+N" badge right next to the
+percentage. Nothing about the underlying scoring changed, only how it's presented.
+
+**Validation:** 104 tests pass (4 new for the split — including a reconstruction check,
+`pct + bonus === raw`, across several raw values). `npm run build` clean. Verified live that
+the no-bonus case (100%, nothing above it) renders identically to before — no regression when
+there's nothing to show.
+
 ## v2.64.0 — 2026-09-14
 
 **Nav: easy back-to-Today, hamburger closes on outside click; Assignments On-time gets a real formula**
