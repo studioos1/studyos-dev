@@ -11,7 +11,7 @@ import {
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
-import { Sp, DiffBadge, DelBtn, Timeline } from "@/components/shared";
+import { Sp, DiffBadge, DelBtn, Timeline, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
 export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab}){
@@ -64,6 +64,52 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   ].filter(Boolean);
   const health=healthReasons.some(r=>r.level==="red")?"red":healthReasons.length?"yellow":"green";
   const healthColor={red:"var(--red)",yellow:"var(--amber)",green:"var(--green)"}[health];
+
+  // Study Pace — term-accumulated: every study/homework/project minute the planner has actually
+  // scheduled from the term's start through today, vs. how much of that is marked completed.
+  // Reads straight from data.studyPlan.weeks (the same source realDayBlocks uses) rather than
+  // walking a day-by-day date range, so it only touches weeks/days that actually exist in the
+  // plan. null (not 0) when nothing's been planned yet in-range — that's "no data", not "0%".
+  const termStart=p.termStart;
+  let paceMinPlanned=0,paceMinDone=0;
+  if(termStart&&termStart<=td){
+    Object.values(data.studyPlan?.weeks||{}).forEach(week=>{
+      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
+        if(dateStr<termStart||dateStr>td)return;
+        (blocks||[]).forEach(b=>{
+          const mins=b.e-b.s;
+          paceMinPlanned+=mins;
+          if(b.completed)paceMinDone+=mins;
+        });
+      });
+    });
+  }
+  const studyPace=paceMinPlanned>0?Math.round(100*paceMinDone/paceMinPlanned):null;
+  const paceColor=studyPace===null?"var(--t3)":studyPace<60?"var(--red)":studyPace<85?"var(--amber)":"var(--green)";
+
+  // On-time Assignments — accumulated from the term's start through today: of everything that
+  // came due by today, how much was actually turned in on time. completedAt (stamped the moment
+  // status flips to "done" — see Acad.jsx / Prog.jsx) decides on-time vs late; an assignment
+  // marked done before that field existed has no completedAt and defaults to on-time rather than
+  // being penalized retroactively for data that was never recorded.
+  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&a.dueDate<=td):[];
+  const onTimeCount=dueToDate.filter(a=>a.status==="done"&&(!a.completedAt||a.completedAt.slice(0,10)<=a.dueDate)).length;
+  const onTimePct=dueToDate.length>0?Math.round(100*onTimeCount/dueToDate.length):null;
+  const onTimeColor=onTimePct===null?"var(--t3)":onTimePct<60?"var(--red)":onTimePct<85?"var(--amber)":"var(--green)";
+
+  // One headline for the whole card, driven by whichever metric is currently worse — saying
+  // "you're doing great" while one of the two numbers is actually struggling would be dishonest
+  // encouragement. Tone shifts with the band: a plain "keep going" below green, a real
+  // celebration once both are.
+  const paceScores=[studyPace,onTimePct].filter(v=>v!==null);
+  const paceWorst=paceScores.length?Math.min(...paceScores):null;
+  const paceHeadline=paceWorst===null?null:paceWorst<60
+    ?"Keep going — every session moves you forward."
+    :paceWorst<85?"Keep going — you're building good momentum."
+    :"You're doing great — keep it up! 🎉";
+  // Deliberately NOT color-banded like the metrics below — this line is meant to read as
+  // encouragement even on a rough day, and red/amber text made it read as a warning instead. A
+  // fixed optimistic color (see .pace-headline in globals.css) keeps that true at every score.
   const classes=data.courses.filter(c=>(c.days||[]).includes(di));
   const gd=(p.gymDays||GYM0).find(g=>g.day===di&&g.on);
   const gymDone=(data.gymLogs||[]).some(g=>g.date===td);
@@ -187,7 +233,14 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
         <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,position:"relative"}}>
             <h1 style={{marginBottom:0}}>
-              {hr<12?"Good morning":hr<17?"Good afternoon":"Good evening"}, {p.name}
+              {/* Sub-project: Web-Mobile Enablement item #6 — the full greeting plus the 3 header
+                  icon buttons (check-in/calendar/message) don't both fit on one line at phone
+                  widths, so the icon row was wrapping onto its own line below the greeting.
+                  Abbreviating the greeting on narrow screens (same show/hide-by-class pattern as
+                  the Academics tab labels and onboarding step labels) keeps everything on one
+                  row instead of relying on font-size guesswork. */}
+              <span className="today-greet-full">{hr<12?"Good morning":hr<17?"Good afternoon":"Good evening"}, {p.name}</span>
+              <span className="today-greet-short">Hi, {p.name}</span>
             </h1>
             {/* Health dot — tappable, not hover-only, so it actually works on a phone (a
                 title/tooltip wouldn't). Bare color is the at-a-glance signal; tapping it is how
@@ -229,7 +282,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             {hol&&<span className="badge badge-green">🎉 Holiday</span>}
           </div>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
           {/* Check-in nudge — was a full-width banner with its own button; folded into this same
               icon row instead (amber-tinted so it still reads as "needs attention" without text).
               Same destination (Progress tab) either way. */}
@@ -254,6 +307,54 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           )}
         </div>
       </div>
+
+      {/* ── PROGRESS — term-to-date Study Pace + On-time Assignments, with the running-mascot
+          we prototyped live and landed on. One shared headline carries the encouragement (tone
+          driven by whichever metric is worse) instead of a hint line per metric — kept
+          deliberately compact since this was already the largest thing on the tab with just one
+          metric. Hidden entirely once there's genuinely nothing to show yet for either metric. */}
+      {paceWorst!==null&&(
+        <div style={BOX}>
+          <div style={TITLE_ROW}>
+            <i className="ti ti-trending-up" style={TITLE_ICON}/>
+            <span style={TITLE_TEXT}>Progress</span>
+          </div>
+          <div style={DIVIDER}/>
+          <div style={INNER}>
+            {/* Headline stays a fixed optimistic color regardless of band — red text read as an
+                alarm/error rather than encouragement, which undercuts the point of a message
+                meant to motivate even on a rough day. Runner now sits on this same line (moved
+                off the metrics rows per request) and follows the same worst-of-both score the
+                headline text uses, so the character and the message never disagree. */}
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+              <div className="pace-headline">{paceHeadline}</div>
+              <PaceRunner score={paceWorst} size={30}/>
+            </div>
+            <div className="pace-metrics">
+              {studyPace!==null&&(
+                <div className="pace-metric-row">
+                  <span className="pace-metric-label">Study Pace</span>
+                  <span className="pace-pct" style={{color:paceColor}}>{studyPace}%</span>
+                  <div className="pace-bar-wrap">
+                    <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${studyPace}%`,background:paceColor}}/></div>
+                    <div className="pace-bar-arrow" style={{left:`${studyPace}%`,color:paceColor}}>▲</div>
+                  </div>
+                </div>
+              )}
+              {onTimePct!==null&&(
+                <div className="pace-metric-row">
+                  <span className="tt pace-metric-label" data-tt="Assignments due to date, submitted on time">On-time</span>
+                  <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
+                  <div className="pace-bar-wrap">
+                    <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
+                    <div className="pace-bar-arrow" style={{left:`${onTimePct}%`,color:onTimeColor}}>▲</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── TOP THINGS TO KEEP IN MIND — first content block ── */}
       {brief&&(

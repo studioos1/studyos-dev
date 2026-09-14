@@ -46,7 +46,10 @@ export function Prog({data,upd,toast2,ai,busy}){
     const doneA=new Set(comp.filter(id=>id.startsWith("a-")).map(id=>+id.slice(2)));
     upd({
       dailyLogs:[...logs.filter(l=>l.date!==td),nl],
-      ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done"}:a)}:{}),
+      // completedAt stamps the first time an assignment goes done — needed for the On-time
+      // Assignments metric (Today.jsx) to tell on-time from late. This flow is one-way (no
+      // unmark-done control exists), so a guarded set is enough — never overwritten once set.
+      ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
     });
     try{
       const t=await AI(`Warm encouraging assistant. ${p.name} has ADD. Lead with achievements. 3-4 sentences. Plain text.`,

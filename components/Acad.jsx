@@ -936,7 +936,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     <td style={{padding:"9px 8px"}}>
                       <div
                         title="Mark as completed"
-                        onClick={()=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"done"}:x)})}
+                        onClick={()=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"done",completedAt:x.completedAt||new Date().toISOString()}:x)})}
                         style={{width:20,height:20,borderRadius:6,border:"2px solid var(--t3)",
                           background:"var(--card2)",cursor:"pointer",flexShrink:0,
                           display:"flex",alignItems:"center",justifyContent:"center",

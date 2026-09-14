@@ -1,5 +1,87 @@
 # StudyOS Changelog
 
+## v2.62.1 — 2026-09-14
+
+**Today tab: Progress card layout/alignment polish pass**
+
+Follow-up fixes on the v2.62.0 Progress card, from live iteration against a real browser:
+
+- Headline is a fixed light-blue (`var(--blue)`) at all times instead of being color-banded
+  red/amber/green — red text read as a warning/error, undercutting a line meant to encourage even
+  on a rough day. Runner sits right after the headline text with a small gap instead of being
+  pushed to the card's far right corner (dropped `justify-content: space-between`).
+- Desktop (≥768px, the same tier the top nav already switches on): Study Pace and On-time now sit
+  side by side on one line instead of stacking — stacked rows in a ~900px-wide card just left the
+  right two-thirds empty. Mobile still stacks, unchanged.
+- **Real bug, not just a number:** the bar's target length kept getting silently squeezed down to
+  its 80px floor once two rows had to share space on the desktop line, because `flex-shrink` was
+  left on — setting a bigger target width alone did nothing until `flex-shrink:0` actually stopped
+  it from collapsing. Bars are 240px now and hold that length.
+- **Second real bug:** the percentage column used `min-width` (a floor, not a cap), so "100%"
+  rendered wider than "8%" and pushed that row's bar further right — the two rows never actually
+  lined up regardless of vertical spacing. Fixed to a fixed `width` + right-align, so both bars
+  start at the same x regardless of digit count, stacked or side by side.
+
+**Validation:** 83 tests pass, `npm run build` clean, verified live in a real browser at desktop
+and phone widths after every change in this pass (not just build/test).
+
+## v2.62.0 — 2026-09-14
+
+**Today tab: Progress card gets a second metric (On-time Assignments), made compact**
+
+- Renamed "Study Pace" → "Progress" now that the card holds two metrics. Dropped the per-metric
+  hint line in favor of one shared headline at the top, driven by whichever metric is currently
+  *worse* (not an average — saying "you're doing great" while one number is actually struggling
+  would be dishonest encouragement): "Keep going — every session moves you forward." below 60%,
+  "Keep going — you're building good momentum." 60–85%, "You're doing great — keep it up! 🎉" at
+  85%+.
+- **On-time Assignments** (the metric flagged as blocked last entry): every assignment due from
+  the term's start through today, on-time vs late vs missing. Needed a real signal this app
+  didn't record before — `completedAt` now stamps the moment an assignment flips to `status:
+  "done"` (both places that happens: the checkbox in Academics, and the evening check-in in
+  Progress). An assignment marked done before this shipped has no `completedAt` and defaults to
+  on-time rather than being penalized retroactively for data that was never captured.
+- Both rows shrunk (6px bars, single label+pct+bar line, no per-row commentary) and the
+  PaceRunner mascot shrunk from 40→30px and moved to sit once beside both rows instead of once
+  per metric — the two-metric version is barely taller than the original one-metric card.
+- Along the way, found and fixed the actual cause of "local tab is broken": a leftover
+  `next start` process from earlier in the session wasn't matched by `pkill -f "next start"`
+  (it shows as `next-server` in `ps`, not `next start`) and kept answering on :3000 through
+  several rebuilds — including through a `rm -rf .next`, which pulled files out from under it
+  mid-request. No app code was at fault; killing the right PID fixed it. Also widened the header
+  greeting's abbreviation breakpoint 480px → 560px — the real overflow point measured closer to
+  520px with a full name, not 480.
+
+**Validation:** 83 tests pass, `npm run build` clean, verified live in a real browser (both
+narrow — short greeting, one-line icon row, compact stacked Progress card — and desktop widths).
+
+## v2.61.0 — 2026-09-14
+
+**Today tab: Study Pace bar with a running mascot, mobile header icon-wrap fix**
+
+- New "Study Pace" section (its own card, same title-row pattern as every other Today section):
+  a percentage, a bar, and a small running-character mascot that speeds up and bounces higher as
+  the score climbs, slower and lower as it drops — prototyped live in a standalone artifact over
+  several rounds (fixing a genuine gait bug along the way: a nested knee rotation had the wrong
+  sign, folding the shin past straight instead of curling it up behind on recovery, which read as
+  "swinging" rather than running) before landing here. `components/shared/PaceRunner.jsx` is the
+  mascot; its animation rig lives in `app/globals.css` under the `.pr-*` prefix.
+- **Formula:** every study/homework/project minute the planner has scheduled from the term's
+  start through today, vs. how much of that is marked completed — read straight from
+  `data.studyPlan.weeks` (the same source `realDayBlocks` uses), not a simulated estimate. Section
+  is hidden entirely (not shown as 0%) until there's actually something in that range to compute.
+- **Color:** red &lt;60%, amber 60–85%, green 85%+ — the app's existing 3-tier semantics, not a
+  new palette. Arrow marker sits exactly under the bar's fill edge; the mascot is fixed at the
+  bar's right end and keeps its own colors regardless of score, by design — only the bar and
+  percentage recolor.
+- **Today header mobile fix:** "Good afternoon, {name}" at the h1 size plus the 3 header icon
+  buttons (check-in/calendar/message) didn't both fit one line at phone widths, so the icon row
+  was wrapping onto its own line below the greeting. Abbreviated to "Hi, {name}" below 480px
+  (same show/hide-by-class pattern already used for the Academics tab labels and onboarding step
+  labels), instead of guessing at a font-size shrink.
+
+**Validation:** 83 tests pass, `npm run build` clean, server smoke-tested (200 on `/`).
+
 ## v2.60.7 — 2026-09-14
 
 **Today tab: new health dot — a single red/yellow/green signal next to the greeting**
