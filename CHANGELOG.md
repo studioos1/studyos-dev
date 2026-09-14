@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.60.6 — 2026-09-14
+
+**Today tab: check-in nudge shrunk from a full-width banner to a small icon**
+
+- The "Evening check-in not done yet..." banner (icon + sentence + its own button) is now a
+  single small icon button folded into the existing calendar/daily-message icon row — amber-
+  tinted so it still reads as "needs attention" without text. Same destination (Progress tab).
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.5 — 2026-09-14
 
 **Web-Mobile Enablement: last untreated Academics table fixed (Difficulty tab)**

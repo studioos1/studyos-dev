@@ -178,6 +178,16 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
+          {/* Check-in nudge — was a full-width banner with its own button; folded into this same
+              icon row instead (amber-tinted so it still reads as "needs attention" without text).
+              Same destination (Progress tab) either way. */}
+          {!(data.dailyLogs||[]).some(l=>l.date===iso())&&(
+            <button className="tt" data-tt="Evening check-in not done yet — mark off what you finished" onClick={()=>setTab?.("prog")}
+              style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",
+                color:"var(--amber)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <i className="ti ti-checkbox" style={{fontSize:16}}/>
+            </button>
+          )}
           <button className="tt" data-tt="View day calendar" onClick={()=>setShowCalendar(true)}
             style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
               color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -192,19 +202,6 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           )}
         </div>
       </div>
-
-      {/* Daily check-in nudge — keeps overdue items from piling up unnoticed. */}
-      {!(data.dailyLogs||[]).some(l=>l.date===iso())&&(
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:16,
-          background:"var(--amber-bg)",color:"var(--amber)",borderRadius:10,fontSize:13.5}}>
-          <i className="ti ti-checkbox" style={{fontSize:16,flexShrink:0}}/>
-          Evening check-in not done yet — mark off what you finished so tomorrow's plan is accurate.
-          <button className="btn btn-sm" style={{marginLeft:"auto",background:"var(--amber)",color:"#1a0e00"}}
-            onClick={()=>setTab?.("prog")}>
-            Open check-in
-          </button>
-        </div>
-      )}
 
       {/* ── TOP THINGS TO KEEP IN MIND — first content block ── */}
       {brief&&(
