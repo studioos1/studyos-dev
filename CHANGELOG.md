@@ -1,5 +1,24 @@
 # StudyOS Changelog
 
+## v2.60.7 — 2026-09-14
+
+**Today tab: new health dot — a single red/yellow/green signal next to the greeting**
+
+- A small colored dot next to "Good morning, {name}" — bare color as the at-a-glance signal (per
+  explicit choice: no persistent label, most minimal of 3 options offered). Tapping it (not
+  hover — hover tooltips don't fire on touch, confirmed earlier this session, so a hover-only
+  version would show color with no way to see why on a phone) opens a small popover listing the
+  specific reasons, same dropdown pattern already used elsewhere in the app (Academics' term
+  switcher).
+- **Red**: missing due dates, or overdue items not marked done. **Yellow**: plan doesn't reflect
+  latest changes (`planStale`), or evening check-in not done yet. **Green**: none of the above.
+- Deliberately built from cheap checks already available on every Today render (plain array
+  filters + `planStale`) — does **not** run a planner simulation just to color a dot. Real plan
+  shortfalls already have their own dedicated surface (Plan status); this is a lighter "is
+  anything obviously off" signal, not a duplicate of that.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.6 — 2026-09-14
 
 **Today tab: check-in nudge shrunk from a full-width banner to a small icon**

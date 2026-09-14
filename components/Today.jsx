@@ -27,6 +27,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const [adhocD,setAD]=useState(90);
   const [showCalendar,setShowCalendar]=useState(false); // full-day calendar now opens on demand instead of always inline — the day-view design itself is still a work in progress
   const [showDailyMsg,setShowDailyMsg]=useState(false); // same on-demand pattern for the daily message preview — not tied to any one channel (copy/paste, not a live send)
+  const [showHealth,setShowHealth]=useState(false); // health-dot popover — see below
   // Per-row Focus Time timer state — replaces the old single global "which session is current"
   // selector entirely. Only one row can be running at a time; starting a different row just
   // switches (no confirmation needed, nothing destructive happens to the abandoned one — it
@@ -44,6 +45,25 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const exWk=data.exams.filter(e=>du(e.date)>=0&&du(e.date)<=7).sort((a,b)=>du(a.date)-du(b.date));
   const exPrep=data.exams.filter(e=>{const d=du(e.date);return d>0&&d<=e.prepDays;}).sort((a,b)=>du(a.date)-du(b.date));
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done");
+  // Health dot — a single glanceable red/yellow/green signal, built from cheap checks already
+  // available on every Today render (plain array filters + the planStale flag). Deliberately
+  // does NOT run a planner simulation just to color a dot — real plan shortfalls already have
+  // their own dedicated surface (Plan status), this is a lighter-weight "is anything obviously
+  // off" check, not a duplicate of that. Red = something needs a fix now; yellow = routine
+  // upkeep pending; green = neither.
+  const overdueItems=[
+    ...data.assignments.filter(a=>a.dueDate&&a.dueDate<td&&a.status!=="done"),
+    ...data.exams.filter(e=>e.date&&e.date<td&&e.status!=="done"),
+  ];
+  const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
+  const healthReasons=[
+    missing.length>0&&{level:"red",text:`${missing.length} assignment${missing.length!==1?"s":""} missing a due date`},
+    overdueItems.length>0&&{level:"red",text:`${overdueItems.length} item${overdueItems.length!==1?"s":""} overdue, not marked done`},
+    data.planStale&&{level:"yellow",text:"Plan doesn't reflect your latest changes yet"},
+    !checkedInToday&&{level:"yellow",text:"Evening check-in not done yet"},
+  ].filter(Boolean);
+  const health=healthReasons.some(r=>r.level==="red")?"red":healthReasons.length?"yellow":"green";
+  const healthColor={red:"var(--red)",yellow:"var(--amber)",green:"var(--green)"}[health];
   const classes=data.courses.filter(c=>(c.days||[]).includes(di));
   const gd=(p.gymDays||GYM0).find(g=>g.day===di&&g.on);
   const gymDone=(data.gymLogs||[]).some(g=>g.date===td);
@@ -165,9 +185,41 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
       {/* ── PAGE HEADER ── */}
       <div style={{marginBottom:24,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div>
-          <h1 style={{marginBottom:6}}>
-            {hr<12?"Good morning":hr<17?"Good afternoon":"Good evening"}, {p.name}
-          </h1>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,position:"relative"}}>
+            <h1 style={{marginBottom:0}}>
+              {hr<12?"Good morning":hr<17?"Good afternoon":"Good evening"}, {p.name}
+            </h1>
+            {/* Health dot — tappable, not hover-only, so it actually works on a phone (a
+                title/tooltip wouldn't). Bare color is the at-a-glance signal; tapping it is how
+                you find out why, on any device. */}
+            <button onClick={()=>setShowHealth(v=>!v)} aria-label={`Status: ${health}`}
+              style={{width:11,height:11,borderRadius:"50%",background:healthColor,border:"none",
+                cursor:"pointer",padding:0,flexShrink:0}}/>
+            {showHealth&&(
+              <>
+                <div onClick={()=>setShowHealth(false)} style={{position:"fixed",inset:0,zIndex:60}}/>
+                <div style={{position:"absolute",top:"100%",left:0,marginTop:8,zIndex:61,minWidth:230,
+                  background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,padding:12,
+                  boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                  {healthReasons.length===0?(
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--green)"}}>
+                      <i className="ti ti-circle-check"/> All good — nothing needs attention.
+                    </div>
+                  ):(
+                    <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                      {healthReasons.map((r,i)=>(
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,
+                          color:r.level==="red"?"var(--red)":"var(--amber)"}}>
+                          <span style={{width:7,height:7,borderRadius:"50%",background:r.level==="red"?"var(--red)":"var(--amber)",flexShrink:0}}/>
+                          {r.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <div className="row" style={{gap:8}}>
             <span style={{fontSize:15,color:"var(--t2)"}}>
               {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
