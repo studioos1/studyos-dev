@@ -8,6 +8,7 @@ import {
   logCompletion,
   realDayBlocks,
   weekHasBeenPlanned,
+  isItemScheduled,
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
@@ -88,16 +89,19 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const studyPace=paceMinPlanned>0?Math.round(100*paceMinDone/paceMinPlanned):null;
   const paceColor=studyPace===null?"var(--t3)":studyPace<60?"var(--red)":studyPace<85?"var(--amber)":"var(--green)";
 
-  // Assignments On-time — accumulated from the term's start through today: every assignment due
-  // by today scored individually via assignmentOnTimeScore() above (on time=100%, early=bonus,
-  // late/still-missing=shrinking partial credit), then averaged — a continuous score, not a
-  // binary on-time/late count, so it can exceed 100% when enough items were done early.
+  // Assignments On-time — accumulated from the term's start through today: every assignment
+  // EITHER already due, OR already done (even if its due date hasn't arrived yet — that's
+  // exactly what "early" means, and it should count the moment it happens, not sit excluded
+  // until the due date eventually passes it by). Scored individually via assignmentOnTimeScore()
+  // above (on time=100%, early=bonus, late/still-missing=shrinking partial credit), then
+  // averaged — a continuous score, not a binary on-time/late count, so it can exceed 100% when
+  // enough items were done early (see splitOnTimeScore below for how that's displayed).
   // completedAt (stamped the moment status flips to "done" — see Acad.jsx / Prog.jsx) is the
   // reference date; an assignment marked done before that field existed has no completedAt and
   // defaults to its own due date (i.e. exactly on time) rather than being penalized retroactively
-  // for data that was never recorded. A still-open item scores against TODAY, so it keeps
-  // shrinking until it's actually done, then locks in wherever it landed.
-  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&a.dueDate<=td):[];
+  // for data that was never recorded. A still-open, already-due item scores against TODAY, so it
+  // keeps shrinking until it's actually done, then locks in wherever it landed.
+  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&(a.dueDate<=td||a.status==="done")):[];
   const onTimeScores=dueToDate.map(a=>{
     const refDate=a.status==="done"?(a.completedAt?a.completedAt.slice(0,10):a.dueDate):td;
     const diffDays=Math.round((new Date(a.dueDate)-new Date(refDate))/864e5);
@@ -209,14 +213,19 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
 
   useEffect(()=>{if(!brief)gen();},[]);
 
-  // Build unified awareness list, sorted earliest first
-  const todayRealBlocks=realDayBlocks(data,td); // real plan — single source of truth for "planned" checks below
+  // Build unified awareness list, sorted earliest first. "planned" checks whether THIS SPECIFIC
+  // item has a scheduled block anywhere in the plan (isItemScheduled, matched via the planner's
+  // own source={type,id} tag on each block it places) — not just today's blocks by course. That
+  // course-level, today-only check used to show "not yet" for an item genuinely scheduled for
+  // tomorrow (or falsely show "planned" off a different item in the same course today), and
+  // hardcoded false for exam-prep/due-next-week rows regardless of the real plan.
+  const todayRealBlocks=realDayBlocks(data,td); // still the source for "what's scheduled today" (Focus Time etc.)
   const rawAwareness=[];
-  dueToday.forEach(a=>{const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days:0,lvl:0,text:`${a.title} — ${cn}`,tag:"Due TODAY",planned:todayRealBlocks.some(b=>b.courseId===a.courseId)});});
-  exWk.forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:du(e.date)<=2?0:1,text:`${cn} exam`,tag:`in ${du(e.date)} day${du(e.date)!==1?"s":""}`,planned:todayRealBlocks.some(b=>b.courseId===e.courseId)});});
-  exPrep.filter(e=>!exWk.find(x=>x.id===e.id)).forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:1,text:`${cn} exam`,tag:`${du(e.date)}d — start prep`,planned:false});});
-  dueWk.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:2,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:todayRealBlocks.some(b=>b.courseId===a.courseId)});});
-  dueNx.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:3,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:false});});
+  dueToday.forEach(a=>{const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days:0,lvl:0,text:`${a.title} — ${cn}`,tag:"Due TODAY",planned:isItemScheduled(data,"assignment",a.id)});});
+  exWk.forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:du(e.date)<=2?0:1,text:`${cn} exam`,tag:`in ${du(e.date)} day${du(e.date)!==1?"s":""}`,planned:isItemScheduled(data,"exam",e.id)});});
+  exPrep.filter(e=>!exWk.find(x=>x.id===e.id)).forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:1,text:`${cn} exam`,tag:`${du(e.date)}d — start prep`,planned:isItemScheduled(data,"exam",e.id)});});
+  dueWk.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:2,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:isItemScheduled(data,"assignment",a.id)});});
+  dueNx.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:3,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:isItemScheduled(data,"assignment",a.id)});});
   const awareness=rawAwareness.sort((a,b)=>a.days-b.days);
 
   const lvlColor=["var(--red)","var(--amber)","var(--blue)","var(--t3)"];

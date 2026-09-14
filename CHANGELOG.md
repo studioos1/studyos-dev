@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.65.0 — 2026-09-14
+
+**Two real bugs found from live testing: the bonus badge never showing, "not yet" on items that were actually planned**
+
+- **Bonus badge fix.** `dueToDate` (Today.jsx) only ever included assignments whose due date had
+  *already passed* — so an assignment finished early, with its due date still in the future, was
+  excluded from the On-time calculation entirely and could never show a bonus. Now included the
+  moment it's marked done, regardless of whether the due date has arrived: `dueDate<=today OR
+  status==="done"`. Verified live — marked "Essay 1" (due in 4 days) done and watched the badge
+  render "+2" immediately.
+- **Deadline Awareness "planned"/"not yet" fix.** The tag was checking only *today's* scheduled
+  blocks, matched by *course* rather than the specific item — so an item genuinely scheduled for
+  tomorrow (or any day but today) showed "not yet" even though it truly was planned, and
+  exam-prep/due-next-week rows were hardcoded `planned:false` regardless of the real plan. New
+  `isItemScheduled()` (`lib/calendar/weeks.js`) checks the planner's own `source:{type,id}` tag
+  on every block against the specific item, on any day, anywhere in the plan — a precise "is this
+  exact thing scheduled" check instead of a same-day/same-course proxy for it. Verified live:
+  "Problem Set 5" and "Reading Quiz 4" (11d/14d out — previously hardcoded to "not yet" no matter
+  what) now correctly show "✓ planned".
+- **Back to Today** is now a plain circular "‹" chevron icon button, matching the header's other
+  icon buttons, instead of a text link.
+
+**Validation:** 109 tests pass (5 new for `isItemScheduled`, covering the exact reported scenario
+— an item scheduled for tomorrow, not today). `npm run build` clean. Verified live end-to-end:
+watched the bonus badge appear after marking an early item done, and watched two previously
+always-"not yet" rows correctly flip to "✓ planned".
+
 ## v2.64.1 — 2026-09-14
 
 **On-time metric: capped at 100%, early bonus split into its own badge**

@@ -90,10 +90,11 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
           cleared on any normal nav click, so it never lingers once the user's navigated on
           purpose. The reported ask: an easy, intuitive way back to Daily once done here. */}
       {backTo&&(
-        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,
-          background:"none",border:"none",padding:0,marginBottom:12,cursor:"pointer",
-          color:"var(--blue)",fontSize:13,fontWeight:500}}>
-          <i className="ti ti-arrow-left" style={{fontSize:14}}/> Back to Today
+        <button className="tt" data-tt="Back to Today" onClick={onBack}
+          style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+            color:"var(--t1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            padding:0,marginBottom:12}}>
+          <i className="ti ti-chevron-left" style={{fontSize:18}}/>
         </button>
       )}
       <h2 style={{marginBottom:16}}>Progress</h2>
