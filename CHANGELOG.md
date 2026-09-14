@@ -1,5 +1,20 @@
 # StudyOS Changelog
 
+## v2.60.4 — 2026-09-14
+
+**Star icon restored; ⭐ now consistent between the drawer and the replan result toast**
+
+- Put the star icon back on a forced row in the Per-item table — it's the only control that
+  clears `forced` (`setForced(it, false)`); removing it earlier silently blocked un-prioritising
+  anything from this drawer.
+- The replan result toast already showed "⭐ Item — still short" for a prioritised item that came
+  up short; the success case ("fully scheduled 🎯") didn't have the same marker. Added it there
+  too, in both the full-replan and single-week toasts, so the star means the same thing in the
+  drawer and in the result you see right after clicking Replan — not two different signals for
+  the same "this item was prioritised" fact.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.3 — 2026-09-14
 
 **Plan status: settled on color-only item marking**

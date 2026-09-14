@@ -441,6 +441,14 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                   style={{ width: 14, height: 14, cursor: "pointer" }} />
                               </Td>
                               <Td clip>
+                                {/* Not decorative — this is the only control in this drawer that
+                                    clears a forced item (setForced(it,false)). Removing it
+                                    earlier silently blocked un-prioritising anything from here. */}
+                                {it.forced && (
+                                  <i className="ti ti-star-filled" title="Prioritised — click to clear"
+                                    onClick={() => setForced(it, false)}
+                                    style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
+                                )}
                                 <ItemTitle it={it} />
                               </Td>
                               <Td muted nowrap>{fmtShortDate(it.dueDate)}</Td>

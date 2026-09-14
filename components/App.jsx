@@ -317,7 +317,7 @@ function App(){
       const forcedItems=result.summaryItems.filter(it=>it.forced);
       if(result.shortfalls.length===0){
         toast2(forcedItems.length
-          ?`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. ${forcedItems.length===1?`"${forcedItems[0].title}" is`:`All ${forcedItems.length} prioritised items are`} fully scheduled. 🎯`
+          ?`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. ⭐ ${forcedItems.length===1?`"${forcedItems[0].title}" is`:`All ${forcedItems.length} prioritised items are`} fully scheduled. 🎯`
           :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
       }else{
         const forcedShort=result.shortfalls.filter(it=>it.forced);
@@ -395,7 +395,7 @@ function App(){
     const forcedItemsWk=(result.summaryItems||[]).filter(it=>it.forced);
     if(result.shortfalls.length===0){
       toast2(forcedItemsWk.length
-        ?`Week updated — ${forcedItemsWk.length===1?`"${forcedItemsWk[0].title}" is`:`All ${forcedItemsWk.length} prioritised items are`} fully scheduled. 🎯`
+        ?`Week updated — ⭐ ${forcedItemsWk.length===1?`"${forcedItemsWk[0].title}" is`:`All ${forcedItemsWk.length} prioritised items are`} fully scheduled. 🎯`
         :"Week updated — everything fits!");
     }else{
       const forcedShortWk=result.shortfalls.filter(it=>it.forced);
