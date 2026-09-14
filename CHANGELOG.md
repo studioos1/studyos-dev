@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.60.2 — 2026-09-14
+
+**Plan status: removed the "*" marker and the star icon per feedback**
+
+- `ItemTitle` no longer prefixes Exam/Project/Essay with `*` — red text for Exam titles stays.
+- Removed the star icon (⭐) that showed on a forced item's row to un-prioritise it.
+  **Functional note, not just visual**: that icon was the only way to clear an item's `forced`
+  flag from this drawer (`setForced(it, false)`) — it's now unreachable from here. `setForced`
+  itself is left in place (unused for now) rather than deleted, in case this needs to come back
+  in whatever form replaces it.
+
+**Validation:** 83 tests pass, `npm run build` clean.
+
 ## v2.60.1 — 2026-09-14
 
 **Plan status: Exam/Project/Essay items marked with *, Exams also in red**

@@ -110,16 +110,12 @@ function ClassDivider({ name }) {
   );
 }
 
-// Exam/Project/Essay are the "heavier" item types — marked with a leading * in both tables,
-// exams additionally in red text, so a dense table still surfaces which items carry more weight/
-// stakes at a glance. Exam and Project both have a real structural field to key off (kind==="exam"
-// from source.type; isProject from buildItemDemand's own finer kind — see lib/planDiagnostics.js).
-// Essay has no such field — display-only title match, same spirit as the existing looksLikeProject
-// heuristic elsewhere in the app; doesn't touch scheduling, purely visual.
+// Exam titles render in red — the "*" prefix this used to add for Exam/Project/Essay was removed
+// per feedback (miscommunication on the marking approach; see PlanDrawer's git history/CHANGELOG
+// for the follow-up proposal on a simpler way to mark all three).
 function ItemTitle({ it }) {
   const isExam = it.kind === "exam";
-  const heavy = isExam || it.isProject || /essay/i.test(it.title || "");
-  return <span style={{ color: isExam ? "var(--red)" : undefined }}>{heavy && "* "}{it.title}</span>;
+  return <span style={{ color: isExam ? "var(--red)" : undefined }}>{it.title}</span>;
 }
 
 function ColGroup() {
@@ -442,11 +438,6 @@ export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan }) {
                                   style={{ width: 14, height: 14, cursor: "pointer" }} />
                               </Td>
                               <Td clip>
-                                {it.forced && (
-                                  <i className="ti ti-star-filled" title="Prioritised — click to clear"
-                                    onClick={() => setForced(it, false)}
-                                    style={{ fontSize: 12, color: "var(--amber)", cursor: "pointer", marginRight: 5 }} />
-                                )}
                                 <ItemTitle it={it} />
                               </Td>
                               <Td muted nowrap>{fmtShortDate(it.dueDate)}</Td>
