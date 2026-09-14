@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.60.0 — 2026-09-14
+
+**Real fix: forcing an exam or project didn't actually give it priority over competing items**
+
+Reported multiple times, and rightly so — the earlier "explanation" (capacity constraints) wasn't
+the whole story. Traced the actual allocator (`lib/planner/schedule.js`) line by line and found a
+genuine bug: `forced` only ever worked for regular homework (`priority=1e9` in `planDayV2`'s
+candidates). Exams and projects never consulted it when deciding who gets first claim on
+genuinely scarce SHARED capacity:
+
+- **Exams**: `forced` widened an exam's own start window, but the loop that hands out leftover
+  shared capacity when an exam's own dedicated days (eve + lead-in) aren't enough processed exams
+  strictly in **due-date order** — a forced exam due later than a competing exam still got served
+  after it, and could still lose the shared capacity to a non-forced exam that got there first.
+- **Projects**: `forced` wasn't consulted **at all** in the project-placement loop — zero special
+  treatment.
+- **Preflight risk check**: same gap — computed priority without ever checking `forced`.
+
+Fixed all three: exams' and projects' allocation now sort forced items first (stable sort, so
+due-date order is otherwise unchanged); preflight now does the same. Added two regression tests
+that reproduce the exact failure mode (two exams / two projects competing for capacity too tight
+for both, one forced due *later* than the other) — verified they actually fail without the fix
+(reverted schedule.js, confirmed both new tests fail; restored it, confirmed they pass) before
+calling this done. 83 tests pass now (81 + 2 new), `npm run build` clean.
+
+**Also, per explicit request**: the replan result toast (both the full replan and single-week
+versions) now specifically calls out currently-prioritised items by name — "⭐ Item — still short:
+Xh of Yh" listed first, or "'Item' is fully scheduled 🎯" on success — instead of only a generic
+top-N shortfall list that never answered "did the thing I just prioritised actually work."
+
 ## v2.59.19 — 2026-09-14
 
 **Shortfall toast redesigned: structured, amber (not red), × in the top-right corner**

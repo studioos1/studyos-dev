@@ -310,15 +310,31 @@ function App(){
       // per line actually reads at a glance instead of needing to be parsed out of a paragraph.
       // Amber, not red: the replan itself succeeded — this is "needs your attention", not a
       // failure, and red is reserved for things that actually failed elsewhere in the app.
+      // Explicitly calls out currently-prioritised (forced) items by name in BOTH outcomes —
+      // "did the item I just prioritised actually get filled" is the one thing a generic top-N
+      // shortfall summary never answered on its own.
       const totalBlocks=Object.values(placedByDate).reduce((s,b)=>s+b.length,0);
+      const forcedItems=result.summaryItems.filter(it=>it.forced);
       if(result.shortfalls.length===0){
-        toast2(`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
+        toast2(forcedItems.length
+          ?`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. ${forcedItems.length===1?`"${forcedItems[0].title}" is`:`All ${forcedItems.length} prioritised items are`} fully scheduled. 🎯`
+          :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
       }else{
+        const forcedShort=result.shortfalls.filter(it=>it.forced);
+        const otherShort=result.shortfalls.filter(it=>!it.forced);
+        const lines=[
+          ...forcedShort.slice(0,4).map(it=>`⭐ ${it.title} — still short: ${it.plannedHours}h of ${it.desiredHours}h`),
+          ...otherShort.slice(0,Math.max(0,6-forcedShort.length)).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
+        ];
         toast2({
-          title:`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
-          sub:`Re-planned ${allDates.length} days through ${termRange.end} — the rest scheduled fine.`,
-          lines:result.shortfalls.slice(0,6).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
-          footer:`${result.shortfalls.length>6?`+${result.shortfalls.length-6} more. `:""}Check Academics → Study Preferences.`,
+          title:forcedShort.length
+            ?`${forcedShort.length} prioritised item${forcedShort.length!==1?"s":""} still short`
+            :`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
+          sub:[`Re-planned ${allDates.length} days through ${termRange.end}.`,
+            forcedShort.length&&otherShort.length?`+${otherShort.length} other item${otherShort.length!==1?"s":""} also short.`:null,
+          ].filter(Boolean).join(" "),
+          lines,
+          footer:`${result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:""}Check Academics → Study Preferences.`,
         },true,"warning");
         setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
@@ -375,14 +391,28 @@ function App(){
       days,
     };
     upd({studyPlan:{weeks:{...(data.studyPlan?.weeks||{}),[weekStart]:newWeek}},planStale:false});
+    // Same forced-item callout as refreshQuarterPlan — see its comment for why.
+    const forcedItemsWk=(result.summaryItems||[]).filter(it=>it.forced);
     if(result.shortfalls.length===0){
-      toast2("Week updated — everything fits!");
+      toast2(forcedItemsWk.length
+        ?`Week updated — ${forcedItemsWk.length===1?`"${forcedItemsWk[0].title}" is`:`All ${forcedItemsWk.length} prioritised items are`} fully scheduled. 🎯`
+        :"Week updated — everything fits!");
     }else{
+      const forcedShortWk=result.shortfalls.filter(it=>it.forced);
+      const otherShortWk=result.shortfalls.filter(it=>!it.forced);
+      const linesWk=[
+        ...forcedShortWk.slice(0,4).map(it=>`⭐ ${it.title} — still short: ${it.plannedHours}h of ${it.desiredHours}h`),
+        ...otherShortWk.slice(0,Math.max(0,6-forcedShortWk.length)).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
+      ];
       toast2({
-        title:`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
-        sub:"Week updated — the rest scheduled fine.",
-        lines:result.shortfalls.slice(0,6).map(it=>`${it.title} — ${it.plannedHours}h of ${it.desiredHours}h`),
-        footer:`${result.shortfalls.length>6?`+${result.shortfalls.length-6} more. `:""}Check Academics → Study Preferences.`,
+        title:forcedShortWk.length
+          ?`${forcedShortWk.length} prioritised item${forcedShortWk.length!==1?"s":""} still short`
+          :`${result.shortfalls.length} item${result.shortfalls.length!==1?"s":""} came up short`,
+        sub:["Week updated.",
+          forcedShortWk.length&&otherShortWk.length?`+${otherShortWk.length} other item${otherShortWk.length!==1?"s":""} also short.`:null,
+        ].filter(Boolean).join(" "),
+        lines:linesWk,
+        footer:`${result.shortfalls.length>linesWk.length?`+${result.shortfalls.length-linesWk.length} more. `:""}Check Academics → Study Preferences.`,
       },true,"warning");
       setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer
     }
