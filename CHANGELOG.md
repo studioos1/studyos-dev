@@ -1,5 +1,38 @@
 # StudyOS Changelog
 
+## v2.70.0 — 2026-09-14
+
+**Syllabus upload: probable-duplicate detection & review, instead of a silent (and leaky) auto-skip**
+
+Acad.jsx already had a dedup check, but it was exact-match only (`normalized title === normalized
+title` and `dueDate === dueDate` for assignments; date-only for exams) and completely silent — no
+visibility, no choice, and real duplicates slipped through whenever the AI's extraction wording
+drifted even slightly between two separate parses of the same PDF ("Problem Set 5" vs "Problem Set
+#5", a date reformatted a day off), which is exactly the scenario a re-upload hits.
+
+- New `findProbableDuplicate()` (`lib/syllabus.js`, 13 unit tests) — a looser, still fully
+  deterministic match: same course, and either (a) the same title once punctuation/formatting is
+  stripped, with a due date within a few days, or (b) the exact same date with one title clearly
+  containing the other. Deliberately conservative — no date-only matching (that's how the old exam
+  dedup could have conflated two unrelated exams landing on the same day) — a false flag costs one
+  extra click to dismiss; a missed one is the bug being fixed.
+- **`ExtractionVerifyModal`** (the existing "review before saving" screen) now flags every probable
+  duplicate inline, highlighted, with the matched existing item shown and a real per-item choice:
+  **Keep recent (recommended)** — replace the existing item in place (same id, so its
+  status/completedAt survive) with the freshly-parsed version; **Keep both** — add it anyway; or
+  **Skip this one** — don't add it. Nothing is decided silently anymore.
+- `finalizeSync` (Acad.jsx) now honors that choice — a "replace" carries the existing item's id
+  through as `_replaceId` and updates it in place instead of adding a second entry. `SyncResultModal`
+  gained a "updated (kept the recent version)" tile alongside the existing added/skipped ones.
+
+**Validation:** 114 tests pass (13 new for `findProbableDuplicate`, covering exact/fuzzy-title/
+date-drift/cross-course/missing-field cases). `npm run build` clean. Verified the Update Syllabus
+page still loads and renders cleanly with the new props wired through; the actual upload → AI
+extraction → duplicate-flagging flow was NOT verified end-to-end with a real PDF in this session
+(no sample syllabus file available here, and it would cost a real Opus-tier API call) — the
+matching logic itself is thoroughly unit-tested, but a real-file pass is worth doing before
+trusting this fully in production.
+
 ## v2.69.1 — 2026-09-14
 
 **Focus Time: course badge simplified to plain text, color swapped to the task line**

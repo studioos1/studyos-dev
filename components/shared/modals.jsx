@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
-import { checkSyllabusExtraction } from "@/lib/syllabus";
+import { checkSyllabusExtraction, findProbableDuplicate } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
 import { getMyInviteInfo } from "@/lib/invites";
 import { Sp, ExtractionIssues, PasswordInput } from "./ui";
@@ -10,24 +10,34 @@ import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 // item (e.g. a quiz the AI called an exam) or wrong date/weight, rather than discovering it
 // later in a cluttered calendar. A single "Looks good, save all" button confirms everything as-is
 // for the common case; per-row editing is only needed when something's actually wrong.
-export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfirm,onCancel}){
+export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],onConfirm,onCancel}){
   const [saving,setSaving]=useState(false);
   // Deterministic sanity check on the raw AI output — surfaces misreads (a heading taken for a
   // course, a wrong-year date) up front so the student can re-upload instead of hand-fixing rows.
   const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd});
-  // Flatten into one editable list, tagging each row with its course + a stable local key.
+  // Flatten into one editable list, tagging each row with its course + a stable local key. Each
+  // row is also checked against what's already saved (findProbableDuplicate, lib/syllabus.js) —
+  // re-uploading the same or a revised syllabus is common, and a real duplicate was slipping
+  // through silently whenever the AI's wording drifted even slightly between two parses of the
+  // same PDF. Flagged rows default to "replace" (recommended — the freshly-parsed version is
+  // usually the more accurate one) but the student sees and can change every flagged row, rather
+  // than it being silently decided either way.
   const [rows,setRows]=useState(()=>{
     const out=[];
     (parsed.courses||[]).forEach((c,ci)=>{
+      const course=courses.find(x=>x.name===c.courseName);
       (c.assignments||[]).forEach((a,ai)=>{
-        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null});
+        const dup=course?findProbableDuplicate(existingAssignments,course.id,a.title,a.dueDate,"dueDate"):null;
+        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null});
       });
       (c.exams||[]).forEach((e,ei)=>{
-        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7});
+        const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date"):null;
+        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,dup,dupResolution:dup?"replace":null});
       });
     });
     return out;
   });
+  const dupCount=rows.filter(r=>r.dup).length;
 
   function updateRow(key,field,value){
     setRows(rs=>rs.map(r=>r.key===key?{...r,[field]:value}:r));
@@ -50,11 +60,17 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfir
     // edited) flat row list — type changes, date/weight edits, and removed rows all take effect.
     const byCourse={};
     rows.forEach(r=>{
+      // "Skip" means exactly that — this row never makes it into the payload finalizeSync acts
+      // on. "Replace" carries the existing item's id through as _replaceId so finalizeSync
+      // updates that item in place (preserving its id/status/completedAt) instead of adding a
+      // second one; "both" (or no duplicate at all) is the normal add path, unchanged.
+      if(r.dup&&r.dupResolution==="skip")return;
+      const dupMeta=r.dup&&r.dupResolution==="replace"?{_replaceId:r.dup.id}:{};
       if(!byCourse[r.courseName])byCourse[r.courseName]={courseName:r.courseName,assignments:[],exams:[]};
       if(r.type==="homework"){
-        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2});
+        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
       }else{
-        byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
+        byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
       }
     });
     // Preserve meetingTimes from the original parse untouched — this screen only verifies duties.
@@ -81,6 +97,13 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfir
               <ExtractionIssues issues={issues} onReupload={onCancel}/>
             </div>
           )}
+          {dupCount>0&&(
+            <div style={{marginTop:16,padding:"10px 14px",background:"var(--amber-bg)",borderRadius:9,
+              display:"flex",alignItems:"center",gap:10,fontSize:13,color:"var(--amber)"}}>
+              <i className="ti ti-copy" style={{fontSize:16,flexShrink:0}}/>
+              {dupCount} item{dupCount!==1?"s look":" looks"} like {dupCount!==1?"duplicates":"a duplicate"} of something already saved — marked below, each with its own choice.
+            </div>
+          )}
           {rows.length===0?(
             <div style={{color:"var(--t3)",padding:"20px 0"}}>Nothing was found to import.</div>
           ):(
@@ -97,7 +120,8 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfir
               </thead>
               <tbody>
                 {rows.map(r=>(
-                  <tr key={r.key}>
+                  <React.Fragment key={r.key}>
+                  <tr style={r.dup?{background:"var(--amber-bg)"}:undefined}>
                     <td style={{padding:"7px 8px"}}>
                       <select value={r.courseName} onChange={e=>updateRow(r.key,"courseName",e.target.value)} style={{fontSize:12,padding:"4px 6px",maxWidth:130}}>
                         {!courses.find(c=>c.name===r.courseName)&&r.courseName&&<option value={r.courseName}>{r.courseName}</option>}
@@ -130,6 +154,29 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,onConfir
                       </button>
                     </td>
                   </tr>
+                  {/* Probable-duplicate resolution — the actual ask: visible, per-item, a real
+                      choice instead of a silent auto-skip (which is what finalizeSync's OLD
+                      exact-match check still does, quietly, for the cases fuzzy enough to slip
+                      past this one — see findProbableDuplicate in lib/syllabus.js). */}
+                  {r.dup&&(
+                    <tr style={{background:"var(--amber-bg)"}}>
+                      <td colSpan={6} style={{padding:"0 8px 10px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",fontSize:12.5,color:"var(--amber)"}}>
+                          <i className="ti ti-alert-triangle" style={{fontSize:13,flexShrink:0}}/>
+                          <span>
+                            Looks like <strong>{r.dup.title}</strong> ({r.dup[r.type==="exam"?"date":"dueDate"]}), already saved.
+                          </span>
+                          <select value={r.dupResolution} onChange={e=>updateRow(r.key,"dupResolution",e.target.value)}
+                            style={{fontSize:12,padding:"4px 8px",marginLeft:"auto",borderColor:"var(--amber)",color:"var(--amber)"}}>
+                            <option value="replace">Keep recent (recommended)</option>
+                            <option value="both">Keep both</option>
+                            <option value="skip">Skip this one</option>
+                          </select>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -299,7 +346,7 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
 
 export function SyncResultModal({result,onClose,onPlanNow,planning}){
   if(!result)return null;
-  const {added,skippedDuplicate,coursesFound,coursesCreated,itemsByCourse,fileNames,error}=result;
+  const {added,skippedDuplicate,replaced,coursesFound,coursesCreated,itemsByCourse,fileNames,error}=result;
   const hasNewItems=added>0&&!error;
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -324,6 +371,12 @@ export function SyncResultModal({result,onClose,onPlanNow,planning}){
                 <div style={{background:"var(--blue-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
                   <div style={{fontSize:24,fontWeight:700,color:"var(--blue)"}}>{coursesCreated}</div>
                   <div style={{fontSize:12,color:"var(--t2)"}}>courses created</div>
+                </div>
+              )}
+              {replaced>0&&(
+                <div style={{background:"var(--teal-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                  <div style={{fontSize:24,fontWeight:700,color:"var(--teal)"}}>{replaced}</div>
+                  <div style={{fontSize:12,color:"var(--t2)"}}>updated (kept the recent version)</div>
                 </div>
               )}
               {skippedDuplicate>0&&(

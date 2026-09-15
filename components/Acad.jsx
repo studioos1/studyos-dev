@@ -540,8 +540,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
   async function finalizeSync(p,fileNames){
     setSyncing(true);
     setProgress?.({label:"Matching courses, saving & estimating study time...",detail:fileNames.join(", ")});
-    let added=0,skippedDuplicate=0,coursesCreated=0;
+    let added=0,skippedDuplicate=0,coursesCreated=0,replaced=0;
     const nA=[],nE=[],newCourses=[];
+    // id -> patch, for rows the student explicitly chose "Keep recent" on in ExtractionVerifyModal
+    // (findProbableDuplicate flagged a probable match, not an exact one, so the OLD exact-match
+    // check just below never would have caught these on its own). Applied over data.assignments/
+    // data.exams at the upd() call below, preserving the existing item's id/status/completedAt —
+    // this UPDATES it in place rather than adding a second entry.
+    const replaceAssignments=new Map(),replaceExams=new Map();
     const itemsByCourse={};
     let workingCourses=[...data.courses];
 
@@ -584,20 +590,28 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       itemsByCourse[c.courseName]={assignments:0,exams:0};
       for(const[i,a]of(c.assignments||[]).entries()){
         if(!a.dueDate)continue;
-        const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
-        if(isDup){skippedDuplicate++;continue;}
         const est=await computeEstimateFields(a,course,"homework");
         // Conservative first guess at project-type work — the student confirms/flips it with the
         // Homework⇄Project toggle in Study Preferences.
         const looksLikeProject=/\b(project|capstone|portfolio|thesis|dissertation|term paper|research paper|final paper)\b/i.test(a.title||"");
+        if(a._replaceId){
+          replaceAssignments.set(a._replaceId,{title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,...(looksLikeProject?{type:"project"}:{}),...est});
+          replaced++;itemsByCourse[c.courseName].assignments++;continue;
+        }
+        const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
+        if(isDup){skippedDuplicate++;continue;}
         nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
       }
       for(const[i,e]of(c.exams||[]).entries()){
         if(!e.date)continue;
+        const est=await computeEstimateFields(e,course,"exam");
+        if(e._replaceId){
+          replaceExams.set(e._replaceId,{title:e.title,date:e.date,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,estimatedHours:est.aiHours,...est});
+          replaced++;itemsByCourse[c.courseName].exams++;continue;
+        }
         const isDup=data.exams.find(x=>x.courseId===course.id&&x.date===e.date);
         if(isDup){skippedDuplicate++;continue;}
-        const est=await computeEstimateFields(e,course,"exam");
         nE.push({id:uid(),courseId:course.id,title:e.title,date:e.date,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
         added++;itemsByCourse[c.courseName].exams++;
       }
@@ -605,11 +619,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
     upd({
       courses:workingCourses,
-      assignments:[...data.assignments,...nA],
-      exams:[...data.exams,...nE],
+      // Replacements are applied over the EXISTING array (preserving id/status/completedAt on
+      // whichever item matched) before the genuinely-new items are appended.
+      assignments:[...data.assignments.map(x=>replaceAssignments.has(x.id)?{...x,...replaceAssignments.get(x.id)}:x),...nA],
+      exams:[...data.exams.map(x=>replaceExams.has(x.id)?{...x,...replaceExams.get(x.id)}:x),...nE],
       lastSyllabusSync:{at:new Date().toISOString(),files:fileNames,added,coursesFound:p.courses?.map(c=>c.courseName)||[]}
     });
-    setSyncResult({added,skippedDuplicate,coursesFound:p.courses?.map(c=>c.courseName)||[],coursesCreated,itemsByCourse,fileNames});
+    setSyncResult({added,skippedDuplicate,replaced,coursesFound:p.courses?.map(c=>c.courseName)||[],coursesCreated,itemsByCourse,fileNames});
     setSylPdfs([]);
     setPendingVerify(null);
     setSyncing(false);
@@ -1742,6 +1758,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           courses={data.courses}
           termStart={data.profile?.termStart}
           termEnd={data.profile?.termEnd}
+          existingAssignments={data.assignments}
+          existingExams={data.exams}
           onConfirm={correctedParsed=>finalizeSync(correctedParsed,pendingVerify.fileNames)}
           onCancel={()=>{setPendingVerify(null);setSylPdfs([]);}}
         />
