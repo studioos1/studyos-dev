@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.73.3 — 2026-09-15
+
+**"Add term" defaults to your current school and auto-searches the real next term, holidays stored**
+
+Follow-up to the reset fix, refined per direct feedback ("not exactly"): a blank form wasn't what
+was wanted. Most "Add term" clicks are for the NEXT term at the school you're already at, so:
+
+- **School field now defaults to your current school** and immediately runs the lookup, as if you
+  had just selected it — instead of opening blank and waiting for you to re-select a school you're
+  already enrolled at.
+- **The lookup itself now finds the real next term, not a re-fetch of the one you already have.**
+  New optional `afterDate` on `/api/college-calendar` (and `fetchCollegeCalendar()`) anchors the
+  search on "the term after this end date" instead of "current or upcoming" — same query-first
+  principle as the earlier UCSD accuracy fix, just anchored to a specific date. Verified live and
+  via direct API call: UCSD's current term ends 2026-11-06 in this account → correctly returned
+  Winter 2027 (2027-01-04 – 2027-03-20), not a repeat of Fall 2026.
+- **Holidays now get stored on the term record** (`term.holidays`, plus `source`/`fetchedAt`) —
+  fetched alongside the dates but never rendered in the modal, per explicit instruction ("no need
+  to display"). Confirmed persisted through a full page reload, not just optimistic local state.
+- The new-school path (a school not yet in the account) is unchanged — still "current or upcoming",
+  since there's no prior term to anchor after.
+
+**Validation:** 151 tests pass (no logic change to tested code). `npm run build` clean. Verified
+live end-to-end: opened "Add term" → pre-filled with current school → auto-ran the search →
+correct next term appeared → saved → confirmed the new term persisted after a full reload → then
+deleted it (test data cleanup) via the existing delete feature, which also re-confirmed that still
+works correctly.
+
 ## v2.73.2 — 2026-09-15
 
 **School Info: "Add term" modal kept stale state after closing without saving**

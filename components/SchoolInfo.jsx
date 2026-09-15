@@ -30,6 +30,8 @@ export function SchoolInfo({data,upd,updP,toast2}){
   const [newName,setNewName]=useState("");
   const [newStart,setNewStart]=useState("");
   const [newEnd,setNewEnd]=useState("");
+  const [newHolidays,setNewHolidays]=useState([]); // fetched alongside the term, stored on save — never shown in this modal
+  const [newSource,setNewSource]=useState(null); // the lookup's sourceUrl, stored alongside holidays
   const [lookupState,setLookupState]=useState("idle"); // idle | loading | done | error
 
   // Closing without saving (X, backdrop click) previously left the form's state alone — reopening
@@ -40,7 +42,16 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // drift apart.
   function closeAddTerm(){
     setShowAddTerm(false);
-    setNewSchool("");setNewType("quarter");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+    setNewSchool("");setNewType("quarter");setNewName("");setNewStart("");setNewEnd("");setNewHolidays([]);setNewSource(null);setLookupState("idle");
+  }
+  // Opening defaults the School field to the CURRENT school (per explicit request — most "add
+  // term" clicks are adding the NEXT term at the school you're already at) and immediately runs
+  // the same lookup a manual selection would, rather than opening blank and waiting for the
+  // student to re-type/re-select a school they're already enrolled at.
+  function openAddTerm(){
+    setShowAddTerm(true);
+    const school=currentTerm&&schools.find(s=>s.id===currentTerm.schoolId);
+    if(school)handleSchoolSelected(school.name);
   }
 
   // Editing an EXISTING term — name/type/dates only (typo correction), not which school it
@@ -91,30 +102,40 @@ export function SchoolInfo({data,upd,updP,toast2}){
   termStatuses.forEach(t=>{(bySchool[t.schoolId]=bySchool[t.schoolId]||[]).push(t);});
   const schoolIds=Object.keys(bySchool).sort((a,b)=>a===currentSchoolId?-1:b===currentSchoolId?1:0);
 
-  async function handleSchoolSelected(schoolName){
-    setNewSchool(schoolName);
-    const existing=schools.find(s=>s.name===schoolName);
-    if(existing){
-      // Existing school — pre-fill the type as an editable default from its most recent term,
-      // but never auto-guess the NEW term's own dates just from knowing the school.
-      const existingTerms=termStatuses.filter(t=>t.schoolId===existing.id);
-      if(existingTerms.length)setNewType(existingTerms[existingTerms.length-1].type);
-      return;
-    }
-    // New school — try the same auto-fill lookup already used elsewhere in the app.
+  // Runs the lookup and fills whatever comes back — shared by both the "existing school" and "new
+  // school" paths below, so there's one lookup implementation, not two that can drift apart.
+  // `afterDate` anchors the search on "the term after this end date" (see fetchCollegeCalendar);
+  // omitted, it falls back to "current or upcoming."
+  async function runLookupAndFill(schoolName,afterDate){
     setLookupState("loading");
     try{
-      const result=await fetchCollegeCalendar(schoolName);
+      const result=await fetchCollegeCalendar(schoolName,afterDate);
       if(result.scheduleType==="quarter"||result.scheduleType==="semester")setNewType(result.scheduleType);
+      if(result.termName)setNewName(result.termName);
       if(result.termStart)setNewStart(result.termStart);
       if(result.termEnd)setNewEnd(result.termEnd);
-      if(result.termName)setNewName(result.termName);
+      if(Array.isArray(result.holidays))setNewHolidays(result.holidays); // stored on save, never shown here
+      if(result.sourceUrl)setNewSource(result.sourceUrl);
       setLookupState("done");
     }catch(err){
       console.error("StudyOS: school lookup failed —",err);
       setLookupState("error");
-      toast2("Couldn't auto-fill that school — please fill in the term manually.",true);
+      toast2("Couldn't auto-fill that term — please fill it in manually.",true);
     }
+  }
+
+  async function handleSchoolSelected(schoolName){
+    setNewSchool(schoolName);
+    const existing=schools.find(s=>s.name===schoolName);
+    let afterDate=null;
+    if(existing){
+      // Anchor the search on the LATEST term already on record for this school, so the lookup
+      // finds the next one after it instead of re-fetching a term the student already has.
+      const existingTerms=[...termStatuses.filter(t=>t.schoolId===existing.id)].sort((a,b)=>(a.end||"").localeCompare(b.end||""));
+      const latest=existingTerms[existingTerms.length-1];
+      if(latest){setNewType(latest.type);afterDate=latest.end||null;}
+    }
+    await runLookupAndFill(schoolName,afterDate);
   }
 
   function saveNewTerm(){
@@ -124,7 +145,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
     checkOverlapAndProceed(schoolId,newStart,newEnd,null,()=>{
       const patch={};
       if(!existing)patch.schools=[...schools,{id:schoolId,name:newSchool,address:"",schoolType:newType}];
-      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:[],source:null,fetchedAt:null}];
+      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null}];
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);
@@ -138,7 +159,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
     <div className="fade">
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h2>School Info</h2>
-        <button className="btn btn-action btn-sm" onClick={()=>setShowAddTerm(true)}>
+        <button className="btn btn-action btn-sm" onClick={openAddTerm}>
           <i className="ti ti-plus"/> Add term
         </button>
       </div>

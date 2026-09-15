@@ -12,14 +12,22 @@
 // matching UCSD's real Fall 2026 finals end) and the correct source (blink.ucsd.edu, not
 // Extended Studies) consistently across 3 repeated test runs. Address dropped entirely per
 // explicit product decision — it wasn't actually needed here.
+//
+// Optional `afterDate`: for a school the user is already enrolled at (adding their NEXT term, not
+// their first), "current or upcoming" would just re-fetch the term they already have on record.
+// Passing the end date of their latest known term anchors the search on the term that comes AFTER
+// it instead — same query-first principle, just anchored to a specific date rather than "today."
 export async function POST(req) {
   try {
-    const { schoolName } = await req.json();
+    const { schoolName, afterDate } = await req.json();
     if (!schoolName) return Response.json({ error: "schoolName is required" }, { status: 400 });
     if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.includes("your-api-key-here")) {
       return Response.json({ error: "Add your API key to the .env file" }, { status: 500 });
     }
     const today = new Date().toISOString().split("T")[0];
+    const searchLine = afterDate
+      ? `Search: what is the term at ${schoolName} that comes right after the term ending ${afterDate}?`
+      : `Search: what is the current or upcoming term at ${schoolName}?`;
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -34,7 +42,7 @@ export async function POST(req) {
         messages: [
           {
             role: "user",
-            content: `Today's date is ${today}. Search: what is the current or upcoming term at ${schoolName}?
+            content: `Today's date is ${today}. ${searchLine}
 
 Then also find:
 - Whether the school runs on a semester or quarter academic system.
