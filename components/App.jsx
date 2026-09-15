@@ -298,7 +298,7 @@ function App(){
             courseCount:data.courses.length,
             assignmentCount:data.assignments.length,
             examCount:data.exams.length,
-            profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,preset:data.profile.sessionPreset}),
+            profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,peak:data.profile.energyPeakTime}),
           },
           days,
         };
@@ -392,7 +392,7 @@ function App(){
         courseCount:data.courses.length,
         assignmentCount:data.assignments.length,
         examCount:data.exams.length,
-        profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,preset:data.profile.sessionPreset}),
+        profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,peak:data.profile.energyPeakTime}),
       },
       days,
     };

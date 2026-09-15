@@ -1,5 +1,45 @@
 # StudyOS Changelog
 
+## v2.71.0 — 2026-09-14
+
+**Study Preferences: unified session length (removed the duplicate picker), energy peak by real time, dropdowns for real resolution**
+
+Preferences had two separate "how long do you study" pickers that meant the same thing:
+"Study session length" (`sessionPreset` — 3 fixed choices, each a bundled study+break split, fed
+only to the planner) and "Focus block length" + "Break length" (`focusMins`/`breakMins` — fed
+only to the Pomodoro timer). One concept, two places to set it, and the planner's own choice was
+invisible unless you knew to look for the separate picker.
+
+- **`sessionPreset` removed entirely.** `focusMins`/`breakMins` (the same pair the timer already
+  used) now drive the planner too — `presetLenFor()` (`lib/planner/schedule.js`, replaces the old
+  `SESSION_PRESETS` lookup) sums them and rounds to the nearest 15 minutes, so placed study blocks
+  still land on the scheduling grid even though the dropdowns below offer finer-than-15
+  resolution. One preference, one place, both consumers.
+- **Dropdowns instead of button rows**, with real resolution: focus length now offers
+  15–90 minutes in 5-minute steps (was 5 fixed choices), break length 5–30 minutes (was 3). New
+  shared `FOCUS_MIN_OPTIONS`/`BREAK_MIN_OPTIONS` (`lib/constants.js`) so Sett.jsx and Onboard.jsx
+  offer the identical choices.
+- **Energy peak is now a real time** (`energyPeakTime`, an actual `<input type="time">`),
+  replacing the old morning/afternoon/evening 3-button bucket. `windowOrderFor()` classifies that
+  time into the same three broad scheduling windows internally, so the planner still prioritizes
+  whichever part of the day the student is sharpest — just picked with real precision instead of
+  a coarse guess at which third of the day "counts".
+- **Migration for existing accounts:** an existing profile only has the old `energyPeak` bucket
+  on disk, not `energyPeakTime` — without carrying it forward, the new time picker would render
+  empty and silently reset everyone's preference to the default. `migrate()` (`lib/data/store.js`)
+  now converts each old bucket to a representative time (morning→09:00, afternoon→14:00,
+  evening→19:00) the first time an existing account loads.
+
+**Validation:** 144 tests pass (23 new — `presetLenFor`/`windowOrderFor` in a new
+`lib/planner/schedule.test.js`, plus the `migrate()` carry-forward in a new
+`lib/data/store.test.js`; the three existing planner test suites' PROFILE fixtures were updated to
+the new fields with equivalent values and still pass unchanged, confirming no behavior
+regression). `npm run build` clean. Verified live end-to-end in a real browser: the old duplicate
+picker is gone, the dropdowns/time-input render and save correctly, an existing profile's old
+"afternoon" bucket correctly carried forward to "02:00 PM", and — the real test — triggered an
+actual "Save & Replan" and watched the planner run successfully to completion on the new fields
+with no error.
+
 ## v2.70.0 — 2026-09-14
 
 **Syllabus upload: probable-duplicate detection & review, instead of a silent (and leaky) auto-skip**

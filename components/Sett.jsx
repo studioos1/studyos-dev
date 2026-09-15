@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { t2m, f12, iso } from "@/lib/time";
-import { DS, DF } from "@/lib/constants";
+import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
@@ -19,7 +19,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   // so they're no longer part of what this page can change.
   const PLAN_RELEVANT_FIELDS=[
     "wakeTime","sleepTime","breakfastTime","breakfastDur","lunchTime","lunchDur","dinnerTime","dinnerDur",
-    "commuteMins","focusMins","breakMins","sessionPreset","energyPeak","gymDays","gymStretch","gymDrive","chores"];
+    "commuteMins","focusMins","breakMins","energyPeakTime","gymDays","gymStretch","gymDrive","chores"];
   function planRelevantSnapshot(profile){
     const snap={};
     PLAN_RELEVANT_FIELDS.forEach(f=>{snap[f]=profile[f];});
@@ -129,41 +129,33 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           </div>
           <div className="card">
             <SecHead icon="ti-brain" title="Study preferences"/>
-            <div style={{marginBottom:16}}>
-              <label>Study session length <span style={{color:"var(--t3)",fontWeight:400}}>(used when planning your schedule)</span></label>
-              <div className="row" style={{marginTop:6}}>
-                {[{v:30,l:"30 min (25 study + 5 break)"},{v:45,l:"45 min (40 study + 5 break)"},{v:60,l:"60 min (50 study + 10 break)"}].map(opt=>(
-                  <button key={opt.v} className={`opt-btn${+p.sessionPreset===opt.v?" sel":""}`}
-                    onClick={()=>mk(()=>updP({sessionPreset:opt.v}))}>{opt.l}</button>
-                ))}
+            {/* One session-length preference, not two — "Study session length" used to duplicate
+                Focus block length with its own separate 3-choice picker (30/45/60, each a fixed
+                study+break split); the planner now derives its own scheduling chunk from
+                THIS SAME focus+break pair (see presetLenFor, lib/planner/schedule.js), so setting
+                it once here is enough. Dropdowns instead of button rows for real resolution
+                (FOCUS_MIN_OPTIONS/BREAK_MIN_OPTIONS, lib/constants.js) — a button row of every
+                5-minute increment from 15–90 would be an unreadable wall of buttons. */}
+            <div className="g2" style={{marginBottom:16}}>
+              <div>
+                <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
+                <select value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))} style={{marginTop:6}}>
+                  {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+                </select>
               </div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <label>Focus block length <span style={{color:"var(--t3)",fontWeight:400}}>(Pomodoro timer only)</span></label>
-              <div className="row" style={{marginTop:6}}>
-                {[15,20,25,30,45].map(n=>(
-                  <button key={n} className={`opt-btn${+p.focusMins===n?" sel":""}`}
-                    onClick={()=>mk(()=>updP({focusMins:n}))}>{n} min</button>
-                ))}
-              </div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <label>Break between focus blocks <span style={{color:"var(--t3)",fontWeight:400}}>(Pomodoro timer only)</span></label>
-              <div className="row" style={{marginTop:6}}>
-                {[5,10,15].map(n=>(
-                  <button key={n} className={`opt-btn${+p.breakMins===n?" sel":""}`}
-                    onClick={()=>mk(()=>updP({breakMins:n}))}>{n} min</button>
-                ))}
+              <div>
+                <label>Break length</label>
+                <select value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))} style={{marginTop:6}}>
+                  {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+                </select>
               </div>
             </div>
             <div>
-              <label>Energy peak — when you think clearest</label>
-              <div className="row" style={{marginTop:6}}>
-                {[["morning","Morning ☀️"],["afternoon","Afternoon 🌤"],["evening","Evening 🌙"]].map(([v,l])=>(
-                  <button key={v} className={`opt-btn${p.energyPeak===v?" sel":""}`}
-                    onClick={()=>mk(()=>updP({energyPeak:v}))}>{l}</button>
-                ))}
-              </div>
+              {/* A specific time, not a morning/afternoon/evening bucket — classified into the
+                  same three broad windows internally (see windowOrderFor, schedule.js), but this
+                  is real precision instead of a coarse guess at which third of the day "counts". */}
+              <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
+              <input type="time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))} style={{marginTop:6,maxWidth:150}}/>
             </div>
           </div>
 
