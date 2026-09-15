@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.66.0 — 2026-09-14
+
+**Progress bars always stacked and genuinely aligned; due-today/tomorrow made deterministic**
+
+- Dropped the side-by-side desktop layout entirely — the two bars now always stack exactly above
+  each other, at any width.
+- **Real alignment bug fixed, not just repositioned:** the bonus badge only ever existed on the
+  On-time row, so its presence alone pushed that row's percentage and bar to the right of Study
+  Pace's — no amount of nudging pixels fixes that while the badge is only sometimes there. Fixed
+  with a fixed-width `.pace-bonus-slot`, rendered (empty) on both rows regardless of whether a
+  bonus exists, so the bar always starts at the identical x. The badge sits inside that slot,
+  pulled toward the label with a small negative margin.
+- `.pace-pct` font shrunk 19px→15px (frees width for the wider "Assignment on-time" label,
+  and the bar — not the number — is the thing actually worth reading at a glance here).
+- **Due today/tomorrow is now deterministic**, not left to the AI's discretion. "Top Things To
+  Keep In Mind" previously depended entirely on the AI happening to mention a same-day or
+  next-day deadline — a real reliability gap for content this critical, and one this app has an
+  explicit standing preference against (deterministic over AI wherever the two could achieve the
+  same result). A new always-first line in that section — computed the same way the proven
+  `dueToday` filter already works, just for `du(dueDate)===1` too — shows "Due today: …" / "Due
+  tomorrow: …" whenever relevant, independent of whether the AI briefing has loaded or even
+  succeeded.
+
+**Validation:** 109 tests pass (no logic change to anything previously tested). `npm run build`
+clean. Verified live: bar alignment confirmed pixel-exact via zoomed screenshot; the due-soon
+line correctly stays hidden in the current sample data (nothing due today/tomorrow in it).
+
 ## v2.65.1 — 2026-09-14
 
 **Progress card: bonus badge moved left, "On-time" renamed to "Assignment on-time"**

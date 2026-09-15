@@ -42,6 +42,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const hr=new Date().getHours();
 
   const dueToday=data.assignments.filter(a=>a.dueDate===td&&a.status!=="done");
+  const dueTomorrow=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)===1);
   const dueWk=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)>0&&du(a.dueDate)<=7);
   const dueNx=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)>7&&du(a.dueDate)<=14);
   const exWk=data.exams.filter(e=>du(e.date)>=0&&du(e.date)<=7).sort((a,b)=>du(a.date)-du(b.date));
@@ -355,6 +356,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               {studyPace!==null&&(
                 <div className="pace-metric-row">
                   <span className="pace-metric-label">Study Pace</span>
+                  <div className="pace-bonus-slot"/>
                   <span className="pace-pct" style={{color:paceColor}}>{studyPace}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${studyPace}%`,background:paceColor}}/></div>
@@ -365,9 +367,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               {onTimePct!==null&&(
                 <div className="pace-metric-row">
                   <span className="tt pace-metric-label" data-tt="Assignment on-time: 100% for on time, bonus for early, shrinking credit for late or still missing">Assignment on-time</span>
-                  {onTimeBonus>0&&
-                    <span className="tt pace-bonus" data-tt="Bonus for submitting early">+{onTimeBonus}</span>
-                  }
+                  <div className="pace-bonus-slot">
+                    {onTimeBonus>0&&
+                      <span className="tt pace-bonus" data-tt="Bonus for submitting early">+{onTimeBonus}</span>
+                    }
+                  </div>
                   <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
@@ -380,8 +384,13 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
         </div>
       )}
 
-      {/* ── TOP THINGS TO KEEP IN MIND — first content block ── */}
-      {brief&&(
+      {/* ── TOP THINGS TO KEEP IN MIND — first content block. The due-today/tomorrow line is
+          deterministic, not AI-written — per this app's standing preference (deterministic over
+          AI wherever the two could achieve the same result), something as critical as "this is
+          due tomorrow" shouldn't depend on whether the AI happened to mention it that particular
+          regeneration. Renders even before/without the AI briefing loading, so it's never gated
+          behind a call that might be slow or fail. ── */}
+      {(brief||dueToday.length>0||dueTomorrow.length>0)&&(
         <div style={BOX}>
           <div style={TITLE_ROW}>
             <i className="ti ti-target" style={TITLE_ICON}/>
@@ -389,6 +398,22 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           </div>
           <div style={DIVIDER}/>
           <div style={INNER}>
+
+            {/* Deterministic — always first, always shown when relevant, independent of brief */}
+            {(dueToday.length>0||dueTomorrow.length>0)&&(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,
+                paddingBottom:brief?10:0,marginBottom:brief?10:0,
+                borderBottom:brief?"1px solid var(--b1)":"none"}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0,marginTop:6}}/>
+                <span style={{fontSize:15,color:"var(--t1)",lineHeight:1.6}}>
+                  {dueToday.length>0&&<><strong style={{color:"var(--red)"}}>Due today:</strong> {dueToday.map(a=>a.title).join(", ")}</>}
+                  {dueToday.length>0&&dueTomorrow.length>0&&"  ·  "}
+                  {dueTomorrow.length>0&&<><strong style={{color:"var(--amber)"}}>Due tomorrow:</strong> {dueTomorrow.map(a=>a.title).join(", ")}</>}
+                </span>
+              </div>
+            )}
+
+            {brief&&(<>
 
             {/* Line 1: Main task */}
             <div style={{display:"flex",alignItems:"flex-start",gap:10,
@@ -417,6 +442,8 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <span style={{fontSize:15,color:"var(--t2)",lineHeight:1.6}}>{brief.encouragement}</span>
               </div>
             )}
+
+            </>)}
 
           </div>
         </div>
