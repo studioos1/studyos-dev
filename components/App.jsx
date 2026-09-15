@@ -572,11 +572,17 @@ function App(){
         }
       </div>
       {toast&&(()=>{
-        const colors={error:["var(--red-bg)","var(--red)"],warning:["var(--amber-bg)","var(--amber)"],success:["var(--card2)","var(--t2)"]};
-        const[bg,fg]=colors[toast.sev]||colors.success;
+        // Background stays severity-tinted (dark red/amber card, same as .card-critical/.card-warn
+        // elsewhere), but the TEXT is near-white (--t1) rather than the severity color itself —
+        // amber-on-amber-tinted-dark read poorly (real reported bug: "display text in amber over
+        // dark background - look bad"). Severity is still legible at a glance via a colored left
+        // accent bar, same pattern .card-warn/.card-critical already use for the same reason.
+        const palette={error:{bg:"var(--red-bg)",accent:"var(--red)"},warning:{bg:"var(--amber-bg)",accent:"var(--amber)"},success:{bg:"var(--card2)",accent:null}};
+        const{bg,accent}=palette[toast.sev]||palette.success;
+        const fg=toast.sev==="success"?"var(--t2)":"var(--t1)";
         const structured=typeof toast.m==="object";
         return(
-          <div className="toast" style={{background:bg,color:fg}}>
+          <div className="toast" style={{background:bg,color:fg,borderLeft:accent?`3px solid ${accent}`:undefined}}>
             {/* Top row: content (title+lines, or a plain string) on the left, × pinned to the
                 top-right corner of the box via alignItems:flex-start on this row — not inline at
                 the end of a single line of text, which is where it sat before. Only persistent
@@ -597,12 +603,14 @@ function App(){
                 </button>
               )}
             </div>
-            {/* Structured body: one line per item, not run together in a sentence. */}
+            {/* Structured body: one line per item, real bullets (not run together in a sentence) —
+                a filled dot reads more clearly as a list marker than the earlier middle-dot did,
+                now that it's not fighting amber-on-amber contrast either. */}
             {structured&&toast.m.lines?.length>0&&(
-              <ul style={{margin:"8px 0 0",padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:4}}>
+              <ul style={{margin:"8px 0 0",padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:5}}>
                 {toast.m.lines.map((l,i)=>(
-                  <li key={i} style={{fontSize:13,paddingLeft:12,position:"relative"}}>
-                    <span style={{position:"absolute",left:0}}>·</span>{l}
+                  <li key={i} style={{fontSize:13,paddingLeft:14,position:"relative"}}>
+                    <span style={{position:"absolute",left:0,color:accent||"inherit"}}>•</span>{l}
                   </li>
                 ))}
               </ul>

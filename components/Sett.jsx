@@ -99,7 +99,11 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
         <h2>Preferences</h2>
         <div className="row">
           {dirty&&<span className="badge badge-amber">● plan not yet refreshed</span>}
-          <button className={`btn btn-sm tt ${dirty?"btn-action":"btn-ghost"}`} data-tt="Re-plans every day from today through the end of your term — but only if something that actually affects scheduling changed (term dates, wake/sleep/meal times, focus length, energy peak, gym days). Other changes just save." onClick={saveReplan} disabled={planning||!dirty} title={dirty?"Refresh your plan with these new settings":"No changes to refresh"}>
+          {/* tt-below tt-right: this button sits at the very top of the page, so the tooltip's
+              default above-trigger placement rendered clipped above the visible viewport (real
+              reported bug) — open it downward instead, anchored to the button's right edge since
+              it's also the rightmost element in its row. */}
+          <button className={`btn btn-sm tt tt-below tt-right ${dirty?"btn-action":"btn-ghost"}`} data-tt="Re-plans every day from today through the end of your term — but only if something that actually affects scheduling changed (term dates, wake/sleep/meal times, focus length, energy peak, gym days). Other changes just save." onClick={saveReplan} disabled={planning||!dirty} title={dirty?"Refresh your plan with these new settings":"No changes to refresh"}>
             {planning?<><Sp sz={12}/> Replanning...</>:<><i className="ti ti-refresh"/> Save &amp; Replan</>}
           </button>
         </div>
@@ -139,13 +143,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             <div className="g2" style={{marginBottom:16}}>
               <div>
                 <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
-                <select value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))} style={{marginTop:6}}>
+                <select className="select-compact" value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))} style={{marginTop:6}}>
                   {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
                 </select>
               </div>
               <div>
                 <label>Break length</label>
-                <select value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))} style={{marginTop:6}}>
+                <select className="select-compact" value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))} style={{marginTop:6}}>
                   {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
                 </select>
               </div>

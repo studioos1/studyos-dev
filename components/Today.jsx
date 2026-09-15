@@ -598,11 +598,16 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,background:"var(--card2)"};
             const cellBorder=i<arr.length-1?"1px solid var(--b1)":"none";
             const cellOpacity=b.completed?0.55:1;
-            // Same vertical rhythm as the old single-row-padding approach, just applied per cell
-            // now (each of the 4 cells below is its own direct grid child, not wrapped in a row
-            // div) — every cell in a "row" gets the same top/bottom padding and border, so the
-            // divider line and spacing still read as one continuous row despite not being one.
-            const cellPad={paddingTop:12,paddingBottom:12,opacity:cellOpacity,borderBottom:cellBorder};
+            // Same top/bottom padding on every cell isn't enough to keep the divider one straight
+            // line — the button+duration and time-range cells have less content than the task
+            // cell, so without alignSelf:"stretch" each cell's own box is only as tall as ITS
+            // content, and a border-bottom drawn at each cell's own (different) bottom edge lands
+            // at a different y per column — a real, reported bug ("the lines are broken"), visibly
+            // a 3-segment jagged divider instead of one continuous line. alignSelf:"stretch"
+            // forces every cell to the shared grid row's full height (set by the tallest cell,
+            // the task column); each cell's own internal flex/alignItems:"center" (set where it's
+            // spread below) still centers that cell's content within the now-taller box.
+            const cellPad={paddingTop:12,paddingBottom:12,opacity:cellOpacity,borderBottom:cellBorder,alignSelf:"stretch"};
             return(
               // Only the task column is elastic (minmax(0,1fr) on the grid above — genuinely can
               // reach 0, unlike a flex item with an implicit content-based floor); course/task

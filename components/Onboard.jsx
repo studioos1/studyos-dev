@@ -448,13 +448,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             <div className="g2" style={{marginBottom:16}}>
               <div>
                 <label style={{marginBottom:8,display:"block"}}>Focus length</label>
-                <select value={p.focusMins} onChange={e=>updP({focusMins:+e.target.value})}>
+                <select className="select-compact" value={p.focusMins} onChange={e=>updP({focusMins:+e.target.value})}>
                   {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
                 </select>
               </div>
               <div>
                 <label style={{marginBottom:8,display:"block"}}>Break length</label>
-                <select value={p.breakMins} onChange={e=>updP({breakMins:+e.target.value})}>
+                <select className="select-compact" value={p.breakMins} onChange={e=>updP({breakMins:+e.target.value})}>
                   {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
                 </select>
               </div>

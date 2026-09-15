@@ -86,6 +86,19 @@
     input:focus,select:focus,textarea:focus{border-color:var(--amber);}
     input::placeholder,textarea::placeholder{color:var(--t3);}
     select option{background:var(--card2);}
+    /* A short-option select (Study Preferences' Focus/Break length) doesn't need the default
+       width:100% — at full grid-column width it was ~5x wider than "45 min" ever needs, real
+       reported bug. Custom arrow (appearance:none + an inline SVG chevron), not the native one —
+       the native arrow sat uncomfortably close to the box's own right edge at this narrower
+       width; this pins it at a fixed, comfortable 10px inset instead of leaving it to whatever
+       the browser does by default. */
+    .select-compact{
+      width:auto; min-width:110px; max-width:150px;
+      padding:10px 32px 10px 13px;
+      appearance:none; -webkit-appearance:none; -moz-appearance:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a8aaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat:no-repeat; background-position:right 10px center;
+    }
     /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
        weights, hours) benefit from stepper buttons; typing is the expected interaction. */
     input[type="number"]::-webkit-outer-spin-button,
@@ -346,10 +359,13 @@
        No display:flex here anymore — a structured toast (title + a line per item + a footer) is
        genuinely multi-row now, not one row of text with a button at the end; the internal
        title/×-button row and the item list each lay themselves out inside this box instead. */
-    .toast{position:fixed; top:92px; left:50%; transform:translateX(-50%); padding:12px 16px; border-radius:10px; font-size:14px; z-index:9999; background:var(--card2); color:var(--t2); max-width:min(480px,calc(100vw - 32px)); box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+    /* top: sits below the fixed header (92px desktop / 50px mobile) with real clearance, not
+       flush against it — flush-against-the-header was a real reported complaint ("place this box
+       a bit lower and not too close to top edge"). */
+    .toast{position:fixed; top:116px; left:50%; transform:translateX(-50%); padding:12px 16px; border-radius:10px; font-size:14px; z-index:9999; background:var(--card2); color:var(--t2); max-width:min(480px,calc(100vw - 32px)); box-shadow:0 4px 20px rgba(0,0,0,0.5);}
     .toast span{white-space:normal; overflow-wrap:break-word;}
     @media (max-width:768px){
-      .toast{top:58px;}
+      .toast{top:78px;}
     }
 
     /* Daily message preview (Today tab) */

@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.72.0 — 2026-09-14
+
+**Five tuneups: dropdown sizing/arrow, replan-summary contrast, Replan tooltip clipping, Focus Time divider**
+
+- **Focus/Break length dropdowns were ~5x wider than needed.** They inherited the global
+  `select{width:100%}` rule, stretching to their full grid-column width for a two-word label like
+  "45 min". New `.select-compact` class (`app/globals.css`) caps them at 110–150px, applied in
+  both `components/Sett.jsx` and `components/Onboard.jsx`.
+- **Dropdown arrow sat too close to the field's own right edge.** Native select arrows aren't
+  independently positionable, so `.select-compact` also switches to `appearance:none` plus an
+  inline SVG chevron pinned at a fixed 10px inset.
+- **Replan summary toast: amber text on an amber-tinted dark background read poorly.** The
+  background stays severity-tinted (unchanged), but the text is now near-white (`--t1`) with the
+  severity color kept only as a left accent bar and bullet-dot color — same pattern
+  `.card-warn`/`.card-critical` already use elsewhere. `lines` now render as a real bulleted list
+  (`•`, not a middle-dot). The toast's `top` offset also moved down — 92px→116px desktop,
+  58px→78px mobile — so it no longer sits flush against the header.
+- **"Save & Replan" button's tooltip rendered clipped above the viewport.** It's the first thing
+  on the Preferences page, so the tooltip's default above-trigger placement had nowhere to render.
+  Added `tt-below tt-right` (an existing compound tooltip variant) so it opens downward, anchored
+  to the button's right edge.
+- **Focus Time row divider was a jagged 3-segment line, not one straight line.** Each of the 4
+  grid cells in a row had its own `border-bottom`, but only the task-column cell was actually the
+  row's full height — the button/duration and time-range cells were shorter (centered via
+  `alignItems:"center"` on the shared grid) so their own border-bottom landed higher than the
+  task column's. Fixed by giving every cell `alignSelf:"stretch"`, so all 4 cells in a row now
+  share the same box height and their borders land at the same y.
+
 ## v2.71.0 — 2026-09-14
 
 **Study Preferences: unified session length (removed the duplicate picker), energy peak by real time, dropdowns for real resolution**
