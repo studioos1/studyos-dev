@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.67.0 — 2026-09-14
+
+**Today's "View day calendar" modal now matches the Calendar tab's day view**
+
+CLAUDE.md's backlog had flagged this explicitly: "Day-view calendar (Today's 'View day calendar'
+modal) — functional but its visual design is an explicitly open, parked question, not finalized."
+It was also a genuine inconsistency — Today's modal used `Timeline` (an hourly 3-column grid),
+while the Calendar tab's month-view day-detail pane (redesigned earlier this session) used a
+completely different chronological colored-list style. Same day, two different looks depending on
+which surface you opened it from.
+
+- Extracted the Calendar tab's day-list rendering into a new shared component,
+  `components/shared/DayAgenda.jsx` — colored left-border rows by activity type, chronological,
+  sleep filtered out, always shows the day's real fixed schedule (classes/meals/gym) regardless of
+  AI-planning status with its own "not planned yet" banner when relevant.
+- Both the Calendar tab's month-view day-detail pane and Today's day-calendar modal now render
+  through this one component — a day looks identical no matter which one you open. Today's modal
+  keeps its own "Plan now" action button (specific to that surface); the Calendar tab's icon
+  toolbar (Add/diagnostics/Replan) stays where it was, unchanged.
+- Left Week.jsx's OLDER single-day drill-down (`mode==="day"`, reached by tapping a cell in the
+  full desktop week grid) on `Timeline` — untouched, out of scope for this request, its own
+  separate flow.
+- Net effect on Week.jsx: removed ~30 lines of now-duplicate inline rendering, replaced with a
+  five-word one-liner using the shared component.
+
+**Validation:** 109 tests pass (no logic changed, pure extraction + swap). `npm run build` clean.
+Verified live: opened Today's modal and the Calendar tab's day view side by side for the same
+date — identical rows, identical order, identical styling.
+
 ## v2.66.0 — 2026-09-14
 
 **Progress bars always stacked and genuinely aligned; due-today/tomorrow made deterministic**

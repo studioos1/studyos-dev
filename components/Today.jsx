@@ -13,7 +13,7 @@ import {
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
 import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
-import { Sp, DiffBadge, DelBtn, Timeline, PaceRunner } from "@/components/shared";
+import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
 export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
@@ -758,18 +758,18 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               </div>
               <button className="btn btn-ghost btn-sm" onClick={()=>setShowCalendar(false)}><i className="ti ti-x"/></button>
             </div>
-            {!weekHasBeenPlanned(data,td)?(
-              <div style={{textAlign:"center",padding:"24px 0",color:"var(--t2)"}}>
-                <i className="ti ti-calendar-off" style={{fontSize:26,marginBottom:8,display:"block",color:"var(--t3)"}}/>
-                This week hasn't been planned yet — nothing to show here until it is.
-                <div style={{marginTop:12}}>
-                  <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
-                    {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
-                  </button>
-                </div>
+            {/* DayAgenda (components/shared) — the same colored-list rendering the Calendar tab's
+                day view uses, so "today" looks identical whether you're looking at it here or
+                there. It shows its own "not planned yet" banner and still lists the day's real
+                fixed schedule (classes, meals, gym) regardless; the Plan-now action below is the
+                one thing specific to this modal. */}
+            <DayAgenda data={data} dateStr={td}/>
+            {!weekHasBeenPlanned(data,td)&&(
+              <div style={{textAlign:"center",marginTop:12}}>
+                <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
+                  {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
+                </button>
               </div>
-            ):(
-              <Timeline dateStr={td} data={data} upd={upd} studyBlocks={todayRealBlocks}/>
             )}
           </div>
         </div>

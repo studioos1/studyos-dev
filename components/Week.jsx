@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { iso, t2m, sundayOf, fmtWeekRange, f12, m2t } from "@/lib/time";
+import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
 import { GYM0 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
 import { weekHasBeenPlanned, realDayBlocks, weekStartOf, buildBlocks, tc, saveBlockToDay, deleteBlockFromDay, logCompletion } from "@/lib/calendar";
-import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal } from "@/components/shared";
+import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal, DayAgenda } from "@/components/shared";
 import { PlanDrawer } from "@/components/PlanDrawer";
 
 // ── WEEK ─────────────────────────────────────────────────────────────────────
@@ -192,15 +192,6 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
       for(let d=new Date(gridStart);d<=gridEnd;d.setDate(d.getDate()+1))days.push(new Date(d));
       return days;
     };
-    const selBlocks=realDayBlocks(data,selDay);
-    // Flat chronological list for the day-detail pane — buildBlocks already returns every real
-    // activity (classes, meals, gym, commute, sleep, the actual study blocks) sorted by start
-    // time, so no lane/overlap logic is needed the way the graphical Timeline grid requires; a
-    // plain top-to-bottom list is both simpler and a better fit for this panel's width. Sleep is
-    // filtered out — it's not a schedulable "activity" the way the rest of this list is, it's
-    // just the wake↔sleep boundary, and showing it as two separate rows (midnight→wake,
-    // bedtime→midnight) added nothing anyone asked to see.
-    const dayBlocks=buildBlocks(selDay,data,selBlocks).filter(b=>b.type!=="sleep");
     // Which activity types earn a dot marker under a day's number — routine/filler ones (sleep,
     // commute, meals) are on every in-term day regardless of anything actually being scheduled,
     // so they'd just add noise rather than signal; these are the ones worth knowing about at a
@@ -332,39 +323,12 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
               </div>
             </div>
           </div>
-          {/* The list below always shows the day's real fixed schedule (classes, meals, gym —
-              buildBlocks includes these regardless of AI planning status) — it's never hidden
-              behind a "not planned yet" wall the way it used to be. This is just a status note —
-              no action button here, since it'd only duplicate the Replan icon above. */}
-          {!weekHasBeenPlanned(data,selDay)&&(
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",marginBottom:10,
-              background:"var(--amber-bg)",color:"var(--amber)",borderRadius:10,fontSize:12.5}}>
-              <i className="ti ti-sparkles" style={{fontSize:14,flexShrink:0}}/>
-              <span>Study time isn't planned for this week yet.</span>
-            </div>
-          )}
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {dayBlocks.map((b,i)=>{
-              const c=tc(b.type);
-              const isDeadline=b.type==="deadline";
-              return(
-                <div key={i} className="card" style={{
-                  display:"flex",alignItems:"center",gap:10,padding:"9px 11px",margin:0,
-                  borderLeft:`4px solid ${c.line}`,borderRadius:6,
-                  opacity:b.type==="commute"?0.6:b.completed?0.55:1}}>
-                  <div style={{flexShrink:0,minWidth:isDeadline?68:112,fontSize:12,color:c.text,fontWeight:600,whiteSpace:"nowrap"}}>
-                    {isDeadline?f12(m2t(b.s)):`${f12(m2t(b.s))} – ${f12(m2t(b.e))}`}
-                  </div>
-                  <div style={{flex:1,minWidth:0,fontSize:14,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {b.completed&&"✓ "}{b.autoMoved&&"↻ "}{b.label}
-                  </div>
-                </div>
-              );
-            })}
-            {dayBlocks.length===0&&(
-              <div style={{textAlign:"center",padding:"20px 0",color:"var(--t3)",fontSize:13}}>Nothing scheduled.</div>
-            )}
-          </div>
+          {/* DayAgenda (components/shared) is the single source of truth for "what does this day's
+              schedule look like" — also used by Today's "View day calendar" modal, so a day
+              renders identically no matter which surface you're looking at it from. It already
+              shows its own "not planned yet" banner; no action button needed here since it'd only
+              duplicate the Replan icon above. */}
+          <DayAgenda data={data} dateStr={selDay}/>
         </div>
         {editState&&(
           <BlockEditModal
