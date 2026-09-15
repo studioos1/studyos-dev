@@ -32,6 +32,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
   const [newEnd,setNewEnd]=useState("");
   const [lookupState,setLookupState]=useState("idle"); // idle | loading | done | error
 
+  // Closing without saving (X, backdrop click) previously left the form's state alone — reopening
+  // "Add term" right after came back with the LAST attempt's school/dates/lookup state still
+  // sitting there instead of a blank form, a real reported bug. This is the one place that both
+  // hides the modal and clears every field back to its default, used by every close path
+  // (including a successful save) so there's exactly one way this ever happens, not two that can
+  // drift apart.
+  function closeAddTerm(){
+    setShowAddTerm(false);
+    setNewSchool("");setNewType("quarter");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+  }
+
   // Editing an EXISTING term — name/type/dates only (typo correction), not which school it
   // belongs to (that's a bigger structural move, out of scope for a simple correction).
   const [editingTerm,setEditingTerm]=useState(null); // {id, name, type, start, end} while a term is being edited, else null
@@ -117,8 +128,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);
-      setShowAddTerm(false);
-      setNewSchool("");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+      closeAddTerm();
     });
   }
 
@@ -213,13 +223,13 @@ export function SchoolInfo({data,upd,updP,toast2}){
       {showAddTerm&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
           display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowAddTerm(false)}>
+          onClick={closeAddTerm}>
           <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",maxWidth:420,width:"100%",
             maxHeight:"85vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
             onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div style={{fontSize:16,fontWeight:600}}>Add term</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowAddTerm(false)}><i className="ti ti-x"/></button>
+              <button className="btn btn-ghost btn-sm" onClick={closeAddTerm}><i className="ti ti-x"/></button>
             </div>
             <div style={{marginBottom:12}}>
               <label>School</label>

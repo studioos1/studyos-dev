@@ -1,5 +1,28 @@
 # StudyOS Changelog
 
+## v2.73.2 — 2026-09-15
+
+**School Info: "Add term" modal kept stale state after closing without saving**
+
+Closing the modal (X button or clicking the backdrop) only hid it — the school name, term name,
+type, dates, and lookup state all stayed in memory. Reopening "Add term" right after came back
+with the last attempt's data still sitting there instead of a blank form — real reported bug,
+found right after the UCSD/UCSB lookup-trigger investigation (typed UCSB, closed without saving,
+reopened, still showed UCSB's result).
+
+- New `closeAddTerm()` is now the one place that both hides the modal and resets every field back
+  to its default — used by the X button, the backdrop click, AND a successful save (which
+  previously had its own separate, slightly different reset inline). One path instead of two that
+  could drift apart.
+- Confirmed the school-search trigger itself was already correct and untouched by this fix:
+  typing in the School field only updates the text (`onChange`); the lookup only fires on an
+  actual autocomplete selection (`onSelect`) — never on every keystroke.
+
+**Validation:** 151 tests pass (no logic change — this is component-local UI state). `npm run
+build` clean. Verified live: typed a school, closed via X without saving, reopened "Add term" —
+confirmed blank (empty school field, default Quarter type, empty dates) instead of the stale
+previous entry.
+
 ## v2.73.1 — 2026-09-15
 
 **College calendar lookup: real bug fixed (UCSD result was inconsistent/wrong), address dropped**
