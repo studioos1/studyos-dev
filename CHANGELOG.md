@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.72.3 — 2026-09-14
+
+**Focus Time mobile: time-range text sat a few px lower than the class name (final alignment pass)**
+
+- Root cause: `.ft-actions`/`.ft-time` zeroed `padding-bottom` below 640px (so they'd stop
+  reaching into line 2's row, from v2.72.2) but kept `padding-top:12px`. The course-name cell
+  beside them has no padding at all, so `align-items:center` centers it on the cell's true
+  geometric center — but the action/time cells' now-asymmetric padding (12px top, 0 bottom) shifted
+  *their* centered content a few px below that same center. `padding-top` now also zeroes out
+  below 640px, matching the course-name cell's zero-padding box exactly.
+- Confirmed via `getBoundingClientRect()`: course name, play button, and time-range text all
+  center at the identical y (was off by ~5-6px before). Desktop unaffected (re-verified —
+  untouched above 640px).
+
 ## v2.72.2 — 2026-09-14
 
 **Focus Time mobile: play button and time range truly centered on the class-name line; assignment gets the full row width**

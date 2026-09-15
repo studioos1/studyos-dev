@@ -295,7 +295,12 @@
        ("the text is not aligned... center the play icon with the center of the top line").
        alignSelf:"stretch" (set inline in Today.jsx, not here) is what makes each cell's own box
        actually reach the row(s) it spans, so its border-bottom lands at the true task boundary —
-       without it the divider breaks into a jagged multi-segment line again (an earlier real bug). */
+       without it the divider breaks into a jagged multi-segment line again (an earlier real bug).
+       Below 640px, padding-top must ALSO zero out (not just padding-bottom) — the course-name
+       cell beside them has no padding at all, so align-items:center centers it on the cell's true
+       geometric center; leaving padding-top:12px here while padding-bottom is 0 made these two
+       cells' own content box asymmetric, centering THEIR text a few px below that true center —
+       a real reported bug ("time-range text ... currently it's a bit lower" than the class name). */
     .ft-actions,.ft-time{
       align-items:center;
       grid-row-end:span var(--ft-span,2);
@@ -307,6 +312,7 @@
       .ft-actions,.ft-time{
         --ft-span:1;
         border-bottom:none;
+        padding-top:0;
         padding-bottom:0;
       }
     }
