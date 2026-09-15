@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { iso, du, m2t, t2m, f12, fmtDur } from "@/lib/time";
 import { APP_VERSION } from "@/lib/version";
 import { termScopedForPlanning, getQ, isFin, isHol, GYM0 } from "@/lib/data";
@@ -13,6 +13,7 @@ import {
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
 import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
+import { dedupeCourseFromTaskLabel } from "@/lib/taskLabel";
 import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
@@ -567,99 +568,124 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             <div style={{textAlign:"center",padding:"10px 0",color:"var(--t3)",fontSize:13}}>
               Nothing scheduled today — plan today from the calendar to get started.
             </div>
-          ):todayRealBlocks.map((b,i,arr)=>{
+          ):(
+          // ONE grid for the whole list, not one grid per row — a per-row grid (the previous
+          // version) computes its "auto" columns independently per row, so the button+duration
+          // column sizes to THAT row's own duration text ("30m" vs "1h 30m") and the play button
+          // visibly drifts left/right between rows — a real, reported regression. Column widths
+          // are only actually synced across rows when every row is a direct child of the SAME
+          // grid, which is why each row below contributes its 4 cells directly (via Fragment, no
+          // per-row wrapping div) rather than being its own nested grid.
+          <div style={{display:"grid",gridTemplateColumns:"4px minmax(0,1fr) auto auto",
+            alignItems:"center",columnGap:14}}>
+          {todayRealBlocks.map((b,i,arr)=>{
             const endMins=t2m(b.time)+(b.duration||25);
             const endTime=b.endTime||m2t(endMins);
             const course=data.courses.find(c=>c.id===b.courseId);
             const col=course?.color?.border||"var(--a-study-t)";
+            const colBg=course?.color?.block||"var(--card2)";
             const isRunning=runningBlockId===b.id;
             const mm=Math.floor(secsLeft/60).toString().padStart(2,"0");
             const ss=(secsLeft%60).toString().padStart(2,"0");
+            // This row also shows the course name as its own line right below — dedupeCourseFromTaskLabel
+            // (lib/taskLabel.js) strips the same leading course-name prefix off the task label for
+            // display only, so the two lines stop repeating each other.
+            const displayTask=dedupeCourseFromTaskLabel(b.task,b.course);
             // width/height live in the "icon-btn-28" CSS class (not here) so the mobile touch-
             // target media query in globals.css can bump them on narrow screens — 28px is under
             // Apple/Google's ~44px minimum recommended tap target, cramped for the button you hit
             // most often on this tab (start/pause/complete a session). Desktop keeps 28px.
             const rowIconBtn={borderRadius:"50%",border:"1px solid var(--b1)",cursor:"pointer",
               display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,background:"var(--card2)"};
+            const cellBorder=i<arr.length-1?"1px solid var(--b1)":"none";
+            const cellOpacity=b.completed?0.55:1;
+            // Same vertical rhythm as the old single-row-padding approach, just applied per cell
+            // now (each of the 4 cells below is its own direct grid child, not wrapped in a row
+            // div) — every cell in a "row" gets the same top/bottom padding and border, so the
+            // divider line and spacing still read as one continuous row despite not being one.
+            const cellPad={paddingTop:12,paddingBottom:12,opacity:cellOpacity,borderBottom:cellBorder};
             return(
-              // Grid, not nested flex — the previous 3-level flex structure (row > "right" group >
-              // button/time pair) kept hitting the same min-width:auto shrink-blocking bug in
-              // different spots no matter how many individual widths got patched, because ANY
-              // level in that chain without an explicit min-width:0 silently re-imposes a content
-              // floor on everything above it. A grid sidesteps the whole class of bug: each
-              // column's sizing is independent and explicit. Only the task column is elastic
-              // (minmax(0,1fr) — genuinely can reach 0, unlike a flex item with an implicit
-              // content-based floor); course/task text truncates with an ellipsis instead of
-              // wrapping or forcing the row wider. The button+duration group and the time range
-              // are both "auto" — sized to their own content, never compressed — so the time
-              // stays genuinely locked to the true right edge at a constant, always-readable size,
-              // exactly like the reference image intended, without ever being able to push the
-              // row past the screen edge to get there.
-              <div key={i} style={{
-                display:"grid",gridTemplateColumns:"4px minmax(0,1fr) auto auto",
-                alignItems:"center",columnGap:14,
-                padding:"12px 0",
-                opacity:b.completed?0.55:1,
-                borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
-
+              // Only the task column is elastic (minmax(0,1fr) on the grid above — genuinely can
+              // reach 0, unlike a flex item with an implicit content-based floor); course/task
+              // text truncates with an ellipsis instead of wrapping or forcing the row wider. The
+              // button+duration group and the time range are both "auto" — sized to their own
+              // content, synced across every row since they're all columns of the one shared grid
+              // above — so the time stays genuinely locked to the right edge, and the play button
+              // lands at the same x on every row, regardless of that row's own duration/time text.
+              <Fragment key={i}>
                 {/* Colored course stripe */}
-                <div style={{borderRadius:2,background:col,alignSelf:"stretch",minHeight:40}}/>
+                <div style={{...cellPad,borderRadius:2,background:col,alignSelf:"stretch",minHeight:40}}/>
 
                 {/* Task (primary) + course (secondary) — the one column allowed to shrink,
                     truncating with an ellipsis rather than wrapping or overflowing. */}
-                <div style={{minWidth:0}}>
-                  <div style={{fontSize:15,color:"var(--t1)",lineHeight:1.5,marginBottom:4,
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {b.completed&&"✓ "}{b.task}
-                  </div>
+                <div style={{...cellPad,minWidth:0}}>
                   {b.course&&(
-                    <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      <span style={{fontSize:12,color:"var(--t3)"}}>{b.course}</span>
+                    // Now the ONLY place this row names the course (the task label's own copy was
+                    // deduped away below) — a real badge/chip (course.color.block behind,
+                    // course.color.border/text as the text color), same pattern this app already
+                    // uses for every other badge, not just colored text. Above the task line, not
+                    // below: it's the category, read first.
+                    <div style={{marginBottom:3,overflow:"hidden"}}>
+                      <span style={{fontSize:11.5,fontWeight:700,color:col,background:colBg,
+                        padding:"2px 8px",borderRadius:6,textTransform:"uppercase",letterSpacing:"0.03em",
+                        whiteSpace:"nowrap",display:"inline-block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>
+                        {b.course}
+                      </span>
                     </div>
                   )}
+                  <div style={{fontSize:15,color:"var(--t1)",lineHeight:1.5,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {b.completed&&"✓ "}{displayTask}
+                  </div>
                 </div>
 
                 {/* Play/Pause+Complete button(s) + Duration — sized to content, never shrinks */}
-                {isRunning?(
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
-                      style={{...rowIconBtn,color:"var(--amber)"}}>
-                      <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
-                    </button>
-                    <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
-                      style={{...rowIconBtn,color:"var(--green)"}}>
-                      <i className="ti ti-check" style={{fontSize:14}}/>
-                    </button>
-                  </div>
-                ):(
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    {b.completed?(
-                      <i className="ti ti-circle-check" style={{fontSize:20,color:"var(--green)"}}/>
-                    ):(
-                      <button className="tt icon-btn-28" data-tt="Start" onClick={()=>startSession(b)}
-                        style={{...rowIconBtn,background:"var(--amber-bg)",color:"var(--amber)"}}>
-                        <i className="ti ti-player-play" style={{fontSize:13}}/>
+                <div style={{...cellPad,display:"flex",alignItems:"center",gap:8}}>
+                  {isRunning?(
+                    <>
+                      <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
+                        style={{...rowIconBtn,color:"var(--amber)"}}>
+                        <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
                       </button>
-                    )}
-                    <span style={{fontSize:13,color:"var(--t3)",minWidth:30,display:"inline-block"}}>
-                      {fmtDur(b.duration||25)}
-                    </span>
-                  </div>
-                )}
+                      <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
+                        style={{...rowIconBtn,color:"var(--green)"}}>
+                        <i className="ti ti-check" style={{fontSize:14}}/>
+                      </button>
+                    </>
+                  ):(
+                    <>
+                      {b.completed?(
+                        <i className="ti ti-circle-check" style={{fontSize:20,color:"var(--green)"}}/>
+                      ):(
+                        <button className="tt icon-btn-28" data-tt="Start" onClick={()=>startSession(b)}
+                          style={{...rowIconBtn,background:"var(--amber-bg)",color:"var(--amber)"}}>
+                          <i className="ti ti-player-play" style={{fontSize:13}}/>
+                        </button>
+                      )}
+                      <span style={{fontSize:13,color:"var(--t3)",minWidth:30,display:"inline-block"}}>
+                        {fmtDur(b.duration||25)}
+                      </span>
+                    </>
+                  )}
+                </div>
 
                 {/* Time range — locked to the right edge, sized to its own content, never shrinks */}
-                {isRunning?(
-                  <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
-                    {mm}:{ss}
-                  </span>
-                ):(
-                  <span style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
-                    {f12(b.time)} – {f12(endTime)}
-                  </span>
-                )}
-              </div>
+                <div style={{...cellPad,display:"flex",alignItems:"center"}}>
+                  {isRunning?(
+                    <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
+                      {mm}:{ss}
+                    </span>
+                  ):(
+                    <span style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
+                      {f12(b.time)} – {f12(endTime)}
+                    </span>
+                  )}
+                </div>
+              </Fragment>
             );
           })}
+          </div>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.69.0 — 2026-09-14
+
+**Focus Time: deduped course/task text, course badge, and a real fix for a self-inflicted misalignment bug**
+
+- **Deduped course name from the task label.** Every task label the planner writes is built as
+  "&lt;courseName&gt; &lt;rest&gt;" (schedule.js — "MATH 180A exam prep (4d left)", etc.), and this
+  row already shows the course name on its own line — same information twice, wasting the width
+  the row's ellipsis truncation needs. New `dedupeCourseFromTaskLabel()` (`lib/taskLabel.js`,
+  10 unit tests against the actual label shapes schedule.js produces) strips the leading
+  course-name prefix for display only — the stored label itself is untouched, since other
+  surfaces (Calendar's day agenda, PlanDrawer) show the task without a separate course line and
+  still need it whole.
+- Course name is now a real badge/chip (course color as background tint + text, same pattern
+  already used for every other badge in this app), placed **above** the task line since it's the
+  category — and it's the only place this row names the course now, so it needed to be more
+  visible than the plain muted-gray text it replaced.
+- **Real regression found and fixed, not just patched again:** rebuilding the row as CSS grid
+  (v2.68.1) fixed the overflow bug but reintroduced a different one — each row was its own
+  independent grid, so the "auto"-sized button/time columns were computed per-row rather than
+  synced across rows, and the play button visibly drifted left/right depending on that row's own
+  duration text ("30m" vs "1h 30m"). Fixed properly: the whole Focus Time list is now ONE grid
+  (`components/Today.jsx`), with each row contributing its 4 cells directly via `Fragment`
+  instead of nesting its own grid — column widths are computed once, across every row, the way
+  CSS grid alignment is supposed to work.
+
+**Validation:** 119 tests pass (10 new for the dedup logic). `npm run build` clean. Verified live
+and measured, not eyeballed: `getBoundingClientRect()` across all 6 Focus Time rows (mixed "1h"
+and "30m" durations) shows every play button/checkmark at the exact same `left: 241px`.
+
 ## v2.68.1 — 2026-09-14
 
 **Focus Time row rebuilt as CSS grid — v2.68.0's flex patch made it worse, not better**
