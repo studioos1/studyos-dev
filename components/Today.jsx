@@ -640,8 +640,10 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   </div>
                 </div>
 
-                {/* Play/Pause+Complete button(s) + Duration — sized to content, never shrinks */}
-                <div style={{...cellPad,display:"flex",alignItems:"center",gap:8}}>
+                {/* Play/Pause+Complete button(s) + Duration — sized to content, never shrinks.
+                    alignItems comes from .ft-actions (globals.css), not inline, so it can switch
+                    from row-centered to top-aligned-with-line-1 below 640px. */}
+                <div className="ft-actions" style={{...cellPad,display:"flex",gap:8}}>
                   {isRunning?(
                     <>
                       <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
@@ -670,8 +672,10 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   )}
                 </div>
 
-                {/* Time range — locked to the right edge, sized to its own content, never shrinks */}
-                <div style={{...cellPad,display:"flex",alignItems:"center"}}>
+                {/* Time range — locked to the right edge, sized to its own content, never shrinks.
+                    Same .ft-time alignment switch as the actions column, so the two stay level
+                    with each other (and with line 1) below 640px. */}
+                <div className="ft-time" style={{...cellPad,display:"flex"}}>
                   {isRunning?(
                     <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
                       {mm}:{ss}

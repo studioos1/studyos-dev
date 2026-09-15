@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.72.1 — 2026-09-14
+
+**Focus Time mobile: play button + time were dead-centered across both text lines, crowding the assignment line**
+
+- On narrow screens, the Focus Time row's action column (play button + duration) and time-range
+  column were vertically centered against the row's full height — the same height as the row's two
+  text lines (course name + assignment). A button centered across both lines visually sits on top
+  of the boundary between them, crowding the second (assignment) line — real reported bug on
+  iPhone: "the play icon ... is blocking the display of the assignment."
+- New `.ft-actions`/`.ft-time` classes (`app/globals.css`) keep both columns centered on desktop
+  (unchanged, already verified) but switch to top-aligned below 640px, so they line up with the
+  course-name line instead, leaving the full row height under them free for the assignment line.
+
 ## v2.72.0 — 2026-09-14
 
 **Five tuneups: dropdown sizing/arrow, replan-summary contrast, Replan tooltip clipping, Focus Time divider**
