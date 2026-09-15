@@ -416,7 +416,10 @@
       .pace-metrics{flex-direction:row; align-items:center; gap:32px; flex-wrap:wrap;}
     }
     .pace-metric-row{display:flex; align-items:center; gap:12px; flex-shrink:0;}
-    .pace-metric-label{font-size:13.5px; color:var(--t2); font-weight:500; flex-shrink:0; width:86px;}
+    /* Width fits "Assignment on-time" (the longer of the two labels) — both rows share this
+       class so they stay aligned; "Study Pace" just has some empty space after it, same as any
+       other fixed-width label column in this app (e.g. PlanDrawer's). */
+    .pace-metric-label{font-size:13.5px; color:var(--t2); font-weight:500; flex-shrink:0; width:150px; white-space:nowrap;}
     /* width (not min-width) is load-bearing: "8%" and "100%" are different lengths even with
        tabular-nums (that only makes each digit uniform, not the whole string), so a min-width
        floor let the wider one push its row's bar further right than the other row's — the two

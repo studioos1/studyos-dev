@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.65.1 — 2026-09-14
+
+**Progress card: bonus badge moved left, "On-time" renamed to "Assignment on-time"**
+
+- Bonus badge now sits to the left of the percentage (`+2  100%`) instead of the right.
+- Label renamed "On-time" → "Assignment on-time"; `.pace-metric-label` widened 86px→150px to fit
+  it (shared by both rows, so "Study Pace" just has extra breathing room after it).
+- **Known tradeoff, not a bug:** the wider label + bonus badge means the two metric rows no
+  longer fit side by side at the card's max width (960px) — `flex-wrap` gracefully falls back to
+  stacked (same as mobile) instead of overflowing, but the "both on one line at desktop width"
+  layout from v2.64.0 is effectively unreachable now with the bar staying at its requested
+  240px. Flagged for Avishai rather than silently trading away either the wider label or the
+  longer bar to preserve it.
+
+**Validation:** 109 tests pass (no logic changed, CSS/JSX ordering only), `npm run build` clean,
+verified live at both desktop and phone widths.
+
 ## v2.65.0 — 2026-09-14
 
 **Two real bugs found from live testing: the bonus badge never showing, "not yet" on items that were actually planned**

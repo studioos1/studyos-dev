@@ -364,11 +364,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               )}
               {onTimePct!==null&&(
                 <div className="pace-metric-row">
-                  <span className="tt pace-metric-label" data-tt="Assignments On-time: 100% for on time, bonus for early, shrinking credit for late or still missing">On-time</span>
-                  <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
+                  <span className="tt pace-metric-label" data-tt="Assignment on-time: 100% for on time, bonus for early, shrinking credit for late or still missing">Assignment on-time</span>
                   {onTimeBonus>0&&
                     <span className="tt pace-bonus" data-tt="Bonus for submitting early">+{onTimeBonus}</span>
                   }
+                  <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
                     <div className="pace-bar-arrow" style={{left:`${onTimePct}%`,color:onTimeColor}}>▲</div>
