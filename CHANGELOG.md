@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.73.1 — 2026-09-15
+
+**College calendar lookup: real bug fixed (UCSD result was inconsistent/wrong), address dropped**
+
+Backlog item #4's QA pass (real API calls, not just "does it return JSON") found a genuine bug: the
+prompt's original multi-field-up-front phrasing gave UCSD specifically an inconsistent/wrong
+result across repeated runs — once silently `null` for term end + holidays, once confidently
+pulling term dates from **UCSD Extended Studies** (a different calendar than the regular
+undergraduate one) instead of the real academic calendar.
+
+- **Root cause:** UCSD has several official `*.ucsd.edu` calendars (main campus, Extension/
+  Extended Studies, Summer Session). The old prompt's "prefer the school's own `.edu` domain"
+  instruction is satisfied by all of them, so it gave the model no way to pick the authoritative
+  one before it had even searched anything.
+- **Fix:** the prompt now leads with a single, simple, human-style search query ("what is the
+  current or upcoming term at X?") instead of front-loading every field the app needs — closer to
+  how a person would actually search, and it lands on the right page. Verified with 3 repeated
+  UCSD runs through the real endpoint (not a prototype) — consistent correct end date
+  (2026-12-12, matches UCSD's real Fall 2026 finals) and consistent correct source
+  (`blink.ucsd.edu`, not Extended Studies) every time, versus inconsistent/wrong before. Re-ran
+  Harvard and Stanford afterward too, to confirm the change didn't regress schools that already
+  worked — both came back correct (Stanford: real "Autumn 2026" naming, quarter system).
+  Considered swapping to OpenAI's web-search as an alternative fix; concluded it wouldn't actually
+  address the root cause (any search backend hits the same multi-calendar ambiguity) and would
+  add a second AI provider for no clear win, contrary to the project's own standing preference for
+  deterministic logic over more AI where the two could achieve the same result.
+- **Address dropped from the lookup entirely** — per explicit product decision, it wasn't actually
+  needed. `applyCollegeCalendarResult()` no longer reads `result.address`; `schoolAddress` remains
+  a real, separately-editable profile field, just no longer auto-fetched by this endpoint. Updated
+  the two UI strings (`Onboard.jsx`) that described the lookup as auto-filling an address.
+
+**Validation:** 151 tests pass (no logic change to tested code — the prompt/address change is in
+the API route and a thin `lib/colleges.js` function with no existing test file). `npm run build`
+clean. Verified live end-to-end through the real UI (Add term → Stanford University): correct
+"Autumn 2026" naming, quarter system, plausible dates, no address field anywhere.
+
 ## v2.73.0 — 2026-09-15
 
 **School Info: delete an "Upcoming" term**

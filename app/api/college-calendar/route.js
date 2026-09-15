@@ -1,5 +1,17 @@
-// College calendar lookup via Claude's web_search tool. Ported verbatim from the old
-// server.js; logic and parsing comments unchanged.
+// College calendar lookup via Claude's web_search tool.
+//
+// Prompt shape (2026-09-15 revision): leads with a single, simple, human-style search query
+// ("what is the current or upcoming term at X?") instead of front-loading every field the app
+// needs before any search happens. Empirically verified via direct API calls (not just guessed):
+// the original multi-ask-up-front prompt gave UCSD specifically an inconsistent/wrong result
+// across repeated runs — once silently null, once confidently pulling term dates from UCSD
+// Extended Studies (a different calendar than the regular undergraduate one) — because a school
+// with several *.edu-domain calendars (main campus vs. extension/professional programs) gives the
+// model no signal on which is authoritative when the prompt's own first move is a broad, compound
+// search. Leading with the simple, targeted query instead got the correct date (2026-12-12,
+// matching UCSD's real Fall 2026 finals end) and the correct source (blink.ucsd.edu, not
+// Extended Studies) consistently across 3 repeated test runs. Address dropped entirely per
+// explicit product decision — it wasn't actually needed here.
 export async function POST(req) {
   try {
     const { schoolName } = await req.json();
@@ -22,15 +34,17 @@ export async function POST(req) {
         messages: [
           {
             role: "user",
-            content: `Today's date is ${today}. Search for "${schoolName}"'s official academic calendar. Prefer the school's own .edu domain over aggregator sites. Find:
-1. The school's main campus mailing address.
-2. Whether it runs on a semester or quarter academic system.
-3. The CURRENT term if one is in progress today, otherwise the NEXT upcoming term — its name, start date, and end date (the end date must be the LAST DAY OF FINALS, not the last day of regular classes).
-4. Every official holiday or break that falls within that term window (federal holidays the school observes, plus any school-specific breaks like Thanksgiving break, spring recess, etc).
+            content: `Today's date is ${today}. Search: what is the current or upcoming term at ${schoolName}?
+
+Then also find:
+- Whether the school runs on a semester or quarter academic system.
+- The end date of that term must be the LAST DAY OF FINALS, not the last day of regular classes.
+- Every official holiday or break that falls within that term window (federal holidays the school observes, plus any school-specific breaks like Thanksgiving break, spring recess, etc).
+
+Prefer the school's own primary undergraduate academic calendar over a different department's calendar (e.g. Extension, Summer Session, a professional/graduate program) or a third-party aggregator site.
 
 After searching, respond with ONLY a single JSON object in exactly this shape, no other text before or after it:
 {
-  "address": "street address, city, state zip",
   "scheduleType": "semester" or "quarter",
   "termName": "e.g. Fall 2026",
   "termStart": "YYYY-MM-DD",
