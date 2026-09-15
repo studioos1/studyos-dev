@@ -1,5 +1,37 @@
 # StudyOS Changelog
 
+## v2.72.2 — 2026-09-14
+
+**Focus Time mobile: play button and time range truly centered on the class-name line; assignment gets the full row width**
+
+Follow-up to v2.72.1's top-align fix — still not quite right ("the text is not aligned... center
+the play icon with the center of the top line... make sure we have enough space to display the
+2nd line in full left to right").
+
+- **Restructured each task from one grid row into two.** Previously the course name and assignment
+  text were stacked inside a single grid cell (column 2), with the play button/duration (column 3)
+  and time range (column 4) spanning that cell's full 2-line height. Each task now spans two real
+  grid rows: line 1 (course name + play button/duration + time range) and line 2 (assignment,
+  full width). Both changes fall out of this directly:
+  - **Play button and time range are now genuinely centered against just the course-name line**
+    (not the row's full 2-line height) below 640px, since they now only span line 1's grid row
+    there — `grid-row-end` switches from `span 2` to `span 1` via a `--ft-span` custom property,
+    conditional per breakpoint (`.ft-actions`/`.ft-time` in `app/globals.css`). Course name uses
+    the same `alignSelf:"stretch"` + internal flex-centering as those two cells, so all three sit
+    at the exact same vertical center regardless of line 1's actual computed height — confirmed
+    via `getBoundingClientRect()` (all three centered at the same y).
+  - **The assignment line spans the full row width on mobile** (columns 2 through 4 — the width
+    the now line-1-only action/time cells free up there), instead of being confined to column 2's
+    narrow share — confirmed via measurement: full row width (54px→565px), versus column 2 alone
+    (54px→333px) before.
+- **Desktop is pixel-identical to before** (re-verified via `getBoundingClientRect()`) — the
+  action/time cells still span both rows there (`grid-row-end:span 2`, the default), so they read
+  centered across the full 2-line block exactly as already shipped/verified, and the assignment
+  line stays confined to the course-name column only (`grid-column-end:span 1`, the default).
+- The Focus Time row divider (fixed in v2.72.0) also stays intact at both breakpoints — every
+  cell still ends up `alignSelf:"stretch"`-ed to the exact height/rows it's meant to span, so its
+  border-bottom lands at the task's true boundary.
+
 ## v2.72.1 — 2026-09-14
 
 **Focus Time mobile: play button + time were dead-centered across both text lines, crowding the assignment line**
