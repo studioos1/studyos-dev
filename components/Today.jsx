@@ -613,7 +613,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                     clearly larger gap, then the time range alone. Fixed widths on both groups
                     (not flexible) guarantee they land at the same horizontal position on every
                     row regardless of how long that row's task text is. */}
-                <div style={{flex:1,marginLeft:14,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{flex:1,minWidth:0,marginLeft:14,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   {isRunning?(
                     <>
                       <div style={{flex:"0 0 auto",display:"flex",alignItems:"center",gap:8}}>
@@ -626,7 +626,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                           <i className="ti ti-check" style={{fontSize:14}}/>
                         </button>
                       </div>
-                      <span style={{flex:"0 0 170px",fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",textAlign:"right"}}>
+                      <span className="focustime-timecol" style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",textAlign:"right"}}>
                         {mm}:{ss}
                       </span>
                     </>
@@ -650,7 +650,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                           {fmtDur(b.duration||25)}
                         </span>
                       </div>
-                      <span style={{flex:"0 0 170px",fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
+                      <span className="focustime-timecol" style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
                         {f12(b.time)} – {f12(endTime)}
                       </span>
                     </>

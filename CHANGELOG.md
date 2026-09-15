@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.68.0 — 2026-09-14
+
+**Two real bugs found from live iPhone testing**
+
+- **Focus Time row overflow.** The time-range column ("3:00pm – 4:00pm") was `flex:0 0 170px`
+  unconditionally, and its parent had no `min-width:0` — the same root-cause pattern already
+  found and fixed several times this session (a flex item's default `min-width:auto` blocks
+  shrinking below its content size even with `flex-shrink` set). On a real iPhone this popped the
+  time column out past the right edge. Fixed with a responsive `.focustime-timecol` class: fixed
+  170px on desktop (unchanged, matches the reference image it was built from), shrinkable
+  (`flex:0 1 120px; min-width:0`) below 480px, plus `min-width:0` added to its parent container.
+- **iOS Safari zoom-on-focus (the Bug Report modal bug).** Real root cause, not a rendering
+  quirk: Safari on iOS auto-zooms the whole page when a focused input/select/textarea has
+  `font-size` under 16px, and doesn't reliably reset that zoom when the field blurs or its modal
+  closes. The app-wide default for every input/select/textarea was 15px, and the Bug Report
+  modal's textarea explicitly overrode it to 14px *and* has `autoFocus` — guaranteeing the zoom
+  fired every single time that modal opened. That's what "modal looks a bit large, then the whole
+  UI stays enlarged and overflowing after Cancel" actually was. Fixed the global default to 16px
+  and removed the modal's smaller override. Several other inputs across the app (compact table
+  cells in Academics, time pickers in Settings/Onboarding, a few modal fields) have their own
+  sub-16px overrides and could still trigger this on their own field — flagged as a follow-up
+  sweep, not fixed blindly here since several are deliberately compact, already-tuned table cells.
+
+**Validation:** 109 tests pass (no logic changed). `npm run build` clean. Verified the
+Focus Time fix's compiled CSS directly (this environment's browser-automation tooling has a
+~500px floor and can't reach true iPhone widths to screenshot it there); verified the textarea's
+computed `font-size` is 16px live, and that Cancel returns cleanly with no regression on desktop
+Chrome (Safari's zoom-on-focus specifically can't be reproduced outside real Safari, but the root
+cause is a well-documented, standard browser behavior and both fixes address it directly).
+
 ## v2.67.0 — 2026-09-14
 
 **Today's "View day calendar" modal now matches the Calendar tab's day view**

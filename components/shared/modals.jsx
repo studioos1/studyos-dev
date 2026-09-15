@@ -461,9 +461,12 @@ export function BugReportModal({onSubmit,onCancel}){
         <p style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.5}}>
           What happened, and what were you doing right before it? We'll see which page you're on automatically.
         </p>
+        {/* fontSize intentionally NOT overridden below 16px here — this field autoFocuses, so on
+            iOS a smaller size would trigger Safari's auto-zoom on every single open (see the
+            input/select/textarea comment in globals.css) — this was the actual reported bug. */}
         <textarea value={message} onChange={e=>setMessage(e.target.value)} autoFocus
           placeholder="e.g. The Save button on Study Preferences didn't do anything when I clicked it"
-          style={{width:"100%",minHeight:100,fontFamily:"inherit",fontSize:14,resize:"vertical",marginBottom:10}}/>
+          style={{width:"100%",minHeight:100,fontFamily:"inherit",resize:"vertical",marginBottom:10}}/>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
           <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
