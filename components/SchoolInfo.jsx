@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { iso } from "@/lib/time";
-import { computeTermStatuses, datesOverlap } from "@/lib/data";
+import { computeTermStatuses, datesOverlap, canDeleteTerm } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -63,6 +63,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
       toast2("Term updated");
       setEditingTerm(null);
     });
+  }
+
+  // canDeleteTerm (lib/data/terms.js) has the actual rule (upcoming-only, blocked if courses are
+  // attached) — kept there rather than inline so it's unit-testable without mocking confirm/toast.
+  async function deleteTerm(t){
+    const check=canDeleteTerm(t,data.courses);
+    if(!check.deletable){toast2(`Can't delete "${t.name}" — ${check.reason}`,true);return;}
+    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})? This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
+    if(!ok)return;
+    upd({terms:data.terms.filter(x=>x.id!==t.id)});
+    toast2("Term deleted");
   }
 
   const bySchool={};
@@ -168,12 +179,22 @@ export function SchoolInfo({data,upd,updP,toast2}){
                       {t.status}
                     </span>
                   </div>
-                  <button className="tt" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
-                    style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
-                      border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",cursor:"pointer",
-                      display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-                    <i className="ti ti-pencil" style={{fontSize:13}}/>
-                  </button>
+                  <div style={{display:"flex",gap:8,flexShrink:0}}>
+                    {t.status==="upcoming"&&(
+                      <button className="tt" data-tt="Delete this term" onClick={()=>deleteTerm(t)}
+                        style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                          border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--red)",cursor:"pointer",
+                          display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                        <i className="ti ti-trash" style={{fontSize:13}}/>
+                      </button>
+                    )}
+                    <button className="tt" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
+                      style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                        border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",cursor:"pointer",
+                        display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                      <i className="ti ti-pencil" style={{fontSize:13}}/>
+                    </button>
+                  </div>
                 </div>
                 <div style={DIVIDER}/>
                 <div style={INNER}>

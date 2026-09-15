@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.73.0 — 2026-09-15
+
+**School Info: delete an "Upcoming" term**
+
+There was previously no way to remove a term at all — each term row only had an Edit (pencil)
+button. Added a delete option, scoped deliberately narrow:
+
+- **Only "Upcoming" terms are deletable** — never "Current" (actively driving the planner) or
+  "Completed" (real history). The trash icon only renders next to an upcoming term's row.
+- **Blocked (not cascaded) when courses are already attached.** A student can prep courses against
+  a future term before it starts (Academics' term selector allows it), so silently deleting those
+  along with the term would be a much bigger, easy-to-miss loss than the term itself — the toast
+  names exactly how many courses are in the way instead.
+- Deleting a clear (no-courses) upcoming term goes through the existing `useConfirm()` dialog
+  (same pattern already used for the term-date-overlap warning in this file), naming the exact
+  term and dates before removal — matches this component's own established confirm-before-destroy
+  convention, unlike the app's usual delete-with-no-confirm pattern for simpler list items.
+- New `canDeleteTerm(term, courses)` (`lib/data/terms.js`) holds the actual rule, kept out of the
+  component so it's unit-testable without mocking `confirm`/`toast2` — 7 new tests covering each
+  status, singular/plural wording, and a term with no attached courses.
+
+**Validation:** 151 tests pass (7 new). `npm run build` clean. Verified live: delete button shows
+only on the upcoming term, confirm dialog names the exact term/dates, Cancel is a safe no-op.
+
 ## v2.72.3 — 2026-09-14
 
 **Focus Time mobile: time-range text sat a few px lower than the class name (final alignment pass)**
