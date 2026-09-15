@@ -598,52 +598,46 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,background:"var(--card2)"};
             const cellBorder=i<arr.length-1?"1px solid var(--b1)":"none";
             const cellOpacity=b.completed?0.55:1;
-            // Same top/bottom padding on every cell isn't enough to keep the divider one straight
-            // line — the button+duration and time-range cells have less content than the task
-            // cell, so without alignSelf:"stretch" each cell's own box is only as tall as ITS
-            // content, and a border-bottom drawn at each cell's own (different) bottom edge lands
-            // at a different y per column — a real, reported bug ("the lines are broken"), visibly
-            // a 3-segment jagged divider instead of one continuous line. alignSelf:"stretch"
-            // forces every cell to the shared grid row's full height (set by the tallest cell,
-            // the task column); each cell's own internal flex/alignItems:"center" (set where it's
-            // spread below) still centers that cell's content within the now-taller box.
-            const cellPad={paddingTop:12,paddingBottom:12,opacity:cellOpacity,borderBottom:cellBorder,alignSelf:"stretch"};
+            // Each task now occupies TWO explicit grid rows in the one shared list-wide grid —
+            // line 1 (course name + play button/duration + time range) and line 2 (the assignment
+            // text, full-width). Explicit gridRowStart per task (rather than relying on grid
+            // auto-flow) is required once cells span a variable number of rows depending on
+            // breakpoint (see .ft-actions/.ft-time/.ft-assignment in globals.css).
+            const rowStart=i*2+1;
             return(
-              // Only the task column is elastic (minmax(0,1fr) on the grid above — genuinely can
-              // reach 0, unlike a flex item with an implicit content-based floor); course/task
+              // Course/stripe/assignment columns are elastic (minmax(0,1fr) on the grid above —
+              // genuinely can reach 0, unlike a flex item with an implicit content-based floor);
               // text truncates with an ellipsis instead of wrapping or forcing the row wider. The
               // button+duration group and the time range are both "auto" — sized to their own
               // content, synced across every row since they're all columns of the one shared grid
               // above — so the time stays genuinely locked to the right edge, and the play button
               // lands at the same x on every row, regardless of that row's own duration/time text.
               <Fragment key={i}>
-                {/* Colored course stripe */}
-                <div style={{...cellPad,borderRadius:2,background:col,alignSelf:"stretch",minHeight:40}}/>
+                {/* Colored course stripe — spans both of this task's rows (course name + assignment) */}
+                <div style={{gridColumn:1,gridRow:`${rowStart} / span 2`,paddingTop:12,paddingBottom:12,
+                  opacity:cellOpacity,borderBottom:cellBorder,borderRadius:2,background:col,alignSelf:"stretch",minHeight:40}}/>
 
-                {/* Task (primary) + course (secondary) — the one column allowed to shrink,
-                    truncating with an ellipsis rather than wrapping or overflowing. */}
-                <div style={{...cellPad,minWidth:0}}>
-                  {b.course&&(
-                    // Now the ONLY place this row names the course (the task label's own copy was
-                    // deduped away below) — plain bright text, no pill/background, per explicit
-                    // correction. White (the course color moved to the task line below instead —
-                    // course.color.border/text is tuned as a readable text color already, same
-                    // value used for course dot indicators elsewhere, so it's bright enough there
-                    // without needing its own background to read clearly).
-                    <div style={{marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      <span style={{fontSize:12.5,fontWeight:700,color:"var(--t1)"}}>{b.course}</span>
-                    </div>
-                  )}
-                  <div style={{fontSize:15,color:col,lineHeight:1.5,
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {b.completed&&"✓ "}{displayTask}
+                {/* Course name — line 1 only. alignSelf:"stretch" + its own internal flex centering
+                    (rather than a fixed paddingTop) keeps its vertical center matched with the
+                    actions/time cells beside it regardless of what line 1's actual computed height
+                    ends up being — real reported bug otherwise ("the text is not aligned"). */}
+                {b.course&&(
+                  <div style={{gridColumn:2,gridRowStart:rowStart,opacity:cellOpacity,alignSelf:"stretch",
+                    display:"flex",alignItems:"center",minWidth:0}}>
+                    {/* Now the ONLY place this row names the course (the task label's own copy was
+                        deduped away below) — plain bright text, no pill/background, per explicit
+                        correction. */}
+                    <span style={{fontSize:12.5,fontWeight:700,color:"var(--t1)",overflow:"hidden",
+                      textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.course}</span>
                   </div>
-                </div>
+                )}
 
-                {/* Play/Pause+Complete button(s) + Duration — sized to content, never shrinks.
-                    alignItems comes from .ft-actions (globals.css), not inline, so it can switch
-                    from row-centered to top-aligned-with-line-1 below 640px. */}
-                <div className="ft-actions" style={{...cellPad,display:"flex",gap:8}}>
+                {/* Play/Pause+Complete button(s) + Duration. Spans both lines on desktop (centered
+                    across the full row, unchanged) but only line 1 below 640px — centered on the
+                    course-name line, per explicit request — via grid-row-end + alignItems in the
+                    .ft-actions class (globals.css), not inline, so it can vary by breakpoint. */}
+                <div className="ft-actions" style={{gridColumn:3,gridRowStart:rowStart,opacity:cellOpacity,
+                  alignSelf:"stretch",display:"flex",gap:8,"--cell-border":cellBorder}}>
                   {isRunning?(
                     <>
                       <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
@@ -672,10 +666,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   )}
                 </div>
 
-                {/* Time range — locked to the right edge, sized to its own content, never shrinks.
-                    Same .ft-time alignment switch as the actions column, so the two stay level
-                    with each other (and with line 1) below 640px. */}
-                <div className="ft-time" style={{...cellPad,display:"flex"}}>
+                {/* Time range — locked to the right edge. Same span/centering treatment as the
+                    actions column (.ft-time), so the two line up with each other and with the
+                    course-name line at every width. */}
+                <div className="ft-time" style={{gridColumn:4,gridRowStart:rowStart,opacity:cellOpacity,
+                  alignSelf:"stretch",display:"flex","--cell-border":cellBorder}}>
                   {isRunning?(
                     <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
                       {mm}:{ss}
@@ -685,6 +680,24 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                       {f12(b.time)} – {f12(endTime)}
                     </span>
                   )}
+                </div>
+
+                {/* Assignment text — line 2. On mobile it spans columns 2-4 (the width the
+                    line-1-only actions/time cells free up there) so the full title gets room to
+                    display left to right instead of truncating early — real reported request.
+                    On desktop it stays confined to the course-name column only, unchanged/verified
+                    (columns 3-4 there are still occupied by the actions/time cells' own 2-row
+                    span). Span comes from .ft-assignment (globals.css), conditional by breakpoint. */}
+                {/* gridColumnStart (longhand), not the gridColumn shorthand — the shorthand also
+                    resets grid-column-end to "auto" inline, which (inline styles always beating
+                    stylesheet rules for the same longhand) would silently block .ft-assignment's
+                    conditional grid-column-end span below from ever applying. */}
+                <div className="ft-assignment" style={{gridColumnStart:2,gridRowStart:rowStart+1,marginTop:2,
+                  paddingBottom:12,opacity:cellOpacity,borderBottom:cellBorder,minWidth:0}}>
+                  <span style={{fontSize:15,color:col,lineHeight:1.5,overflow:"hidden",
+                    textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>
+                    {b.completed&&"✓ "}{displayTask}
+                  </span>
                 </div>
               </Fragment>
             );
