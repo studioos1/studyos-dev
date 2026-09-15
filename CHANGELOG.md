@@ -1,5 +1,216 @@
 # StudyOS Changelog
 
+## v2.67.0 — 2026-09-14
+
+**Today's "View day calendar" modal now matches the Calendar tab's day view**
+
+CLAUDE.md's backlog had flagged this explicitly: "Day-view calendar (Today's 'View day calendar'
+modal) — functional but its visual design is an explicitly open, parked question, not finalized."
+It was also a genuine inconsistency — Today's modal used `Timeline` (an hourly 3-column grid),
+while the Calendar tab's month-view day-detail pane (redesigned earlier this session) used a
+completely different chronological colored-list style. Same day, two different looks depending on
+which surface you opened it from.
+
+- Extracted the Calendar tab's day-list rendering into a new shared component,
+  `components/shared/DayAgenda.jsx` — colored left-border rows by activity type, chronological,
+  sleep filtered out, always shows the day's real fixed schedule (classes/meals/gym) regardless of
+  AI-planning status with its own "not planned yet" banner when relevant.
+- Both the Calendar tab's month-view day-detail pane and Today's day-calendar modal now render
+  through this one component — a day looks identical no matter which one you open. Today's modal
+  keeps its own "Plan now" action button (specific to that surface); the Calendar tab's icon
+  toolbar (Add/diagnostics/Replan) stays where it was, unchanged.
+- Left Week.jsx's OLDER single-day drill-down (`mode==="day"`, reached by tapping a cell in the
+  full desktop week grid) on `Timeline` — untouched, out of scope for this request, its own
+  separate flow.
+- Net effect on Week.jsx: removed ~30 lines of now-duplicate inline rendering, replaced with a
+  five-word one-liner using the shared component.
+
+**Validation:** 109 tests pass (no logic changed, pure extraction + swap). `npm run build` clean.
+Verified live: opened Today's modal and the Calendar tab's day view side by side for the same
+date — identical rows, identical order, identical styling.
+
+## v2.66.0 — 2026-09-14
+
+**Progress bars always stacked and genuinely aligned; due-today/tomorrow made deterministic**
+
+- Dropped the side-by-side desktop layout entirely — the two bars now always stack exactly above
+  each other, at any width.
+- **Real alignment bug fixed, not just repositioned:** the bonus badge only ever existed on the
+  On-time row, so its presence alone pushed that row's percentage and bar to the right of Study
+  Pace's — no amount of nudging pixels fixes that while the badge is only sometimes there. Fixed
+  with a fixed-width `.pace-bonus-slot`, rendered (empty) on both rows regardless of whether a
+  bonus exists, so the bar always starts at the identical x. The badge sits inside that slot,
+  pulled toward the label with a small negative margin.
+- `.pace-pct` font shrunk 19px→15px (frees width for the wider "Assignment on-time" label,
+  and the bar — not the number — is the thing actually worth reading at a glance here).
+- **Due today/tomorrow is now deterministic**, not left to the AI's discretion. "Top Things To
+  Keep In Mind" previously depended entirely on the AI happening to mention a same-day or
+  next-day deadline — a real reliability gap for content this critical, and one this app has an
+  explicit standing preference against (deterministic over AI wherever the two could achieve the
+  same result). A new always-first line in that section — computed the same way the proven
+  `dueToday` filter already works, just for `du(dueDate)===1` too — shows "Due today: …" / "Due
+  tomorrow: …" whenever relevant, independent of whether the AI briefing has loaded or even
+  succeeded.
+
+**Validation:** 109 tests pass (no logic change to anything previously tested). `npm run build`
+clean. Verified live: bar alignment confirmed pixel-exact via zoomed screenshot; the due-soon
+line correctly stays hidden in the current sample data (nothing due today/tomorrow in it).
+
+## v2.65.1 — 2026-09-14
+
+**Progress card: bonus badge moved left, "On-time" renamed to "Assignment on-time"**
+
+- Bonus badge now sits to the left of the percentage (`+2  100%`) instead of the right.
+- Label renamed "On-time" → "Assignment on-time"; `.pace-metric-label` widened 86px→150px to fit
+  it (shared by both rows, so "Study Pace" just has extra breathing room after it).
+- **Known tradeoff, not a bug:** the wider label + bonus badge means the two metric rows no
+  longer fit side by side at the card's max width (960px) — `flex-wrap` gracefully falls back to
+  stacked (same as mobile) instead of overflowing, but the "both on one line at desktop width"
+  layout from v2.64.0 is effectively unreachable now with the bar staying at its requested
+  240px. Flagged for Avishai rather than silently trading away either the wider label or the
+  longer bar to preserve it.
+
+**Validation:** 109 tests pass (no logic changed, CSS/JSX ordering only), `npm run build` clean,
+verified live at both desktop and phone widths.
+
+## v2.65.0 — 2026-09-14
+
+**Two real bugs found from live testing: the bonus badge never showing, "not yet" on items that were actually planned**
+
+- **Bonus badge fix.** `dueToDate` (Today.jsx) only ever included assignments whose due date had
+  *already passed* — so an assignment finished early, with its due date still in the future, was
+  excluded from the On-time calculation entirely and could never show a bonus. Now included the
+  moment it's marked done, regardless of whether the due date has arrived: `dueDate<=today OR
+  status==="done"`. Verified live — marked "Essay 1" (due in 4 days) done and watched the badge
+  render "+2" immediately.
+- **Deadline Awareness "planned"/"not yet" fix.** The tag was checking only *today's* scheduled
+  blocks, matched by *course* rather than the specific item — so an item genuinely scheduled for
+  tomorrow (or any day but today) showed "not yet" even though it truly was planned, and
+  exam-prep/due-next-week rows were hardcoded `planned:false` regardless of the real plan. New
+  `isItemScheduled()` (`lib/calendar/weeks.js`) checks the planner's own `source:{type,id}` tag
+  on every block against the specific item, on any day, anywhere in the plan — a precise "is this
+  exact thing scheduled" check instead of a same-day/same-course proxy for it. Verified live:
+  "Problem Set 5" and "Reading Quiz 4" (11d/14d out — previously hardcoded to "not yet" no matter
+  what) now correctly show "✓ planned".
+- **Back to Today** is now a plain circular "‹" chevron icon button, matching the header's other
+  icon buttons, instead of a text link.
+
+**Validation:** 109 tests pass (5 new for `isItemScheduled`, covering the exact reported scenario
+— an item scheduled for tomorrow, not today). `npm run build` clean. Verified live end-to-end:
+watched the bonus badge appear after marking an early item done, and watched two previously
+always-"not yet" rows correctly flip to "✓ planned".
+
+## v2.64.1 — 2026-09-14
+
+**On-time metric: capped at 100%, early bonus split into its own badge**
+
+Follow-up on v2.64.0's formula — "112% submitted on time" reads as confusing on its own, even
+though the underlying score legitimately exceeds 100. Split instead of changed: the raw
+(possibly >100) average still exists, `splitOnTimeScore()` (`lib/metrics.js`) just divides it
+into a normal capped 0-100% reading (drives the number, bar, and color, same as before) and
+whatever was earned above that, shown as a small separate green "+N" badge right next to the
+percentage. Nothing about the underlying scoring changed, only how it's presented.
+
+**Validation:** 104 tests pass (4 new for the split — including a reconstruction check,
+`pct + bonus === raw`, across several raw values). `npm run build` clean. Verified live that
+the no-bonus case (100%, nothing above it) renders identically to before — no regression when
+there's nothing to show.
+
+## v2.64.0 — 2026-09-14
+
+**Nav: easy back-to-Today, hamburger closes on outside click; Assignments On-time gets a real formula**
+
+- **Back to Today**: the check-in shortcut on Today's header (the amber checkbox icon) now takes
+  you to Progress with a small "← Back to Today" link at the top — appears only when you actually
+  arrived via that shortcut, and is cleared on any normal nav click so it never lingers once
+  you've navigated elsewhere on purpose. Tracked via a new `progBackTo` state in App.jsx and a
+  `go(id)` wrapper that every normal nav handler (nav-row, hamburger dropdown, the
+  missing-due-dates badge) now goes through instead of calling `setTab` directly.
+- **Hamburger menu now closes on outside click**, not just on picking an option — same invisible
+  full-screen click-catcher pattern already used for Today's health-dot popover, just applied
+  here too. Real, reported bug: previously the only way to dismiss it was choosing a tab.
+- **Assignments On-time**, reformulated as a continuous per-item score instead of a binary
+  on-time/late count — a student can now score above 100% for submitting early:
+  - On time = 100%. Early = bonus, `+5%` per day early, capped at 10 days (max +50%). Late = the
+    same shrinking credit, `-10%` per day late, floored at 0 — so a late submission gets partial
+    credit back rather than zero. Still-missing items score the same shrinking-credit formula
+    live against *today* (so the score keeps dropping the longer it sits undone), then locks in
+    wherever it landed the moment it's actually marked done.
+  - Extracted to `lib/metrics.js` (`assignmentOnTimeScore`) specifically so this real formula has
+    real unit tests, rather than living untested inside the Today.jsx component — same
+    "pure logic separated from the component" convention the planner already follows.
+  - Tunable constants (`ONTIME_EARLY_BONUS_PER_DAY`, `ONTIME_EARLY_BONUS_CAP_DAYS`,
+    `ONTIME_LATE_PENALTY_PER_DAY`) centralized at the top of that module.
+
+**Validation:** 100 tests pass (6 new for the scoring formula, including a monotonicity check —
+later can never score better than earlier). `npm run build` clean. Verified live end-to-end: the
+check-in shortcut → Back to Today link → return; hamburger open → click elsewhere → closes
+without navigating; confirmed the back link does NOT appear when Progress is reached normally.
+
+## v2.63.0 — 2026-09-14
+
+**Progress tab: Catch Up — a forgotten day no longer permanently deflates Study Pace**
+
+Real gap found while reviewing the Progress card: `saveBlockToDay` has a hard "history is
+read-only" guard (`if(dateStr<iso())return;`), added earlier to stop the planner's regeneration
+path from clobbering history. Correct for that, but it had no other door — a study session
+someone forgot to mark done on the day it happened could never be corrected, and since Study
+Pace sums every block's live `completed` flag from the term start to today, that miss was baked
+into the denominator forever with no way back.
+
+- New "Catch Up" card on the Progress tab, right under Evening Check-in, using the exact same
+  list/checkbox/submit pattern — appears only when there's something to catch up on (hidden
+  entirely otherwise, same as every other conditional section in this app).
+- Lists the last 3 days' (`CATCHUP_DAYS`) still-unmarked study sessions, grouped by day, newest
+  first. Check off what actually happened, submit, done — Study Pace picks it up immediately
+  since it just reads the same `completed` flags.
+- **Deliberately a separate, narrower write path** (`catchUpMarkComplete` in
+  `lib/calendar/weeks.js`), not a loosening of `saveBlockToDay`'s guard — that guard also
+  protects the planner's regeneration path, and loosening it broadly would risk reopening the
+  exact bug it was built to stop. This one only ever flips a `completed` flag on an existing
+  block the user is explicitly confirming happened, within its own explicit bound.
+- **Real bug avoided, not just theoretical:** catching up several sessions has to be ONE `upd()`
+  call building the complete result, not a loop of one call per item — a loop would have each
+  call compute its patch from the same stale `data` closure, and `upd()`'s merge in App.jsx is
+  shallow (`{...prev,...p}`), so only the *last* item's patch would actually stick, silently
+  losing the rest. Caught this before it shipped and wrote a regression test for it specifically.
+- Assignment catch-up needed no changes — marking an assignment done was already date-unguarded
+  (only the study-block path had the read-only wall), so that half of the picture already worked.
+
+**Validation:** 11 new tests in `lib/calendar/weeks.test.js` (94 total, all pass) — including the
+multi-item-single-pass regression above, window-boundary edges, and completedAt never getting
+overwritten once set. `npm run build` clean. Verified live end-to-end in a real browser: checked
+2 forgotten sessions, submitted, watched them disappear from the list, then watched Study Pace on
+the Today tab move from 8% to 11%.
+
+## v2.62.2 — 2026-09-14
+
+**Today tab: fixed a real overflow bug at true iPhone widths, not just the widest phone tested**
+
+All prior mobile testing this session was done in a desktop browser resized down (≥500px) —
+narrower than every real iPhone in the current lineup (iPhone 17 / 17 Pro: 402×874 CSS px;
+17 Pro Max: 440×956; even the smallest current model is ~390px). That gap hid a real bug:
+
+- The Progress bar's `flex:0 0 240px` (added to stop it silently shrinking to a stub on desktop —
+  see v2.62.1) was unconditional, so it also applied below 768px — 240px alone is more than half
+  of an actual iPhone's width, before the label/percentage next to it are even counted. Now fluid
+  on mobile (`flex:1`, 60–240px) and only switches to the fixed 240px at the same 768px tier the
+  two metrics go side-by-side at, where there's actually room for it.
+- Audited the rest of the Today tab for the same root-cause bug (a `flex:1` content column
+  missing `min-width:0`, so a long string it holds can't actually shrink and forces its row to
+  overflow instead) and found two more real instances: Today's Classes' course-name/room column
+  (room names like "Room ERC Administration Bldg 115" are genuinely long) and Today's Other
+  Activities' gym/chore/event column. Both fixed the same way.
+- Focus Time's fixed 170px time-range column was deliberately left alone — it's intentional
+  (documented in-code: keeps times aligned across rows) and already degrades safely, since the
+  task-text column next to it has `min-width:0` and absorbs any real space pressure first.
+
+**Validation:** 83 tests pass, `npm run build` clean. Verified live in a real browser at every
+width the tooling could reach (desktop down to ~500px) — the automation environment has a ~500px
+floor and couldn't reach a true 402px iPhone viewport directly, so the actual iPhone-width fix
+is verified by CSS math + the same root-cause pattern already fixed and confirmed working
+elsewhere this session, not a live screenshot at 402px. Worth a real-device check.
+
 ## v2.62.1 — 2026-09-14
 
 **Today tab: Progress card layout/alignment polish pass**

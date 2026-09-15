@@ -114,6 +114,12 @@ function App(){
     return ()=>{cancelled=true;};
   },[session?.user?.id]); // eslint-disable-line
   const [tab,setTab]=useState("today");
+  // Tracks "arrived at Progress via the Today check-in shortcut" so Progress can offer an easy
+  // way straight back — cleared on any NORMAL tab navigation (go()) so it only ever shows right
+  // after that specific shortcut, never lingers once the user's navigated elsewhere on purpose.
+  const [progBackTo,setProgBackTo]=useState(null);
+  function go(id){setProgBackTo(null);setTab(id);}
+  function goCheckIn(){setProgBackTo("today");setTab("prog");}
   const [busy,setBusy]=useState(false);
   // Dedicated to refreshQuarterPlan/refreshWeekPlan specifically — deliberately SEPARATE from
   // `busy` (which the shared ai() wrapper sets for any AI call anywhere, e.g. Today's brief
@@ -480,20 +486,28 @@ function App(){
                 <i className="ti ti-menu-2" style={{fontSize:18}}/>
               </button>
               {showMobileMenu&&(
-                <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:200,
-                  background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
-                  boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
-                  {TABS.map(t=>(
-                    <button key={t.id} onClick={()=>{setTab(t.id);setShowMobileMenu(false);}}
-                      style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",
-                        padding:"11px 12px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:14,
-                        background:tab===t.id?"var(--amber-bg)":"transparent",
-                        color:tab===t.id?"var(--amber)":"var(--t1)",cursor:"pointer"}}>
-                      <i className={`ti ${t.icon}`} style={{fontSize:16,width:18,textAlign:"center"}}/>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  {/* Click-outside-to-close — same invisible full-screen catcher pattern already
+                      used for Today's health-dot popover. Sits at a lower z-index than the
+                      dropdown itself so clicks ON the dropdown still work normally; catches
+                      everything else. Without this the menu only ever closed via picking an
+                      option, never by clicking away — the reported bug. */}
+                  <div onClick={()=>setShowMobileMenu(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+                  <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:200,
+                    background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
+                    boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
+                    {TABS.map(t=>(
+                      <button key={t.id} onClick={()=>{go(t.id);setShowMobileMenu(false);}}
+                        style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",
+                          padding:"11px 12px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:14,
+                          background:tab===t.id?"var(--amber-bg)":"transparent",
+                          color:tab===t.id?"var(--amber)":"var(--t1)",cursor:"pointer"}}>
+                        <i className={`ti ${t.icon}`} style={{fontSize:16,width:18,textAlign:"center"}}/>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -501,7 +515,7 @@ function App(){
           <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {q&&<span className="badge badge-blue topbar-term">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
-          {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>setTab("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
+          {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
             {api!==null&&<span className={`badge ${api?"badge-green":"badge-red"} topbar-api`}>{api?"✓ Connected":"✗ No API key"}</span>}
             <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
@@ -530,7 +544,7 @@ function App(){
         {data.onboarded&&(
           <div className="nav-row">
             {TABS.map(t=>(
-              <button key={t.id} className="nav-tab-btn" onClick={()=>setTab(t.id)}
+              <button key={t.id} className="nav-tab-btn" onClick={()=>go(t.id)}
                 style={{color:tab===t.id?"var(--amber)":"var(--t3)",borderBottom:tab===t.id?"2px solid var(--amber)":"2px solid transparent"}}>
                 <i className={`ti ${t.icon}`} style={{fontSize:14}}/>{t.label}
               </button>
@@ -547,10 +561,10 @@ function App(){
       <div style={{maxWidth:tab==="week"?"100%":960,margin:"0 auto",padding:tab==="week"?"10px 14px":"20px 16px"}}>
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
-          :tab==="today"   ?<Today    data={data} upd={upd} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab}/>
+          :tab==="today"   ?<Today    data={data} upd={upd} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
           :tab==="week"    ?<Week     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
           :tab==="acad"    ?<Acad     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg}/>
-          :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy}/>
+          :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="history" ?<History  data={data} upd={upd} toast2={toast2}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)

@@ -8,13 +8,15 @@ import {
   logCompletion,
   realDayBlocks,
   weekHasBeenPlanned,
+  isItemScheduled,
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
-import { Sp, DiffBadge, DelBtn, Timeline, PaceRunner } from "@/components/shared";
+import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
+import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
-export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab}){
+export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
   // Scoped to the current term — otherwise Deadline Awareness, Today's Classes, and everything
   // else here would consider every course/assignment/exam ever created, including years-old
   // completed terms kept for history. Safe: this component never writes directly to
@@ -40,6 +42,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const hr=new Date().getHours();
 
   const dueToday=data.assignments.filter(a=>a.dueDate===td&&a.status!=="done");
+  const dueTomorrow=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)===1);
   const dueWk=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)>0&&du(a.dueDate)<=7);
   const dueNx=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)>7&&du(a.dueDate)<=14);
   const exWk=data.exams.filter(e=>du(e.date)>=0&&du(e.date)<=7).sort((a,b)=>du(a.date)-du(b.date));
@@ -87,14 +90,28 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const studyPace=paceMinPlanned>0?Math.round(100*paceMinDone/paceMinPlanned):null;
   const paceColor=studyPace===null?"var(--t3)":studyPace<60?"var(--red)":studyPace<85?"var(--amber)":"var(--green)";
 
-  // On-time Assignments — accumulated from the term's start through today: of everything that
-  // came due by today, how much was actually turned in on time. completedAt (stamped the moment
-  // status flips to "done" — see Acad.jsx / Prog.jsx) decides on-time vs late; an assignment
-  // marked done before that field existed has no completedAt and defaults to on-time rather than
-  // being penalized retroactively for data that was never recorded.
-  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&a.dueDate<=td):[];
-  const onTimeCount=dueToDate.filter(a=>a.status==="done"&&(!a.completedAt||a.completedAt.slice(0,10)<=a.dueDate)).length;
-  const onTimePct=dueToDate.length>0?Math.round(100*onTimeCount/dueToDate.length):null;
+  // Assignments On-time — accumulated from the term's start through today: every assignment
+  // EITHER already due, OR already done (even if its due date hasn't arrived yet — that's
+  // exactly what "early" means, and it should count the moment it happens, not sit excluded
+  // until the due date eventually passes it by). Scored individually via assignmentOnTimeScore()
+  // above (on time=100%, early=bonus, late/still-missing=shrinking partial credit), then
+  // averaged — a continuous score, not a binary on-time/late count, so it can exceed 100% when
+  // enough items were done early (see splitOnTimeScore below for how that's displayed).
+  // completedAt (stamped the moment status flips to "done" — see Acad.jsx / Prog.jsx) is the
+  // reference date; an assignment marked done before that field existed has no completedAt and
+  // defaults to its own due date (i.e. exactly on time) rather than being penalized retroactively
+  // for data that was never recorded. A still-open, already-due item scores against TODAY, so it
+  // keeps shrinking until it's actually done, then locks in wherever it landed.
+  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&(a.dueDate<=td||a.status==="done")):[];
+  const onTimeScores=dueToDate.map(a=>{
+    const refDate=a.status==="done"?(a.completedAt?a.completedAt.slice(0,10):a.dueDate):td;
+    const diffDays=Math.round((new Date(a.dueDate)-new Date(refDate))/864e5);
+    return assignmentOnTimeScore(diffDays);
+  });
+  const onTimeRaw=onTimeScores.length>0?Math.round(onTimeScores.reduce((s,v)=>s+v,0)/onTimeScores.length):null;
+  // The raw average can exceed 100 (early-submission bonus) — split so the main number/bar/color
+  // stay a normal capped 0-100% reading, with any bonus earned above that as its own small badge.
+  const {pct:onTimePct,bonus:onTimeBonus}=splitOnTimeScore(onTimeRaw);
   const onTimeColor=onTimePct===null?"var(--t3)":onTimePct<60?"var(--red)":onTimePct<85?"var(--amber)":"var(--green)";
 
   // One headline for the whole card, driven by whichever metric is currently worse — saying
@@ -197,14 +214,19 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
 
   useEffect(()=>{if(!brief)gen();},[]);
 
-  // Build unified awareness list, sorted earliest first
-  const todayRealBlocks=realDayBlocks(data,td); // real plan — single source of truth for "planned" checks below
+  // Build unified awareness list, sorted earliest first. "planned" checks whether THIS SPECIFIC
+  // item has a scheduled block anywhere in the plan (isItemScheduled, matched via the planner's
+  // own source={type,id} tag on each block it places) — not just today's blocks by course. That
+  // course-level, today-only check used to show "not yet" for an item genuinely scheduled for
+  // tomorrow (or falsely show "planned" off a different item in the same course today), and
+  // hardcoded false for exam-prep/due-next-week rows regardless of the real plan.
+  const todayRealBlocks=realDayBlocks(data,td); // still the source for "what's scheduled today" (Focus Time etc.)
   const rawAwareness=[];
-  dueToday.forEach(a=>{const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days:0,lvl:0,text:`${a.title} — ${cn}`,tag:"Due TODAY",planned:todayRealBlocks.some(b=>b.courseId===a.courseId)});});
-  exWk.forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:du(e.date)<=2?0:1,text:`${cn} exam`,tag:`in ${du(e.date)} day${du(e.date)!==1?"s":""}`,planned:todayRealBlocks.some(b=>b.courseId===e.courseId)});});
-  exPrep.filter(e=>!exWk.find(x=>x.id===e.id)).forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:1,text:`${cn} exam`,tag:`${du(e.date)}d — start prep`,planned:false});});
-  dueWk.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:2,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:todayRealBlocks.some(b=>b.courseId===a.courseId)});});
-  dueNx.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:3,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:false});});
+  dueToday.forEach(a=>{const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days:0,lvl:0,text:`${a.title} — ${cn}`,tag:"Due TODAY",planned:isItemScheduled(data,"assignment",a.id)});});
+  exWk.forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:du(e.date)<=2?0:1,text:`${cn} exam`,tag:`in ${du(e.date)} day${du(e.date)!==1?"s":""}`,planned:isItemScheduled(data,"exam",e.id)});});
+  exPrep.filter(e=>!exWk.find(x=>x.id===e.id)).forEach(e=>{const cn=courseNameFor(data.courses,e.courseId);rawAwareness.push({days:du(e.date),lvl:1,text:`${cn} exam`,tag:`${du(e.date)}d — start prep`,planned:isItemScheduled(data,"exam",e.id)});});
+  dueWk.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:2,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:isItemScheduled(data,"assignment",a.id)});});
+  dueNx.forEach(a=>{const days=a.dueDate&&a.dueDate.length===10?du(a.dueDate):99;const cn=courseNameFor(data.courses,a.courseId);rawAwareness.push({days,lvl:3,text:`${a.title} — ${cn}`,tag:days<99?`${days}d`:"⚠ Enter date",planned:isItemScheduled(data,"assignment",a.id)});});
   const awareness=rawAwareness.sort((a,b)=>a.days-b.days);
 
   const lvlColor=["var(--red)","var(--amber)","var(--blue)","var(--t3)"];
@@ -287,7 +309,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               icon row instead (amber-tinted so it still reads as "needs attention" without text).
               Same destination (Progress tab) either way. */}
           {!(data.dailyLogs||[]).some(l=>l.date===iso())&&(
-            <button className="tt" data-tt="Evening check-in not done yet — mark off what you finished" onClick={()=>setTab?.("prog")}
+            <button className="tt" data-tt="Evening check-in not done yet — mark off what you finished" onClick={()=>(onCheckIn?onCheckIn():setTab?.("prog"))}
               style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",
                 color:"var(--amber)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <i className="ti ti-checkbox" style={{fontSize:16}}/>
@@ -334,6 +356,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               {studyPace!==null&&(
                 <div className="pace-metric-row">
                   <span className="pace-metric-label">Study Pace</span>
+                  <div className="pace-bonus-slot"/>
                   <span className="pace-pct" style={{color:paceColor}}>{studyPace}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${studyPace}%`,background:paceColor}}/></div>
@@ -343,7 +366,12 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               )}
               {onTimePct!==null&&(
                 <div className="pace-metric-row">
-                  <span className="tt pace-metric-label" data-tt="Assignments due to date, submitted on time">On-time</span>
+                  <span className="tt pace-metric-label" data-tt="Assignment on-time: 100% for on time, bonus for early, shrinking credit for late or still missing">Assignment on-time</span>
+                  <div className="pace-bonus-slot">
+                    {onTimeBonus>0&&
+                      <span className="tt pace-bonus" data-tt="Bonus for submitting early">+{onTimeBonus}</span>
+                    }
+                  </div>
                   <span className="pace-pct" style={{color:onTimeColor}}>{onTimePct}%</span>
                   <div className="pace-bar-wrap">
                     <div className="pace-bar"><div className="pace-bar-fill" style={{width:`${onTimePct}%`,background:onTimeColor}}/></div>
@@ -356,8 +384,13 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
         </div>
       )}
 
-      {/* ── TOP THINGS TO KEEP IN MIND — first content block ── */}
-      {brief&&(
+      {/* ── TOP THINGS TO KEEP IN MIND — first content block. The due-today/tomorrow line is
+          deterministic, not AI-written — per this app's standing preference (deterministic over
+          AI wherever the two could achieve the same result), something as critical as "this is
+          due tomorrow" shouldn't depend on whether the AI happened to mention it that particular
+          regeneration. Renders even before/without the AI briefing loading, so it's never gated
+          behind a call that might be slow or fail. ── */}
+      {(brief||dueToday.length>0||dueTomorrow.length>0)&&(
         <div style={BOX}>
           <div style={TITLE_ROW}>
             <i className="ti ti-target" style={TITLE_ICON}/>
@@ -365,6 +398,22 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           </div>
           <div style={DIVIDER}/>
           <div style={INNER}>
+
+            {/* Deterministic — always first, always shown when relevant, independent of brief */}
+            {(dueToday.length>0||dueTomorrow.length>0)&&(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,
+                paddingBottom:brief?10:0,marginBottom:brief?10:0,
+                borderBottom:brief?"1px solid var(--b1)":"none"}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0,marginTop:6}}/>
+                <span style={{fontSize:15,color:"var(--t1)",lineHeight:1.6}}>
+                  {dueToday.length>0&&<><strong style={{color:"var(--red)"}}>Due today:</strong> {dueToday.map(a=>a.title).join(", ")}</>}
+                  {dueToday.length>0&&dueTomorrow.length>0&&"  ·  "}
+                  {dueTomorrow.length>0&&<><strong style={{color:"var(--amber)"}}>Due tomorrow:</strong> {dueTomorrow.map(a=>a.title).join(", ")}</>}
+                </span>
+              </div>
+            )}
+
+            {brief&&(<>
 
             {/* Line 1: Main task */}
             <div style={{display:"flex",alignItems:"flex-start",gap:10,
@@ -393,6 +442,8 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <span style={{fontSize:15,color:"var(--t2)",lineHeight:1.6}}>{brief.encouragement}</span>
               </div>
             )}
+
+            </>)}
 
           </div>
         </div>
@@ -469,7 +520,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <div key={c.id} style={{display:"flex",alignItems:"center",gap:14,
                   padding:"11px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
                   <div style={{width:9,height:9,borderRadius:"50%",background:c.color.border,flexShrink:0}}/>
-                  <div style={{flex:1}}>
+                  <div style={{flex:1,minWidth:0}}>
                     {/* Course name — larger */}
                     <div style={{fontSize:16,color:"var(--t1)",marginBottom:3}}>{c.name}</div>
                     {/* Time — amber, then secondary info */}
@@ -627,7 +678,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   <span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{gd.s} – {gd.e}</span>
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-gym-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>💪 Gym</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{gymWk}/{gymTarget} sessions this week</div>
                 </div>
@@ -644,7 +695,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   {c.time&&<span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{f12(c.time)}</span>}
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-chore-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>{c.e||"📋"} {c.n}</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{c.dur} min</div>
                 </div>
@@ -657,7 +708,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                   {e.time&&<span style={{fontSize:15,color:"var(--amber)",fontWeight:500}}>{f12(e.time)}</span>}
                 </div>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--a-fun-t)",flexShrink:0}}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:15,color:"var(--t1)"}}>{e.title}</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:2}}>{e.dur} min</div>
                 </div>
@@ -707,18 +758,18 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
               </div>
               <button className="btn btn-ghost btn-sm" onClick={()=>setShowCalendar(false)}><i className="ti ti-x"/></button>
             </div>
-            {!weekHasBeenPlanned(data,td)?(
-              <div style={{textAlign:"center",padding:"24px 0",color:"var(--t2)"}}>
-                <i className="ti ti-calendar-off" style={{fontSize:26,marginBottom:8,display:"block",color:"var(--t3)"}}/>
-                This week hasn't been planned yet — nothing to show here until it is.
-                <div style={{marginTop:12}}>
-                  <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
-                    {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
-                  </button>
-                </div>
+            {/* DayAgenda (components/shared) — the same colored-list rendering the Calendar tab's
+                day view uses, so "today" looks identical whether you're looking at it here or
+                there. It shows its own "not planned yet" banner and still lists the day's real
+                fixed schedule (classes, meals, gym) regardless; the Plan-now action below is the
+                one thing specific to this modal. */}
+            <DayAgenda data={data} dateStr={td}/>
+            {!weekHasBeenPlanned(data,td)&&(
+              <div style={{textAlign:"center",marginTop:12}}>
+                <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
+                  {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
+                </button>
               </div>
-            ):(
-              <Timeline dateStr={td} data={data} upd={upd} studyBlocks={todayRealBlocks}/>
             )}
           </div>
         </div>

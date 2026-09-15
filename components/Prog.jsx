@@ -4,10 +4,11 @@ import { courseNameFor } from "@/lib/courses";
 import { calcGPA } from "@/lib/grades";
 import { AI } from "@/lib/api";
 import { GYM0 } from "@/lib/data";
+import { CATCHUP_DAYS, catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
-export function Prog({data,upd,toast2,ai,busy}){
+export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   const logs=data.dailyLogs||[],gymLogs=data.gymLogs||[],p=data.profile;
   const td=iso(),gymD=(p.gymDays||GYM0).filter(g=>g.on),gymTarget=gymD.length;
   const streak=(()=>{let s=0;for(let i=0;i<30;i++){const d=iso(new Date(Date.now()-i*864e5));const l=logs.find(x=>x.date===d);if(l&&l.completed?.length>0)s++;else if(i>0)break;}return s;})();
@@ -27,6 +28,22 @@ export function Prog({data,upd,toast2,ai,busy}){
   const [notes,setNotes]=useState(tl.notes||"");
   const [fb,setFb]=useState(null);
   const [sub,setSub]=useState(false);
+  // Catch Up — forgetting to mark a study session done used to be permanent: history is
+  // read-only (saveBlockToDay), so Study Pace's denominator was stuck deflated forever with no
+  // way back. This surfaces the last CATCHUP_DAYS days' still-unmarked sessions right where
+  // people already look for "what did I get done" — same list/checkbox pattern as Evening
+  // Check-in above, just for a bounded window of past days instead of only today.
+  const catchDays=catchUpDays(data);
+  const [caught,setCaught]=useState([]); // composite "date|blockId" keys
+  const [subCatch,setSubCatch]=useState(false);
+  function toggleCatch(key){setCaught(prev=>prev.includes(key)?prev.filter(x=>x!==key):[...prev,key]);}
+  function submitCatchUp(){
+    setSubCatch(true);
+    const items=caught.map(key=>{const i=key.indexOf("|");return{date:key.slice(0,i),blockId:key.slice(i+1)};});
+    catchUpMarkComplete(data,upd,items);
+    toast2(`✓ ${items.length} session${items.length!==1?"s":""} caught up!`);
+    setCaught([]);setSubCatch(false);
+  }
   const tasks=[
     // Overdue and due-within-2-days assignments both show here — checking one off marks the real
     // assignment done (see submit), so overdue work doesn't quietly pile up on the planner.
@@ -69,6 +86,17 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
 
   return(
     <div className="fade">
+      {/* Only appears right after arriving via Today's check-in shortcut (App.jsx's goCheckIn) —
+          cleared on any normal nav click, so it never lingers once the user's navigated on
+          purpose. The reported ask: an easy, intuitive way back to Daily once done here. */}
+      {backTo&&(
+        <button className="tt" data-tt="Back to Today" onClick={onBack}
+          style={{width:34,height:34,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+            color:"var(--t1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            padding:0,marginBottom:12}}>
+          <i className="ti ti-chevron-left" style={{fontSize:18}}/>
+        </button>
+      )}
       <h2 style={{marginBottom:16}}>Progress</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"/>
@@ -115,6 +143,36 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
         </button>
         {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"var(--green-bg)",borderRadius:9,fontSize:13,lineHeight:1.7,color:"var(--t2)"}}><div style={{fontSize:10,color:"var(--a-study-t)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
       </div>
+
+      {/* Catch Up — only appears when there's actually something to catch up on, same as every
+          other conditional section in this app; most days this card simply isn't here. */}
+      {catchDays.length>0&&(
+        <div className="card" style={{marginBottom:12}}>
+          <SecHead icon="ti-history" title="Catch Up"/>
+          <p style={{fontSize:13,marginBottom:12}}>Sessions from the last {CATCHUP_DAYS} days still unmarked — check off what actually happened.</p>
+          {catchDays.map(({date,blocks})=>(
+            <div key={date} style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>
+                {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
+              </div>
+              {blocks.map(b=>{
+                const key=`${date}|${b.id}`;
+                const on=caught.includes(key);
+                return(
+                  <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={()=>toggleCatch(key)}>
+                    <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
+                    <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
+                    {b.course&&<span style={{fontSize:12,color:"var(--t3)"}}>{b.course}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <button className="btn btn-action" style={{width:"100%",marginTop:4}} onClick={submitCatchUp} disabled={subCatch||caught.length===0}>
+            {subCatch?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-check"/> Mark {caught.length||""} caught up</>}
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{marginBottom:12}}>
         <SecHead icon="ti-school" title="College Readiness"/>
