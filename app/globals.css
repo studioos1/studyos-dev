@@ -283,6 +283,18 @@
       .icon-btn-28{width:38px; height:38px;}
     }
 
+    /* Focus Time row's action (play button + duration) and time-range columns — vertically
+       centered against the row's full height on desktop (matches the task column's 2-line
+       height), which reads fine there. On narrow screens the row is visually dominated by those
+       two text lines (course name + assignment), and a button dead-centered across both lines
+       reads as sitting on top of / crowding the second line — real reported bug ("blocking the
+       display of the assignment"). Below 640px, top-align both columns to the course-name line
+       instead, freeing the full row height under them for the assignment line to read clearly. */
+    .ft-actions,.ft-time{align-items:center;}
+    @media (max-width:640px){
+      .ft-actions,.ft-time{align-items:flex-start;}
+    }
+
     /* Sub-project: Web-Mobile Enablement item #5 — onboarding step-bar. 8 circles + 7 connectors
        + a "<Step name> · n/N" label sum to well over a phone's width, with no wrap/shrink
        handling. Shrinks below 640px and swaps to a compact "n/N" label; overflow-x:auto stays on
