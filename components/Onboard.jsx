@@ -2,8 +2,8 @@ import { useState } from "react";
 import { PDF } from "@/lib/pdf";
 import { CI } from "@/lib/api";
 import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
-import { iso } from "@/lib/time";
-import { DS, DF, CC } from "@/lib/constants";
+import { iso, f12 } from "@/lib/time";
+import { DS, DF, CC, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS } from "@/lib/constants";
 import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
 import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges";
 import { checkScheduleExtraction, checkSyllabusExtraction } from "@/lib/syllabus";
@@ -440,17 +440,31 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         <div className="fade">
           <h2 style={{marginBottom:8}}>How you study best</h2>
           <div className="card">
-            <div style={{marginBottom:16}}>
-              <label style={{marginBottom:8,display:"block"}}>Focus block length</label>
-              <div className="row">{[15,20,25,30,45].map(n=><button key={n} className={`opt-btn${p.focusMins===n?" sel":""}`} onClick={()=>updP({focusMins:n})}>{n} min</button>)}</div>
+            {/* Dropdowns for real resolution (FOCUS_MIN_OPTIONS/BREAK_MIN_OPTIONS, lib/constants.js
+                — shared with Sett.jsx) instead of a handful of preset buttons — this one
+                focus+break pair is now the only session-length preference in the app, driving
+                both the Pomodoro timer and the planner's own scheduling chunk (presetLenFor,
+                lib/planner/schedule.js). */}
+            <div className="g2" style={{marginBottom:16}}>
+              <div>
+                <label style={{marginBottom:8,display:"block"}}>Focus length</label>
+                <select className="select-compact" value={p.focusMins} onChange={e=>updP({focusMins:+e.target.value})}>
+                  {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{marginBottom:8,display:"block"}}>Break length</label>
+                <select className="select-compact" value={p.breakMins} onChange={e=>updP({breakMins:+e.target.value})}>
+                  {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+                </select>
+              </div>
             </div>
             <div style={{marginBottom:16}}>
-              <label style={{marginBottom:8,display:"block"}}>Break length</label>
-              <div className="row">{[5,10,15].map(n=><button key={n} className={`opt-btn${p.breakMins===n?" sel":""}`} onClick={()=>updP({breakMins:n})}>{n} min</button>)}</div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <label style={{marginBottom:8,display:"block"}}>Energy peak</label>
-              <div className="row">{[["morning","Morning ☀️"],["afternoon","Afternoon 🌤"],["evening","Evening 🌙"]].map(([v,l])=><button key={v} className={`opt-btn${p.energyPeak===v?" sel":""}`} onClick={()=>updP({energyPeak:v})}>{l}</button>)}</div>
+              {/* An actual time, not a morning/afternoon/evening bucket — see windowOrderFor
+                  (lib/planner/schedule.js) for how a specific time gets classified into the
+                  planner's three broad windows. */}
+              <label style={{marginBottom:8,display:"block"}}>Energy peak — when you think clearest</label>
+              <input type="time" value={p.energyPeakTime} onChange={e=>updP({energyPeakTime:e.target.value})} style={{maxWidth:150}}/>
             </div>
             <div className="g3">
               <div><label>Wake time</label><input type="time" value={p.wakeTime} onChange={e=>updP({wakeTime:e.target.value})}/></div>
@@ -475,7 +489,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               [`${data.courses.length} classes configured`,"ti-school"],
               [`${data.assignments.length} assignments + ${data.exams.length} exams`,"ti-calendar"],
               [`${(p.gymDays||GYM0).filter(g=>g.on).length} gym days/week`,"ti-barbell"],
-              [`${p.focusMins}min focus · ${p.energyPeak} peak`,"ti-brain"],
+              [`${p.focusMins}min focus · ${f12(p.energyPeakTime)} peak`,"ti-brain"],
               [p.schoolName,"ti-building"],
             ].map(([t,ic],i)=>(
               <div key={i} className="list-item" style={{paddingLeft:0}}>

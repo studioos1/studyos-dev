@@ -1,5 +1,206 @@
 # StudyOS Changelog
 
+## v2.72.0 — 2026-09-14
+
+**Five tuneups: dropdown sizing/arrow, replan-summary contrast, Replan tooltip clipping, Focus Time divider**
+
+- **Focus/Break length dropdowns were ~5x wider than needed.** They inherited the global
+  `select{width:100%}` rule, stretching to their full grid-column width for a two-word label like
+  "45 min". New `.select-compact` class (`app/globals.css`) caps them at 110–150px, applied in
+  both `components/Sett.jsx` and `components/Onboard.jsx`.
+- **Dropdown arrow sat too close to the field's own right edge.** Native select arrows aren't
+  independently positionable, so `.select-compact` also switches to `appearance:none` plus an
+  inline SVG chevron pinned at a fixed 10px inset.
+- **Replan summary toast: amber text on an amber-tinted dark background read poorly.** The
+  background stays severity-tinted (unchanged), but the text is now near-white (`--t1`) with the
+  severity color kept only as a left accent bar and bullet-dot color — same pattern
+  `.card-warn`/`.card-critical` already use elsewhere. `lines` now render as a real bulleted list
+  (`•`, not a middle-dot). The toast's `top` offset also moved down — 92px→116px desktop,
+  58px→78px mobile — so it no longer sits flush against the header.
+- **"Save & Replan" button's tooltip rendered clipped above the viewport.** It's the first thing
+  on the Preferences page, so the tooltip's default above-trigger placement had nowhere to render.
+  Added `tt-below tt-right` (an existing compound tooltip variant) so it opens downward, anchored
+  to the button's right edge.
+- **Focus Time row divider was a jagged 3-segment line, not one straight line.** Each of the 4
+  grid cells in a row had its own `border-bottom`, but only the task-column cell was actually the
+  row's full height — the button/duration and time-range cells were shorter (centered via
+  `alignItems:"center"` on the shared grid) so their own border-bottom landed higher than the
+  task column's. Fixed by giving every cell `alignSelf:"stretch"`, so all 4 cells in a row now
+  share the same box height and their borders land at the same y.
+
+## v2.71.0 — 2026-09-14
+
+**Study Preferences: unified session length (removed the duplicate picker), energy peak by real time, dropdowns for real resolution**
+
+Preferences had two separate "how long do you study" pickers that meant the same thing:
+"Study session length" (`sessionPreset` — 3 fixed choices, each a bundled study+break split, fed
+only to the planner) and "Focus block length" + "Break length" (`focusMins`/`breakMins` — fed
+only to the Pomodoro timer). One concept, two places to set it, and the planner's own choice was
+invisible unless you knew to look for the separate picker.
+
+- **`sessionPreset` removed entirely.** `focusMins`/`breakMins` (the same pair the timer already
+  used) now drive the planner too — `presetLenFor()` (`lib/planner/schedule.js`, replaces the old
+  `SESSION_PRESETS` lookup) sums them and rounds to the nearest 15 minutes, so placed study blocks
+  still land on the scheduling grid even though the dropdowns below offer finer-than-15
+  resolution. One preference, one place, both consumers.
+- **Dropdowns instead of button rows**, with real resolution: focus length now offers
+  15–90 minutes in 5-minute steps (was 5 fixed choices), break length 5–30 minutes (was 3). New
+  shared `FOCUS_MIN_OPTIONS`/`BREAK_MIN_OPTIONS` (`lib/constants.js`) so Sett.jsx and Onboard.jsx
+  offer the identical choices.
+- **Energy peak is now a real time** (`energyPeakTime`, an actual `<input type="time">`),
+  replacing the old morning/afternoon/evening 3-button bucket. `windowOrderFor()` classifies that
+  time into the same three broad scheduling windows internally, so the planner still prioritizes
+  whichever part of the day the student is sharpest — just picked with real precision instead of
+  a coarse guess at which third of the day "counts".
+- **Migration for existing accounts:** an existing profile only has the old `energyPeak` bucket
+  on disk, not `energyPeakTime` — without carrying it forward, the new time picker would render
+  empty and silently reset everyone's preference to the default. `migrate()` (`lib/data/store.js`)
+  now converts each old bucket to a representative time (morning→09:00, afternoon→14:00,
+  evening→19:00) the first time an existing account loads.
+
+**Validation:** 144 tests pass (23 new — `presetLenFor`/`windowOrderFor` in a new
+`lib/planner/schedule.test.js`, plus the `migrate()` carry-forward in a new
+`lib/data/store.test.js`; the three existing planner test suites' PROFILE fixtures were updated to
+the new fields with equivalent values and still pass unchanged, confirming no behavior
+regression). `npm run build` clean. Verified live end-to-end in a real browser: the old duplicate
+picker is gone, the dropdowns/time-input render and save correctly, an existing profile's old
+"afternoon" bucket correctly carried forward to "02:00 PM", and — the real test — triggered an
+actual "Save & Replan" and watched the planner run successfully to completion on the new fields
+with no error.
+
+## v2.70.0 — 2026-09-14
+
+**Syllabus upload: probable-duplicate detection & review, instead of a silent (and leaky) auto-skip**
+
+Acad.jsx already had a dedup check, but it was exact-match only (`normalized title === normalized
+title` and `dueDate === dueDate` for assignments; date-only for exams) and completely silent — no
+visibility, no choice, and real duplicates slipped through whenever the AI's extraction wording
+drifted even slightly between two separate parses of the same PDF ("Problem Set 5" vs "Problem Set
+#5", a date reformatted a day off), which is exactly the scenario a re-upload hits.
+
+- New `findProbableDuplicate()` (`lib/syllabus.js`, 13 unit tests) — a looser, still fully
+  deterministic match: same course, and either (a) the same title once punctuation/formatting is
+  stripped, with a due date within a few days, or (b) the exact same date with one title clearly
+  containing the other. Deliberately conservative — no date-only matching (that's how the old exam
+  dedup could have conflated two unrelated exams landing on the same day) — a false flag costs one
+  extra click to dismiss; a missed one is the bug being fixed.
+- **`ExtractionVerifyModal`** (the existing "review before saving" screen) now flags every probable
+  duplicate inline, highlighted, with the matched existing item shown and a real per-item choice:
+  **Keep recent (recommended)** — replace the existing item in place (same id, so its
+  status/completedAt survive) with the freshly-parsed version; **Keep both** — add it anyway; or
+  **Skip this one** — don't add it. Nothing is decided silently anymore.
+- `finalizeSync` (Acad.jsx) now honors that choice — a "replace" carries the existing item's id
+  through as `_replaceId` and updates it in place instead of adding a second entry. `SyncResultModal`
+  gained a "updated (kept the recent version)" tile alongside the existing added/skipped ones.
+
+**Validation:** 114 tests pass (13 new for `findProbableDuplicate`, covering exact/fuzzy-title/
+date-drift/cross-course/missing-field cases). `npm run build` clean. Verified the Update Syllabus
+page still loads and renders cleanly with the new props wired through; the actual upload → AI
+extraction → duplicate-flagging flow was NOT verified end-to-end with a real PDF in this session
+(no sample syllabus file available here, and it would cost a real Opus-tier API call) — the
+matching logic itself is thoroughly unit-tested, but a real-file pass is worth doing before
+trusting this fully in production.
+
+## v2.69.1 — 2026-09-14
+
+**Focus Time: course badge simplified to plain text, color swapped to the task line**
+
+- Dropped the pill/background treatment on the course name — plain bright text now
+  (`var(--t1)`/white, bold), no background chip.
+- Swapped which line carries the course color: course name is now white, the task/assignment
+  line below it is colored with the course's own color instead (`course.color.border`/`.text` —
+  the same value used for course dot indicators elsewhere in the app, already tuned as a readable
+  text color, so it's bright enough on its own without needing a background to read clearly).
+
+**Validation:** 119 tests pass (no logic changed, display-only). `npm run build` clean. Verified
+live — course name reads as plain white text, task line reads clearly in the course's color.
+
+## v2.69.0 — 2026-09-14
+
+**Focus Time: deduped course/task text, course badge, and a real fix for a self-inflicted misalignment bug**
+
+- **Deduped course name from the task label.** Every task label the planner writes is built as
+  "&lt;courseName&gt; &lt;rest&gt;" (schedule.js — "MATH 180A exam prep (4d left)", etc.), and this
+  row already shows the course name on its own line — same information twice, wasting the width
+  the row's ellipsis truncation needs. New `dedupeCourseFromTaskLabel()` (`lib/taskLabel.js`,
+  10 unit tests against the actual label shapes schedule.js produces) strips the leading
+  course-name prefix for display only — the stored label itself is untouched, since other
+  surfaces (Calendar's day agenda, PlanDrawer) show the task without a separate course line and
+  still need it whole.
+- Course name is now a real badge/chip (course color as background tint + text, same pattern
+  already used for every other badge in this app), placed **above** the task line since it's the
+  category — and it's the only place this row names the course now, so it needed to be more
+  visible than the plain muted-gray text it replaced.
+- **Real regression found and fixed, not just patched again:** rebuilding the row as CSS grid
+  (v2.68.1) fixed the overflow bug but reintroduced a different one — each row was its own
+  independent grid, so the "auto"-sized button/time columns were computed per-row rather than
+  synced across rows, and the play button visibly drifted left/right depending on that row's own
+  duration text ("30m" vs "1h 30m"). Fixed properly: the whole Focus Time list is now ONE grid
+  (`components/Today.jsx`), with each row contributing its 4 cells directly via `Fragment`
+  instead of nesting its own grid — column widths are computed once, across every row, the way
+  CSS grid alignment is supposed to work.
+
+**Validation:** 119 tests pass (10 new for the dedup logic). `npm run build` clean. Verified live
+and measured, not eyeballed: `getBoundingClientRect()` across all 6 Focus Time rows (mixed "1h"
+and "30m" durations) shows every play button/checkmark at the exact same `left: 241px`.
+
+## v2.68.1 — 2026-09-14
+
+**Focus Time row rebuilt as CSS grid — v2.68.0's flex patch made it worse, not better**
+
+Real report from live iPhone testing: the previous fix (a responsive `flex-basis` on the time
+column) made the row shift right and the task column stop shrinking, pushing the play button and
+time range further off-screen than before. The underlying problem wasn't any one element's width —
+it was the row's whole structure: 3 nested flex levels (row → a "right" group → a button/time
+pair), where *any* level missing an explicit `min-width:0` silently re-imposes a content-based
+floor on everything above it. Patching individual widths kept moving the bug around instead of
+removing it.
+
+Rebuilt the row as CSS grid instead: `grid-template-columns: 4px minmax(0,1fr) auto auto`
+(stripe / task+course / button+duration / time). Only the task column is elastic — genuinely
+reaches 0 via `minmax(0,1fr)`, with the task and course text now truncating via ellipsis
+(`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`) instead of wrapping or forcing the
+row wider. The button+duration group and the time range are both `auto` — sized to their own
+content, never compressed, so the time genuinely stays locked to the right edge at a constant,
+readable size, which is what was asked for. This sidesteps the whole class of nested-flex
+min-width bug rather than patching around it again.
+
+**Validation:** 109 tests pass. `npm run build` clean. Verified live and *measured*, not just
+eyeballed: at a 500px viewport, all 6 Focus Time rows (mix of short and long task/course text,
+including the running-timer state) have their right edge at 459px — comfortably inside the
+viewport, confirmed via `getBoundingClientRect()`, not a screenshot guess. Task text now visibly
+truncates with an ellipsis when it's the long "MATH 180A exam prep (4d left)" label.
+
+## v2.68.0 — 2026-09-14
+
+**Two real bugs found from live iPhone testing**
+
+- **Focus Time row overflow.** The time-range column ("3:00pm – 4:00pm") was `flex:0 0 170px`
+  unconditionally, and its parent had no `min-width:0` — the same root-cause pattern already
+  found and fixed several times this session (a flex item's default `min-width:auto` blocks
+  shrinking below its content size even with `flex-shrink` set). On a real iPhone this popped the
+  time column out past the right edge. Fixed with a responsive `.focustime-timecol` class: fixed
+  170px on desktop (unchanged, matches the reference image it was built from), shrinkable
+  (`flex:0 1 120px; min-width:0`) below 480px, plus `min-width:0` added to its parent container.
+- **iOS Safari zoom-on-focus (the Bug Report modal bug).** Real root cause, not a rendering
+  quirk: Safari on iOS auto-zooms the whole page when a focused input/select/textarea has
+  `font-size` under 16px, and doesn't reliably reset that zoom when the field blurs or its modal
+  closes. The app-wide default for every input/select/textarea was 15px, and the Bug Report
+  modal's textarea explicitly overrode it to 14px *and* has `autoFocus` — guaranteeing the zoom
+  fired every single time that modal opened. That's what "modal looks a bit large, then the whole
+  UI stays enlarged and overflowing after Cancel" actually was. Fixed the global default to 16px
+  and removed the modal's smaller override. Several other inputs across the app (compact table
+  cells in Academics, time pickers in Settings/Onboarding, a few modal fields) have their own
+  sub-16px overrides and could still trigger this on their own field — flagged as a follow-up
+  sweep, not fixed blindly here since several are deliberately compact, already-tuned table cells.
+
+**Validation:** 109 tests pass (no logic changed). `npm run build` clean. Verified the
+Focus Time fix's compiled CSS directly (this environment's browser-automation tooling has a
+~500px floor and can't reach true iPhone widths to screenshot it there); verified the textarea's
+computed `font-size` is 16px live, and that Cancel returns cleanly with no regression on desktop
+Chrome (Safari's zoom-on-focus specifically can't be reproduced outside real Safari, but the root
+cause is a well-documented, standard browser behavior and both fixes address it directly).
+
 ## v2.67.0 — 2026-09-14
 
 **Today's "View day calendar" modal now matches the Calendar tab's day view**
