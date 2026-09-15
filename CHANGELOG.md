@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.68.1 — 2026-09-14
+
+**Focus Time row rebuilt as CSS grid — v2.68.0's flex patch made it worse, not better**
+
+Real report from live iPhone testing: the previous fix (a responsive `flex-basis` on the time
+column) made the row shift right and the task column stop shrinking, pushing the play button and
+time range further off-screen than before. The underlying problem wasn't any one element's width —
+it was the row's whole structure: 3 nested flex levels (row → a "right" group → a button/time
+pair), where *any* level missing an explicit `min-width:0` silently re-imposes a content-based
+floor on everything above it. Patching individual widths kept moving the bug around instead of
+removing it.
+
+Rebuilt the row as CSS grid instead: `grid-template-columns: 4px minmax(0,1fr) auto auto`
+(stripe / task+course / button+duration / time). Only the task column is elastic — genuinely
+reaches 0 via `minmax(0,1fr)`, with the task and course text now truncating via ellipsis
+(`overflow:hidden; text-overflow:ellipsis; white-space:nowrap`) instead of wrapping or forcing the
+row wider. The button+duration group and the time range are both `auto` — sized to their own
+content, never compressed, so the time genuinely stays locked to the right edge at a constant,
+readable size, which is what was asked for. This sidesteps the whole class of nested-flex
+min-width bug rather than patching around it again.
+
+**Validation:** 109 tests pass. `npm run build` clean. Verified live and *measured*, not just
+eyeballed: at a 500px viewport, all 6 Focus Time rows (mix of short and long task/course text,
+including the running-timer state) have their right edge at 459px — comfortably inside the
+viewport, confirmed via `getBoundingClientRect()`, not a screenshot guess. Task text now visibly
+truncates with an ellipsis when it's the long "MATH 180A exam prep (4d left)" label.
+
 ## v2.68.0 — 2026-09-14
 
 **Two real bugs found from live iPhone testing**

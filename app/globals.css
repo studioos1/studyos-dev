@@ -270,20 +270,6 @@
       .icon-btn-28{width:38px; height:38px;}
     }
 
-    /* Focus Time row's time-range column (the running MM:SS countdown, or the static
-       "3:00pm – 4:00pm" range) — real, reported bug: fixed at flex:0 0 170px unconditionally, no
-       min-width:0 on its flex:1 parent either, so on a real iPhone the row's right-hand group
-       (this + the button/duration pair next to it) had a higher min-content width than the
-       available space and popped out past the page edge — the button/duration pair shrinking
-       never helped, since THIS was the piece with nowhere left to go. Content only ever needs
-       ~120px ("3:00pm – 4:00pm" is the longest string that appears here); 170px was headroom for
-       alignment, not a real requirement, so it's safe to give back on a phone. Desktop keeps the
-       original fixed 170px — untouched, matches the reference image it was built from. */
-    .focustime-timecol{flex:0 0 170px;}
-    @media (max-width:480px){
-      .focustime-timecol{flex:0 1 120px; min-width:0;}
-    }
-
     /* Sub-project: Web-Mobile Enablement item #5 — onboarding step-bar. 8 circles + 7 connectors
        + a "<Step name> · n/N" label sum to well over a phone's width, with no wrap/shrink
        handling. Shrinks below 640px and swaps to a compact "n/N" label; overflow-x:auto stays on

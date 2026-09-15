@@ -582,80 +582,81 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             const rowIconBtn={borderRadius:"50%",border:"1px solid var(--b1)",cursor:"pointer",
               display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,background:"var(--card2)"};
             return(
+              // Grid, not nested flex — the previous 3-level flex structure (row > "right" group >
+              // button/time pair) kept hitting the same min-width:auto shrink-blocking bug in
+              // different spots no matter how many individual widths got patched, because ANY
+              // level in that chain without an explicit min-width:0 silently re-imposes a content
+              // floor on everything above it. A grid sidesteps the whole class of bug: each
+              // column's sizing is independent and explicit. Only the task column is elastic
+              // (minmax(0,1fr) — genuinely can reach 0, unlike a flex item with an implicit
+              // content-based floor); course/task text truncates with an ellipsis instead of
+              // wrapping or forcing the row wider. The button+duration group and the time range
+              // are both "auto" — sized to their own content, never compressed — so the time
+              // stays genuinely locked to the true right edge at a constant, always-readable size,
+              // exactly like the reference image intended, without ever being able to push the
+              // row past the screen edge to get there.
               <div key={i} style={{
-                display:"flex",alignItems:"stretch",gap:0,
+                display:"grid",gridTemplateColumns:"4px minmax(0,1fr) auto auto",
+                alignItems:"center",columnGap:14,
                 padding:"12px 0",
                 opacity:b.completed?0.55:1,
                 borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
 
-                {/* Left: colored course stripe */}
-                <div style={{
-                  width:4,borderRadius:2,background:col,
-                  flexShrink:0,marginRight:14,alignSelf:"stretch",minHeight:40}}/>
+                {/* Colored course stripe */}
+                <div style={{borderRadius:2,background:col,alignSelf:"stretch",minHeight:40}}/>
 
-                {/* Center: task (primary) + course (secondary) — capped, not flex:1, so it
-                    doesn't absorb all available space and leave the right side clustered at the
-                    true edge with a big empty gap before it. */}
-                <div style={{flex:"0 1 340px",minWidth:0}}>
-                  <div style={{fontSize:15,color:"var(--t1)",lineHeight:1.5,marginBottom:4}}>
+                {/* Task (primary) + course (secondary) — the one column allowed to shrink,
+                    truncating with an ellipsis rather than wrapping or overflowing. */}
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:15,color:"var(--t1)",lineHeight:1.5,marginBottom:4,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {b.completed&&"✓ "}{b.task}
                   </div>
                   {b.course&&(
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       <span style={{fontSize:12,color:"var(--t3)"}}>{b.course}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Right: [Play/Pause+Complete button(s) + Duration] as one fixed-width pair,
-                    and [Time range] as a separate group pinned to the true right edge —
-                    matching the reference image precisely: a tight button+duration pair, then a
-                    clearly larger gap, then the time range alone. Fixed widths on both groups
-                    (not flexible) guarantee they land at the same horizontal position on every
-                    row regardless of how long that row's task text is. */}
-                <div style={{flex:1,minWidth:0,marginLeft:14,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  {isRunning?(
-                    <>
-                      <div style={{flex:"0 0 auto",display:"flex",alignItems:"center",gap:8}}>
-                        <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
-                          style={{...rowIconBtn,color:"var(--amber)"}}>
-                          <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
-                        </button>
-                        <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
-                          style={{...rowIconBtn,color:"var(--green)"}}>
-                          <i className="ti ti-check" style={{fontSize:14}}/>
-                        </button>
-                      </div>
-                      <span className="focustime-timecol" style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",textAlign:"right"}}>
-                        {mm}:{ss}
-                      </span>
-                    </>
-                  ):(
-                    <>
-                      <div style={{flex:"0 0 auto",display:"flex",alignItems:"center",gap:8}}>
-                        {b.completed?(
-                          <i className="ti ti-circle-check" style={{fontSize:20,color:"var(--green)"}}/>
-                        ):(
-                          <button className="tt icon-btn-28" data-tt="Start" onClick={()=>startSession(b)}
-                            style={{...rowIconBtn,background:"var(--amber-bg)",color:"var(--amber)"}}>
-                            <i className="ti ti-player-play" style={{fontSize:13}}/>
-                          </button>
-                        )}
-                        {/* Fixed width regardless of "30m" vs "1h" text — without this, rows
-                            with different duration labels have a different min-content width for
-                            this whole button+duration group, which shifts how much the task-text
-                            column to its left gets squeezed, and the play button visibly drifts
-                            left/right from row to row. */}
-                        <span style={{fontSize:13,color:"var(--t3)",minWidth:34,display:"inline-block"}}>
-                          {fmtDur(b.duration||25)}
-                        </span>
-                      </div>
-                      <span className="focustime-timecol" style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
-                        {f12(b.time)} – {f12(endTime)}
-                      </span>
-                    </>
-                  )}
-                </div>
+                {/* Play/Pause+Complete button(s) + Duration — sized to content, never shrinks */}
+                {isRunning?(
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button className="tt icon-btn-28" data-tt={paused?"Resume":"Pause"} onClick={()=>setPaused(p=>!p)}
+                      style={{...rowIconBtn,color:"var(--amber)"}}>
+                      <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
+                    </button>
+                    <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
+                      style={{...rowIconBtn,color:"var(--green)"}}>
+                      <i className="ti ti-check" style={{fontSize:14}}/>
+                    </button>
+                  </div>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {b.completed?(
+                      <i className="ti ti-circle-check" style={{fontSize:20,color:"var(--green)"}}/>
+                    ):(
+                      <button className="tt icon-btn-28" data-tt="Start" onClick={()=>startSession(b)}
+                        style={{...rowIconBtn,background:"var(--amber-bg)",color:"var(--amber)"}}>
+                        <i className="ti ti-player-play" style={{fontSize:13}}/>
+                      </button>
+                    )}
+                    <span style={{fontSize:13,color:"var(--t3)",minWidth:30,display:"inline-block"}}>
+                      {fmtDur(b.duration||25)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Time range — locked to the right edge, sized to its own content, never shrinks */}
+                {isRunning?(
+                  <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
+                    {mm}:{ss}
+                  </span>
+                ):(
+                  <span style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>
+                    {f12(b.time)} – {f12(endTime)}
+                  </span>
+                )}
               </div>
             );
           })}
