@@ -1,5 +1,19 @@
 # StudyOS Changelog
 
+## v2.69.1 — 2026-09-14
+
+**Focus Time: course badge simplified to plain text, color swapped to the task line**
+
+- Dropped the pill/background treatment on the course name — plain bright text now
+  (`var(--t1)`/white, bold), no background chip.
+- Swapped which line carries the course color: course name is now white, the task/assignment
+  line below it is colored with the course's own color instead (`course.color.border`/`.text` —
+  the same value used for course dot indicators elsewhere in the app, already tuned as a readable
+  text color, so it's bright enough on its own without needing a background to read clearly).
+
+**Validation:** 119 tests pass (no logic changed, display-only). `npm run build` clean. Verified
+live — course name reads as plain white text, task line reads clearly in the course's color.
+
 ## v2.69.0 — 2026-09-14
 
 **Focus Time: deduped course/task text, course badge, and a real fix for a self-inflicted misalignment bug**

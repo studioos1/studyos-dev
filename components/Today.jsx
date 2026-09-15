@@ -583,7 +583,6 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             const endTime=b.endTime||m2t(endMins);
             const course=data.courses.find(c=>c.id===b.courseId);
             const col=course?.color?.border||"var(--a-study-t)";
-            const colBg=course?.color?.block||"var(--card2)";
             const isRunning=runningBlockId===b.id;
             const mm=Math.floor(secsLeft/60).toString().padStart(2,"0");
             const ss=(secsLeft%60).toString().padStart(2,"0");
@@ -621,19 +620,16 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <div style={{...cellPad,minWidth:0}}>
                   {b.course&&(
                     // Now the ONLY place this row names the course (the task label's own copy was
-                    // deduped away below) — a real badge/chip (course.color.block behind,
-                    // course.color.border/text as the text color), same pattern this app already
-                    // uses for every other badge, not just colored text. Above the task line, not
-                    // below: it's the category, read first.
-                    <div style={{marginBottom:3,overflow:"hidden"}}>
-                      <span style={{fontSize:11.5,fontWeight:700,color:col,background:colBg,
-                        padding:"2px 8px",borderRadius:6,textTransform:"uppercase",letterSpacing:"0.03em",
-                        whiteSpace:"nowrap",display:"inline-block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>
-                        {b.course}
-                      </span>
+                    // deduped away below) — plain bright text, no pill/background, per explicit
+                    // correction. White (the course color moved to the task line below instead —
+                    // course.color.border/text is tuned as a readable text color already, same
+                    // value used for course dot indicators elsewhere, so it's bright enough there
+                    // without needing its own background to read clearly).
+                    <div style={{marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      <span style={{fontSize:12.5,fontWeight:700,color:"var(--t1)"}}>{b.course}</span>
                     </div>
                   )}
-                  <div style={{fontSize:15,color:"var(--t1)",lineHeight:1.5,
+                  <div style={{fontSize:15,color:col,lineHeight:1.5,
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {b.completed&&"✓ "}{displayTask}
                   </div>
