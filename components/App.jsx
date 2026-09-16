@@ -5,7 +5,7 @@ import { courseNameFor } from "@/lib/courses";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
 import { freeSlots, weekStartOf } from "@/lib/calendar";
-import { useConfirm, AccountModal, BugReportModal } from "@/components/shared";
+import { useConfirm, AccountModal, BugReportModal, TourOverlay } from "@/components/shared";
 import { planHorizon } from "@/lib/planner";
 import { ADMIN_EMAILS } from "@/lib/constants";
 import { submitBugReport } from "@/lib/bugReports";
@@ -22,6 +22,7 @@ import {
   normalizeCourseNamesIfNeeded,
   repairTermLinkageIfNeeded,
   syncActiveTermToProfilePatch,
+  backfillTourOfferedIfNeeded,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
 import { supabase } from "@/lib/supabase";
@@ -139,6 +140,8 @@ function App(){
   const [showAccount,setShowAccount]=useState(false);
   const [showBugReport,setShowBugReport]=useState(false);
   const [showMobileMenu,setShowMobileMenu]=useState(false); // hamburger dropdown, mobile-only (<768px)
+  const [showHelpMenu,setShowHelpMenu]=useState(false);
+  const [showTour,setShowTour]=useState(false);
   // App is the root component and never unmounts — the render gates below just swap in <Login/>.
   // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
   // would still be open on the next login. Force it shut whenever there's no session.
@@ -223,6 +226,33 @@ function App(){
     const patch=syncActiveTermToProfilePatch(data);
     if(patch)updP(patch);
   },[JSON.stringify(data?.terms),JSON.stringify(data?.schools)]); // eslint-disable-line
+
+  // Onboarding tour — auto-fires once for a genuinely NEW signup, never for an account that was
+  // already onboarded before this feature shipped. The distinction: `wasOnboardedOnLoadRef`
+  // captures whether `data.onboarded` was already true the FIRST time data ever loaded this
+  // session. If it was, this is a returning/existing account — silently backfill tourOfferedAt
+  // (see backfillTourOfferedIfNeeded) so they're exempted, never shown the popup unprompted. If it
+  // wasn't (data.onboarded starts false and later flips true — i.e. we watched them finish the
+  // signup wizard just now), that's the real trigger: show the tour AND set tourOfferedAt so it
+  // never auto-fires again on a later login, even if this one is skipped.
+  const wasOnboardedOnLoadRef=useRef(undefined);
+  useEffect(()=>{
+    if(!data||wasOnboardedOnLoadRef.current!==undefined)return;
+    wasOnboardedOnLoadRef.current=data.onboarded;
+  },[data]); // eslint-disable-line
+
+  useEffect(()=>{
+    if(!data||wasOnboardedOnLoadRef.current===undefined)return;
+    if(wasOnboardedOnLoadRef.current){
+      const fix=backfillTourOfferedIfNeeded(data);
+      if(fix)updP(fix);
+      return;
+    }
+    if(data.onboarded&&!data.profile.tourOfferedAt){
+      setShowTour(true);
+      updP({tourOfferedAt:new Date().toISOString()});
+    }
+  },[data?.onboarded,data?.profile?.tourOfferedAt]); // eslint-disable-line
 
   async function ai(sys,pr,mx,opts){
     setBusy(true);
@@ -521,6 +551,34 @@ function App(){
             <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
+            {/* "?" help — today just replays the tour, but built as a menu (not an instant-start
+                button) so a real help feature can slot in later without moving or redesigning
+                this icon. Same click-outside-to-close pattern as the hamburger menu above. */}
+            {data.onboarded&&(
+              <div style={{position:"relative"}}>
+                <button className="tt tt-below tt-right icon-btn-28" data-tt="Help" onClick={()=>setShowHelpMenu(v=>!v)}
+                  style={{borderRadius:"50%",border:"1px solid var(--b1)",background:showHelpMenu?"var(--card2)":"var(--card2)",
+                    color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,fontWeight:700,fontSize:13}}>
+                  ?
+                </button>
+                {showHelpMenu&&(
+                  <>
+                    <div onClick={()=>setShowHelpMenu(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+                    <div style={{position:"absolute",top:"120%",right:0,zIndex:200,minWidth:170,
+                      background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
+                      boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
+                      <button onClick={()=>{setShowHelpMenu(false);setShowTour(true);}}
+                        style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",
+                          padding:"11px 12px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:14,
+                          background:"transparent",color:"var(--t1)",cursor:"pointer"}}>
+                        <i className="ti ti-map-2" style={{fontSize:16,width:18,textAlign:"center"}}/>
+                        Take the tour
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {data.onboarded&&(
               <button className="tt tt-below tt-right icon-btn-28" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
@@ -625,6 +683,14 @@ function App(){
       {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
         onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}
       {showBugReport&&<BugReportModal onSubmit={sendBugReport} onCancel={()=>setShowBugReport(false)}/>}
+      {/* Skip and Finish both close the overlay — the only difference is tourCompletedAt, which
+          is informational only (see its comment in lib/data/schema.js) and deliberately NOT set
+          on skip. tourOfferedAt is already set the moment the tour was triggered (auto-fire
+          effect above, or immediately here for a manual replay from the "?" menu), so re-opening
+          it manually never re-arms the automatic popup. */}
+      <TourOverlay active={showTour} tab={tab} setTab={go}
+        onSkip={()=>setShowTour(false)}
+        onFinish={()=>{setShowTour(false);updP({tourCompletedAt:new Date().toISOString()});}}/>
     </div>
   );
 }

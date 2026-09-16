@@ -337,7 +337,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
           deliberately compact since this was already the largest thing on the tab with just one
           metric. Hidden entirely once there's genuinely nothing to show yet for either metric. */}
       {paceWorst!==null&&(
-        <div style={BOX}>
+        <div style={BOX} data-tour="progress">
           <div style={TITLE_ROW}>
             <i className="ti ti-trending-up" style={TITLE_ICON}/>
             <span style={TITLE_TEXT}>Progress</span>
@@ -542,7 +542,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
       {/* ── FOCUS TIME — each session in the list is its own timer trigger; no separate global
           control row anymore. Only one row can run at a time; starting a different row just
           switches (no confirmation — nothing destructive happens to the one left running). ── */}
-      <div style={BOX}>
+      <div style={BOX} data-tour="focustime">
         <div style={TITLE_ROW}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <i className="ti ti-brain" style={TITLE_ICON}/>
