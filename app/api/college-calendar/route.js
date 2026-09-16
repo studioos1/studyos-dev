@@ -17,6 +17,15 @@
 // their first), "current or upcoming" would just re-fetch the term they already have on record.
 // Passing the end date of their latest known term anchors the search on the term that comes AFTER
 // it instead — same query-first principle, just anchored to a specific date rather than "today."
+//
+// max_uses:2 (was 5) — real reported complaint ("it took >20 sec"). Empirically verified via
+// direct, repeated API calls (not guessed): with the query-first prompt, a real answer typically
+// resolves in exactly 2 searches, and the model just keeps searching for extra confirmation up to
+// whatever cap it's given rather than stopping once it already has one. Capped runs (2 searches)
+// returned IDENTICAL dates/holidays/source to uncapped runs (up to 4 searches) on the same hardest
+// case tested (UCSD's afterDate lookup) in ~11s vs. ~21s — no accuracy loss observed. Worst-case
+// degradation for a genuinely harder-to-find school is more `null` fields (the prompt already
+// says to use null rather than guess), not wrong data — a safe tradeoff.
 export async function POST(req) {
   try {
     const { schoolName, afterDate } = await req.json();
@@ -38,7 +47,7 @@ export async function POST(req) {
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
         max_tokens: 2000,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }],
         messages: [
           {
             role: "user",
