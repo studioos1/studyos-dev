@@ -1,4 +1,15 @@
+import { createClient } from "@supabase/supabase-js";
+
 // College calendar lookup via Claude's web_search tool.
+//
+// Shared cross-user cache (2026-09-15): checks public.college_calendar_cache BEFORE ever calling
+// Anthropic, and upserts a fresh result into it after a real call — so the SAME school+anchor
+// combo only ever costs a real, paid web-search call once (reused until that cached term's own
+// end date passes), not once per user per lookup. Requires the caller to be signed in (same
+// Bearer-token pattern as /api/sms/send) so the per-request Supabase client can read/write the
+// cache table under RLS (see "authenticated read/insert/update calendar cache" in
+// supabase/schema.sql) — every real caller (Onboard, SchoolInfo) already has a session by the
+// time this route is ever hit, so this doesn't change real usage, just closes an open route.
 //
 // Prompt shape (2026-09-15 revision): leads with a single, simple, human-style search query
 // ("what is the current or upcoming term at X?") instead of front-loading every field the app
@@ -33,7 +44,32 @@ export async function POST(req) {
     if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.includes("your-api-key-here")) {
       return Response.json({ error: "Add your API key to the .env file" }, { status: 500 });
     }
+
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!token) return Response.json({ error: "Not signed in." }, { status: 401 });
+    // Forwards the caller's own JWT so RLS evaluates cache reads/writes as that signed-in user,
+    // rather than a service-role key with no per-row policy at all.
+    const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: authUser, error: authErr } = await db.auth.getUser(token);
+    if (authErr || !authUser?.user) return Response.json({ error: "Not signed in." }, { status: 401 });
+
     const today = new Date().toISOString().split("T")[0];
+    const cacheKey = afterDate || "";
+    const { data: cached } = await db.from("college_calendar_cache").select("*")
+      .eq("school_name", schoolName).eq("after_date", cacheKey).maybeSingle();
+    // A cached row is only reused while its OWN term hasn't ended yet — a deterministic staleness
+    // signal (the exact thing that would be wrong to keep serving), not a fixed TTL. A row with no
+    // term_end (the earlier lookup couldn't find one) is never reused — better to try again live
+    // than keep serving a known-incomplete result.
+    if (cached?.term_end && cached.term_end >= today) {
+      return Response.json({
+        scheduleType: cached.schedule_type, termName: cached.term_name,
+        termStart: cached.term_start, termEnd: cached.term_end,
+        holidays: cached.holidays, sourceUrl: cached.source_url,
+      });
+    }
     const searchLine = afterDate
       ? `Search: what is the term at ${schoolName} that comes right after the term ending ${afterDate}?`
       : `Search: what is the current or upcoming term at ${schoolName}?`;
@@ -95,6 +131,17 @@ If you genuinely cannot find reliable current information for a field, use null 
       console.error("StudyOS: college-calendar JSON parse failed. Raw model output:", lastText);
       throw parseErr;
     }
+    // Cache the result for the next person who looks up this exact school+anchor — a write
+    // failure here shouldn't fail the actual request (the student still gets their answer), just
+    // means the NEXT lookup pays for a fresh call too, so it's logged, not thrown.
+    const { error: upsertErr } = await db.from("college_calendar_cache").upsert({
+      school_name: schoolName, after_date: cacheKey,
+      schedule_type: parsed.scheduleType, term_name: parsed.termName,
+      term_start: parsed.termStart, term_end: parsed.termEnd,
+      holidays: parsed.holidays, source_url: parsed.sourceUrl,
+      fetched_at: new Date().toISOString(),
+    });
+    if (upsertErr) console.error("StudyOS: college-calendar cache upsert failed —", upsertErr.message);
     return Response.json(parsed);
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });

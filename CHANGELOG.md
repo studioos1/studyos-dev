@@ -1,5 +1,44 @@
 # StudyOS Changelog
 
+## v2.74.0 — 2026-09-15
+
+**College calendar lookups: shared cross-user cache — a real AI call only happens once per school**
+
+⚠️ **Requires a manual database migration before this actually activates** — see below.
+
+Direct follow-up to the cost conversation: rather than a one-time bulk pre-fetch of all ~2,348 US
+schools (considered and rejected — academic calendars are per-term so a bulk fetch goes stale
+almost immediately, and this app's real users only ever touch a handful of schools, so pre-paying
+for the other ~2,340 that will never be looked up is the wrong trade), this is a lazy, per-school
+shared cache: the first real lookup for a school pays for the AI call as before; every subsequent
+lookup of that SAME school — by anyone, not just the original user — reads from the database
+instead.
+
+- New `public.college_calendar_cache` table (`supabase/schema.sql`) — shared across all users
+  (not per-user data), keyed on `(school_name, after_date)`. RLS is deliberately permissive (any
+  signed-in user can read or write any row) since this is just cached public academic-calendar
+  data, not sensitive.
+- A cached row is reused only while **its own `term_end` hasn't passed yet** — a deterministic
+  staleness signal tied to the actual data, not a fixed TTL. A row with no `term_end` (an earlier
+  lookup that couldn't find one) is never reused.
+- `/api/college-calendar` now requires a signed-in caller (same Bearer-token pattern already used
+  by `/api/sms/send`) so it can read/write the cache under RLS as that user. Every real caller
+  (`Onboard.jsx`, `SchoolInfo.jsx`) already has a session by the time this route is ever hit, so
+  this doesn't change real usage — it just closes a route that was previously open with no auth
+  check at all.
+- **Fails gracefully if the table doesn't exist yet** — verified live: with the migration not yet
+  applied, a lookup still works end-to-end exactly as before (a clear, logged "table not found"
+  error on the cache read/write, not a crash or a broken response). So this ships safely even
+  before the database migration below is run; it just doesn't start saving money until it is.
+
+**⚠️ To actually activate the caching:** open the Supabase project → SQL Editor → paste the
+`college_calendar_cache` table + policies section from `supabase/schema.sql` (or the whole file —
+safe to re-run) → Run.
+
+**Validation:** 163 tests pass (no logic change to tested code). `npm run build` clean. Verified
+live end-to-end pre-migration: "Find Upcoming Term" still correctly returns real data, with the
+expected graceful cache-miss logged server-side.
+
 ## v2.73.8 — 2026-09-15
 
 **School Info: every API call is now strictly by-demand — including picking from the autocomplete**
