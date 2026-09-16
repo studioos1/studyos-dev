@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { iso } from "@/lib/time";
-import { computeTermStatuses, datesOverlap } from "@/lib/data";
+import { computeTermStatuses, datesOverlap, canDeleteTerm } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -30,7 +30,34 @@ export function SchoolInfo({data,upd,updP,toast2}){
   const [newName,setNewName]=useState("");
   const [newStart,setNewStart]=useState("");
   const [newEnd,setNewEnd]=useState("");
+  const [newHolidays,setNewHolidays]=useState([]); // fetched alongside the term, stored on save — never shown in this modal
+  const [newSource,setNewSource]=useState(null); // the lookup's sourceUrl, stored alongside holidays
   const [lookupState,setLookupState]=useState("idle"); // idle | loading | done | error
+
+  // Closing without saving (X, backdrop click) previously left the form's state alone — reopening
+  // "Add term" right after came back with the LAST attempt's school/dates/lookup state still
+  // sitting there instead of a blank form, a real reported bug. This is the one place that both
+  // hides the modal and clears every field back to its default, used by every close path
+  // (including a successful save) so there's exactly one way this ever happens, not two that can
+  // drift apart.
+  function closeAddTerm(){
+    setShowAddTerm(false);
+    setNewSchool("");setNewType("quarter");setNewName("");setNewStart("");setNewEnd("");setNewHolidays([]);setNewSource(null);setLookupState("idle");
+  }
+  // Opening defaults the School field to the CURRENT school (per explicit request — most "add
+  // term" clicks are adding the NEXT term at the school you're already at) but does NOT run the
+  // lookup — every API call on this screen is strictly by-demand now (real cost concern: this
+  // used to fire a real, paid call on every single open, even if immediately closed without
+  // saving). "Find Upcoming Term" is the one and only trigger, for any school.
+  function openAddTerm(){
+    setShowAddTerm(true);
+    const school=currentTerm&&schools.find(s=>s.id===currentTerm.schoolId);
+    if(school){
+      setNewSchool(school.name);
+      const{type}=anchorForSchool(school.name);
+      if(type)setNewType(type);
+    }
+  }
 
   // Editing an EXISTING term — name/type/dates only (typo correction), not which school it
   // belongs to (that's a bigger structural move, out of scope for a simple correction).
@@ -65,34 +92,73 @@ export function SchoolInfo({data,upd,updP,toast2}){
     });
   }
 
+  // canDeleteTerm (lib/data/terms.js) has the actual rule (upcoming-only, blocked if courses are
+  // attached) — kept there rather than inline so it's unit-testable without mocking confirm/toast.
+  async function deleteTerm(t){
+    const check=canDeleteTerm(t,data.courses);
+    if(!check.deletable){toast2(`Can't delete "${t.name}" — ${check.reason}`,true);return;}
+    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})? This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
+    if(!ok)return;
+    upd({terms:data.terms.filter(x=>x.id!==t.id)});
+    toast2("Term deleted");
+  }
+
   const bySchool={};
   termStatuses.forEach(t=>{(bySchool[t.schoolId]=bySchool[t.schoolId]||[]).push(t);});
   const schoolIds=Object.keys(bySchool).sort((a,b)=>a===currentSchoolId?-1:b===currentSchoolId?1:0);
 
-  async function handleSchoolSelected(schoolName){
-    setNewSchool(schoolName);
-    const existing=schools.find(s=>s.name===schoolName);
-    if(existing){
-      // Existing school — pre-fill the type as an editable default from its most recent term,
-      // but never auto-guess the NEW term's own dates just from knowing the school.
-      const existingTerms=termStatuses.filter(t=>t.schoolId===existing.id);
-      if(existingTerms.length)setNewType(existingTerms[existingTerms.length-1].type);
-      return;
-    }
-    // New school — try the same auto-fill lookup already used elsewhere in the app.
+  // Runs the lookup and fills whatever comes back — shared by both the "existing school" and "new
+  // school" paths below, so there's one lookup implementation, not two that can drift apart.
+  // `afterDate` anchors the search on "the term after this end date" (see fetchCollegeCalendar);
+  // omitted, it falls back to "current or upcoming."
+  async function runLookupAndFill(schoolName,afterDate){
     setLookupState("loading");
     try{
-      const result=await fetchCollegeCalendar(schoolName);
+      const result=await fetchCollegeCalendar(schoolName,afterDate);
       if(result.scheduleType==="quarter"||result.scheduleType==="semester")setNewType(result.scheduleType);
+      if(result.termName)setNewName(result.termName);
       if(result.termStart)setNewStart(result.termStart);
       if(result.termEnd)setNewEnd(result.termEnd);
-      if(result.termName)setNewName(result.termName);
+      if(Array.isArray(result.holidays))setNewHolidays(result.holidays); // stored on save, never shown here
+      if(result.sourceUrl)setNewSource(result.sourceUrl);
       setLookupState("done");
     }catch(err){
       console.error("StudyOS: school lookup failed —",err);
       setLookupState("error");
-      toast2("Couldn't auto-fill that school — please fill in the term manually.",true);
+      toast2("Couldn't auto-fill that term — please fill it in manually.",true);
     }
+  }
+
+  // Anchors the "next term" search on an existing school's LATEST known term end date (so the
+  // lookup finds what comes after it, not a repeat) — shared by picking a school from the
+  // autocomplete and the manual "Find Upcoming Term" button, so there's one place this rule lives.
+  function anchorForSchool(schoolName){
+    const existing=schools.find(s=>s.name===schoolName);
+    if(!existing)return{afterDate:null,type:null};
+    const existingTerms=[...termStatuses.filter(t=>t.schoolId===existing.id)].sort((a,b)=>(a.end||"").localeCompare(b.end||""));
+    const latest=existingTerms[existingTerms.length-1];
+    return{afterDate:latest?.end||null,type:latest?.type||null};
+  }
+
+  // Picking a school from the autocomplete dropdown fills the field and pre-fills the type for an
+  // existing school (both free, local, no API call) — it no longer searches automatically.
+  // "Find Upcoming Term" below is now the ONLY trigger for a real search, for both a brand-new
+  // school and one already on record — every API call from this screen is strictly by-demand,
+  // per explicit instruction.
+  function handleSchoolSelected(schoolName){
+    setNewSchool(schoolName);
+    const{type}=anchorForSchool(schoolName);
+    if(type)setNewType(type);
+  }
+
+  // The explicit, click-to-search button — the ONLY way an existing school's term now gets
+  // looked up (real reported cost concern: the previous auto-search-on-open fired a real, paid
+  // API call every time the modal was opened, even without saving).
+  function findUpcomingTerm(){
+    if(!newSchool)return;
+    const{afterDate,type}=anchorForSchool(newSchool);
+    if(type)setNewType(type);
+    runLookupAndFill(newSchool,afterDate);
   }
 
   function saveNewTerm(){
@@ -102,12 +168,11 @@ export function SchoolInfo({data,upd,updP,toast2}){
     checkOverlapAndProceed(schoolId,newStart,newEnd,null,()=>{
       const patch={};
       if(!existing)patch.schools=[...schools,{id:schoolId,name:newSchool,address:"",schoolType:newType}];
-      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:[],source:null,fetchedAt:null}];
+      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null}];
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);
-      setShowAddTerm(false);
-      setNewSchool("");setNewName("");setNewStart("");setNewEnd("");setLookupState("idle");
+      closeAddTerm();
     });
   }
 
@@ -117,7 +182,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
     <div className="fade">
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h2>School Info</h2>
-        <button className="btn btn-action btn-sm" onClick={()=>setShowAddTerm(true)}>
+        <button className="btn btn-action btn-sm" onClick={openAddTerm}>
           <i className="ti ti-plus"/> Add term
         </button>
       </div>
@@ -168,12 +233,22 @@ export function SchoolInfo({data,upd,updP,toast2}){
                       {t.status}
                     </span>
                   </div>
-                  <button className="tt" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
-                    style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
-                      border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",cursor:"pointer",
-                      display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-                    <i className="ti ti-pencil" style={{fontSize:13}}/>
-                  </button>
+                  <div style={{display:"flex",gap:8,flexShrink:0}}>
+                    {t.status==="upcoming"&&(
+                      <button className="tt" data-tt="Delete this term" onClick={()=>deleteTerm(t)}
+                        style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                          border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--red)",cursor:"pointer",
+                          display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                        <i className="ti ti-trash" style={{fontSize:13}}/>
+                      </button>
+                    )}
+                    <button className="tt" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
+                      style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                        border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",cursor:"pointer",
+                        display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                      <i className="ti ti-pencil" style={{fontSize:13}}/>
+                    </button>
+                  </div>
                 </div>
                 <div style={DIVIDER}/>
                 <div style={INNER}>
@@ -192,18 +267,27 @@ export function SchoolInfo({data,upd,updP,toast2}){
       {showAddTerm&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
           display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowAddTerm(false)}>
+          onClick={closeAddTerm}>
           <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",maxWidth:420,width:"100%",
             maxHeight:"85vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
             onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div style={{fontSize:16,fontWeight:600}}>Add term</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowAddTerm(false)}><i className="ti ti-x"/></button>
+              <button className="btn btn-ghost btn-sm" onClick={closeAddTerm}><i className="ti ti-x"/></button>
             </div>
             <div style={{marginBottom:12}}>
               <label>School</label>
               <CollegeAutocomplete value={newSchool} onChange={setNewSchool} onSelect={handleSchoolSelected} placeholder="Type an existing school, or a new one to transfer..."/>
-              {lookupState==="loading"&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates...</div>}
+              {/* The only trigger for a real search anywhere on this screen — not on opening the
+                  modal, and not on picking a school from the dropdown above either (both just
+                  fill the field). Every API call from School Info is strictly by-demand. */}
+              {lookupState==="loading"?(
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates...</div>
+              ):(
+                <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={findUpcomingTerm} disabled={!newSchool}>
+                  <i className="ti ti-search"/> Find Upcoming Term
+                </button>
+              )}
             </div>
             <div className="g2" style={{marginBottom:12}}>
               <div><label>Term name</label><input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="e.g. Winter 2027"/></div>

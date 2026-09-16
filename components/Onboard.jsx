@@ -218,13 +218,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       {step===IDX.school&&(
         <div className="fade">
           <h2 style={{marginBottom:8}}>Select your school</h2>
-          <p style={{marginBottom:16,fontSize:14}}>School name is required. Picking a school from the list auto-fills its address — and pre-fills the term dates on the next step — when it can.</p>
+          <p style={{marginBottom:16,fontSize:14}}>School name is required. Picking a school from the list pre-fills the term dates on the next step, when it can.</p>
           <div className="card">
             <div className="g2" style={{marginBottom:12}}>
               <div>
                 <label>School name <span style={{color:"var(--red)"}}>*</span></label>
                 <CollegeAutocomplete value={p.schoolName} onChange={v=>updP({schoolName:v})} onSelect={handleCollegeSelected} placeholder="Start typing your school..."/>
-                {collegeLookup==="loading"&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up address, term dates & holidays...</div>}
+                {collegeLookup==="loading"&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates & holidays...</div>}
               </div>
               <div><label>Schedule type <span style={{color:"var(--red)"}}>*</span></label><select value={p.schoolType} onChange={e=>updP({schoolType:e.target.value})}><option value="quarter">Quarter</option><option value="semester">Semester</option></select></div>
             </div>

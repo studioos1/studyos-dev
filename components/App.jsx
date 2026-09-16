@@ -307,7 +307,7 @@ function App(){
       upd({
         quarterPlan:{tasksByDate,generatedAt:iso(),generatedThrough:allDates[allDates.length-1],datesPlanned:allDates.length,version:APP_VERSION,lastError:null},
         studyPlan:{weeks:newWeeks},
-        briefCache:null,briefDate:null,planStale:false,
+        briefCache:null,briefPeriod:null,planStale:false,
       });
 
       // Summary message — completion is never silent. Names any shortfall with exact hours, per

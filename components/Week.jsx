@@ -55,7 +55,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
       });
       keptWeeks[weekStart]={...week,days};
     });
-    upd({studyPlan:{weeks:keptWeeks},quarterPlan:null,briefCache:null,briefDate:null});
+    upd({studyPlan:{weeks:keptWeeks},quarterPlan:null,briefCache:null,briefPeriod:null});
     if(toKeep>0){
       const forceOk=await confirm(`${toKeep} upcoming block${toKeep!==1?"s":""} were kept because they're marked as edited or completed — this includes blocks you customized on purpose, but can also include blocks that only got that flag from checking "Mark Complete" in an older version. Clear those too for a fully clean slate (today forward only — history stays untouched)? This can't be undone.`);
       if(forceOk){

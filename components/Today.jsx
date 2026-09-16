@@ -1,6 +1,5 @@
-import { useState, useEffect, Fragment } from "react";
-import { iso, du, m2t, t2m, f12, fmtDur } from "@/lib/time";
-import { APP_VERSION } from "@/lib/version";
+import { useState, useEffect, useRef, Fragment } from "react";
+import { iso, du, m2t, t2m, f12, fmtDur, briefPeriodStart } from "@/lib/time";
 import { termScopedForPlanning, getQ, isFin, isHol, GYM0 } from "@/lib/data";
 import {
   findRawDayBlock,
@@ -24,7 +23,15 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   // courses/assignments/exams (only studyPlan/completionLog/pomodoroLogs via shared functions),
   // so there's no risk of the scoped copy accidentally overwriting other terms' data on save.
   const data=termScopedForPlanning(rawData);
-  const [brief,setBrief]=useState(()=>data.briefCache&&data.briefDate===iso()&&data.briefVersion===APP_VERSION?data.briefCache:null);
+  // Cached once per "brief period" (see briefPeriodStart — anchored to 8am local time, not
+  // midnight and NOT the app's build version). The old briefVersion===APP_VERSION check meant
+  // every rebuild/redeploy invalidated the cache and fired a real, paid AI call on next load,
+  // regardless of whether the day's actual facts had changed — a real reported cost concern.
+  const [brief,setBrief]=useState(()=>data.briefCache&&data.briefPeriod===briefPeriodStart()?data.briefCache:null);
+  // Tracks the period the CURRENT brief actually belongs to — a ref, not just reading data.briefPeriod
+  // directly, so the periodic re-check below (a mount-only effect) always sees the latest value
+  // instead of a stale one captured in its closure at mount time.
+  const briefPeriodRef=useRef(data.briefPeriod);
   const [adhocT,setAT]=useState("");
   const [adhocTm,setATm]=useState("");
   const [adhocD,setAD]=useState(90);
@@ -194,17 +201,19 @@ TODAY'S ACTUAL PLANNED STUDY SESSIONS (already scheduled by the planner — for 
 ${realBlocks.length?realBlocks.map(b=>`${b.time} (${b.duration}min) — ${b.task}`).join("\n"):"(none scheduled — either a rest day, or this week hasn't been planned yet)"}
 Return JSON:{"oneFocus":"THE single most important thing today — one specific sentence, referencing the real plan above if there is one","urgencyAlert":null,"gymNudge":null,"encouragement":"one warm encouraging sentence","dailyGreeting":"short casual greeting, e.g. 'Hey ${p.name}! 💪'","dailyLines":["one SHORT line per distinct topic today — due items, exams, study sessions, gym — each its own array entry, NOT one paragraph. Keep each line under ~12 words, start with a relevant emoji, plain and scannable like a real text message."],"dailyClosing":"one short warm sign-off, e.g. 'You've got this! 🚀'"}`
       );
+      const period=briefPeriodStart();
+      briefPeriodRef.current=period;
       if(t){
         try{
           const b=JSON.parse(t.replace(/```json|```/g,"").trim());
-          setBrief(b);upd({briefCache:b,briefDate:td,briefVersion:APP_VERSION});
+          setBrief(b);upd({briefCache:b,briefPeriod:period});
         }catch{
           // AI text failed to parse — the real plan is already showing (read directly, not via
           // brief), so this only affects the commentary fields, which just fall back to plain text.
-          upd({briefCache:immediate,briefDate:td,briefVersion:APP_VERSION});
+          upd({briefCache:immediate,briefPeriod:period});
         }
       }else{
-        upd({briefCache:immediate,briefDate:td,briefVersion:APP_VERSION});
+        upd({briefCache:immediate,briefPeriod:period});
       }
     }catch(err){
       console.error("StudyOS: gen() failed —",err);
@@ -213,7 +222,16 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
     }
   }
 
-  useEffect(()=>{if(!brief)gen();},[]);
+  useEffect(()=>{
+    if(!brief)gen();
+    // Re-check periodically so a tab left open across the 8am boundary actually regenerates —
+    // "refreshed once per day at 8am", not just "once per app open". This only ever calls gen()
+    // when the period has genuinely rolled over (at most once/day), not on a fixed schedule.
+    const t=setInterval(()=>{
+      if(briefPeriodStart()!==briefPeriodRef.current)gen();
+    },10*60*1000);
+    return ()=>clearInterval(t);
+  },[]); // eslint-disable-line
 
   // Build unified awareness list, sorted earliest first. "planned" checks whether THIS SPECIFIC
   // item has a scheduled block anywhere in the plan (isItemScheduled, matched via the planner's

@@ -1,5 +1,277 @@
 # StudyOS Changelog
 
+## v2.74.0 — 2026-09-15
+
+**College calendar lookups: shared cross-user cache — a real AI call only happens once per school**
+
+⚠️ **Requires a manual database migration before this actually activates** — see below.
+
+Direct follow-up to the cost conversation: rather than a one-time bulk pre-fetch of all ~2,348 US
+schools (considered and rejected — academic calendars are per-term so a bulk fetch goes stale
+almost immediately, and this app's real users only ever touch a handful of schools, so pre-paying
+for the other ~2,340 that will never be looked up is the wrong trade), this is a lazy, per-school
+shared cache: the first real lookup for a school pays for the AI call as before; every subsequent
+lookup of that SAME school — by anyone, not just the original user — reads from the database
+instead.
+
+- New `public.college_calendar_cache` table (`supabase/schema.sql`) — shared across all users
+  (not per-user data), keyed on `(school_name, after_date)`. RLS is deliberately permissive (any
+  signed-in user can read or write any row) since this is just cached public academic-calendar
+  data, not sensitive.
+- A cached row is reused only while **its own `term_end` hasn't passed yet** — a deterministic
+  staleness signal tied to the actual data, not a fixed TTL. A row with no `term_end` (an earlier
+  lookup that couldn't find one) is never reused.
+- `/api/college-calendar` now requires a signed-in caller (same Bearer-token pattern already used
+  by `/api/sms/send`) so it can read/write the cache under RLS as that user. Every real caller
+  (`Onboard.jsx`, `SchoolInfo.jsx`) already has a session by the time this route is ever hit, so
+  this doesn't change real usage — it just closes a route that was previously open with no auth
+  check at all.
+- **Fails gracefully if the table doesn't exist yet** — verified live: with the migration not yet
+  applied, a lookup still works end-to-end exactly as before (a clear, logged "table not found"
+  error on the cache read/write, not a crash or a broken response). So this ships safely even
+  before the database migration below is run; it just doesn't start saving money until it is.
+
+**⚠️ To actually activate the caching:** open the Supabase project → SQL Editor → paste the
+`college_calendar_cache` table + policies section from `supabase/schema.sql` (or the whole file —
+safe to re-run) → Run.
+
+**Validation:** 163 tests pass (no logic change to tested code). `npm run build` clean. Verified
+live end-to-end pre-migration: "Find Upcoming Term" still correctly returns real data, with the
+expected graceful cache-miss logged server-side.
+
+## v2.73.8 — 2026-09-15
+
+**School Info: every API call is now strictly by-demand — including picking from the autocomplete**
+
+Follow-up to v2.73.6's "no auto-search on open" fix, per an explicit instruction to reduce this
+screen's calls to only-by-demand, full stop. Picking a school from the autocomplete dropdown
+(`onSelect`) was still auto-searching — that's now removed too.
+
+- `handleSchoolSelected()` (fires when a suggestion is clicked) now only fills the School field and
+  pre-fills the term type for an existing school — both free, local operations, no API call.
+- **"Find Upcoming Term" is the one and only trigger for a real search anywhere on this screen**,
+  for both a brand-new school and one already on record.
+
+**Validation:** 163 tests pass (no logic change — this is UI wiring). `npm run build` clean.
+Verified live via network-request inspection: typing "Stanford University" and clicking it from
+the dropdown fires zero API calls; the "Find Upcoming Term" button still works correctly when
+clicked (unchanged from v2.73.6).
+
+## v2.73.7 — 2026-09-15
+
+**Daily briefing: refreshes once per day at 8am local time — not on every rebuild**
+
+Real cost concern, confirmed live: the cached daily brief only stayed valid if `briefVersion`
+matched the app's exact `APP_VERSION` string — so every rebuild/redeploy (multiple times a day,
+every commit) silently invalidated the cache and fired a real, paid `/api/ai` call on next load,
+completely unrelated to whether the day's actual facts had changed. Reproduced directly: reloading
+the page after a version bump changed the brief text with no other input changing at all.
+
+- New `briefPeriodStart()` (`lib/time.js`) — the current "brief day," anchored to **8am local
+  time**, not midnight and not the build version. Before 8am, still counts as yesterday's period
+  (a student up late studying shouldn't get a fresh brief at 12:01am).
+- Cache check is now `briefCache && briefPeriod===briefPeriodStart()` — the build version plays no
+  role at all. `briefDate`/`briefVersion` fields replaced with `briefPeriod` everywhere they're
+  reset (`History.jsx`, `Week.jsx`, `Acad.jsx`, `App.jsx`, `schema.js`'s defaults).
+- A tab left open across the 8am boundary now actually regenerates without needing a manual
+  reload — a 10-minute interval re-checks whether the period has rolled over.
+
+**Validation:** 163 tests pass (4 new — `briefPeriodStart`, including the before/after-8am
+boundary and a month-rollover case). `npm run build` clean. Verified live end-to-end: captured the
+exact brief text, bumped `APP_VERSION` (a real rebuild), reloaded — confirmed via network-request
+inspection that **zero** `/api/ai` calls fired and the brief text was byte-identical to before.
+
+## v2.73.6 — 2026-09-15
+
+**School Info: "Find Upcoming Term" is now a real button, not an automatic call on every open**
+
+Real cost concern raised directly: the "Add term" default-school auto-search added in v2.73.3 was
+firing a real, paid Anthropic API call **every single time the modal opened** for your current
+school — even if you immediately closed it without saving.
+
+- Opening "Add term" still pre-fills the School field with your current school (that part stays —
+  most opens are adding the next term at the school you're already at) but no longer searches
+  automatically.
+- New **"Find Upcoming Term"** button, right under the School field — the lookup now only runs
+  when actually clicked.
+- Picking a school from the autocomplete dropdown is unchanged — that's a deliberate action, so it
+  still searches right away, same as before.
+- `anchorForSchool()` extracted as a shared helper (the "search for what comes after your latest
+  known term" logic) so the automatic dropdown-select path and the new manual button use the exact
+  same rule, not two copies that could drift apart.
+
+**Validation:** 159 tests pass (no logic change to tested code — this is UI wiring). `npm run
+build` clean. Verified live via network-request inspection: opening "Add term" now fires zero API
+calls; clicking "Find Upcoming Term" correctly runs the search (confirmed: Winter 2027,
+2027-01-04 – 2027-03-20).
+
+## v2.73.5 — 2026-09-15
+
+**Removed the onboarding tour**
+
+Shipped in v2.74.0, removed the same day after real use turned up problems the design/mockup pass
+and live verification didn't catch: the welcome screen's "Skip" looped back to "start tour"
+instead of dismissing, the callout felt unengaging, the Next/Back buttons rendered outside the
+card, and the spotlighted "Save & Replan" button read as visually enlarged. Rather than patch a
+design that wasn't landing, reverted cleanly (`git revert`) back to the pre-tour state — the "?"
+header icon, `TourOverlay` component, and the two `tourOfferedAt`/`tourCompletedAt` profile fields
+are all gone. `lib/colleges.js`'s autocomplete fix and the college-calendar speed fix from v2.73.4
+are unaffected (separate commit, not touched).
+
+**Validation:** 159 tests pass (back to the pre-tour count). `npm run build` clean.
+
+## v2.73.4 — 2026-09-15
+
+**School autocomplete: partial acronym matched nothing; college calendar lookup was slow**
+
+Two small, real fixes surfaced while investigating the "Add term" flow, shipped together since
+both came out of the same session.
+
+- **`searchColleges()` only matched a *complete* acronym** (`c.acronym===q`), not a prefix — so a
+  partial acronym like "UCS" (a real, common in-progress search for any of UCSD/UCSB/UCSC/UCSF,
+  each a 4-letter acronym) matched none of them; their full names don't literally contain "ucs" as
+  a substring either, so they had no other tier to fall through to. Confirmed directly: typing
+  "UCS" showed only "Tucson University" (a coincidental substring match), while the four real UC
+  campuses were invisible until the complete 4-letter acronym was typed. Now `startsWith`, not
+  `===` — "UCS" correctly shows all four campuses, ranked above the unrelated substring match.
+- **College calendar lookup took >20 seconds** — real reported complaint. `max_uses` on the
+  web-search tool dropped from 5 to 2 (`app/api/college-calendar/route.js`). Verified empirically,
+  not guessed: with the query-first prompt (v2.73.1), a real answer typically resolves in exactly
+  2 searches, and the model was just spending extra rounds re-confirming rather than stopping once
+  it already had an answer. Capped runs (2 searches) returned identical dates/holidays/source to
+  uncapped runs (up to 4 searches) on the same hardest case already tested (UCSD's afterDate
+  lookup) — ~11s vs. ~21s, no accuracy loss observed. Worst-case degradation for a genuinely
+  harder-to-find school is more `null` fields (the prompt already says to use null rather than
+  guess), not wrong data.
+
+**Validation:** 159 tests pass (8 new — `generateAcronym`/`searchColleges`, including the exact
+reported "UCS" scenario). `npm run build` clean.
+
+## v2.73.3 — 2026-09-15
+
+**"Add term" defaults to your current school and auto-searches the real next term, holidays stored**
+
+Follow-up to the reset fix, refined per direct feedback ("not exactly"): a blank form wasn't what
+was wanted. Most "Add term" clicks are for the NEXT term at the school you're already at, so:
+
+- **School field now defaults to your current school** and immediately runs the lookup, as if you
+  had just selected it — instead of opening blank and waiting for you to re-select a school you're
+  already enrolled at.
+- **The lookup itself now finds the real next term, not a re-fetch of the one you already have.**
+  New optional `afterDate` on `/api/college-calendar` (and `fetchCollegeCalendar()`) anchors the
+  search on "the term after this end date" instead of "current or upcoming" — same query-first
+  principle as the earlier UCSD accuracy fix, just anchored to a specific date. Verified live and
+  via direct API call: UCSD's current term ends 2026-11-06 in this account → correctly returned
+  Winter 2027 (2027-01-04 – 2027-03-20), not a repeat of Fall 2026.
+- **Holidays now get stored on the term record** (`term.holidays`, plus `source`/`fetchedAt`) —
+  fetched alongside the dates but never rendered in the modal, per explicit instruction ("no need
+  to display"). Confirmed persisted through a full page reload, not just optimistic local state.
+- The new-school path (a school not yet in the account) is unchanged — still "current or upcoming",
+  since there's no prior term to anchor after.
+
+**Validation:** 151 tests pass (no logic change to tested code). `npm run build` clean. Verified
+live end-to-end: opened "Add term" → pre-filled with current school → auto-ran the search →
+correct next term appeared → saved → confirmed the new term persisted after a full reload → then
+deleted it (test data cleanup) via the existing delete feature, which also re-confirmed that still
+works correctly.
+
+## v2.73.2 — 2026-09-15
+
+**School Info: "Add term" modal kept stale state after closing without saving**
+
+Closing the modal (X button or clicking the backdrop) only hid it — the school name, term name,
+type, dates, and lookup state all stayed in memory. Reopening "Add term" right after came back
+with the last attempt's data still sitting there instead of a blank form — real reported bug,
+found right after the UCSD/UCSB lookup-trigger investigation (typed UCSB, closed without saving,
+reopened, still showed UCSB's result).
+
+- New `closeAddTerm()` is now the one place that both hides the modal and resets every field back
+  to its default — used by the X button, the backdrop click, AND a successful save (which
+  previously had its own separate, slightly different reset inline). One path instead of two that
+  could drift apart.
+- Confirmed the school-search trigger itself was already correct and untouched by this fix:
+  typing in the School field only updates the text (`onChange`); the lookup only fires on an
+  actual autocomplete selection (`onSelect`) — never on every keystroke.
+
+**Validation:** 151 tests pass (no logic change — this is component-local UI state). `npm run
+build` clean. Verified live: typed a school, closed via X without saving, reopened "Add term" —
+confirmed blank (empty school field, default Quarter type, empty dates) instead of the stale
+previous entry.
+
+## v2.73.1 — 2026-09-15
+
+**College calendar lookup: real bug fixed (UCSD result was inconsistent/wrong), address dropped**
+
+Backlog item #4's QA pass (real API calls, not just "does it return JSON") found a genuine bug: the
+prompt's original multi-field-up-front phrasing gave UCSD specifically an inconsistent/wrong
+result across repeated runs — once silently `null` for term end + holidays, once confidently
+pulling term dates from **UCSD Extended Studies** (a different calendar than the regular
+undergraduate one) instead of the real academic calendar.
+
+- **Root cause:** UCSD has several official `*.ucsd.edu` calendars (main campus, Extension/
+  Extended Studies, Summer Session). The old prompt's "prefer the school's own `.edu` domain"
+  instruction is satisfied by all of them, so it gave the model no way to pick the authoritative
+  one before it had even searched anything.
+- **Fix:** the prompt now leads with a single, simple, human-style search query ("what is the
+  current or upcoming term at X?") instead of front-loading every field the app needs — closer to
+  how a person would actually search, and it lands on the right page. Verified with 3 repeated
+  UCSD runs through the real endpoint (not a prototype) — consistent correct end date
+  (2026-12-12, matches UCSD's real Fall 2026 finals) and consistent correct source
+  (`blink.ucsd.edu`, not Extended Studies) every time, versus inconsistent/wrong before. Re-ran
+  Harvard and Stanford afterward too, to confirm the change didn't regress schools that already
+  worked — both came back correct (Stanford: real "Autumn 2026" naming, quarter system).
+  Considered swapping to OpenAI's web-search as an alternative fix; concluded it wouldn't actually
+  address the root cause (any search backend hits the same multi-calendar ambiguity) and would
+  add a second AI provider for no clear win, contrary to the project's own standing preference for
+  deterministic logic over more AI where the two could achieve the same result.
+- **Address dropped from the lookup entirely** — per explicit product decision, it wasn't actually
+  needed. `applyCollegeCalendarResult()` no longer reads `result.address`; `schoolAddress` remains
+  a real, separately-editable profile field, just no longer auto-fetched by this endpoint. Updated
+  the two UI strings (`Onboard.jsx`) that described the lookup as auto-filling an address.
+
+**Validation:** 151 tests pass (no logic change to tested code — the prompt/address change is in
+the API route and a thin `lib/colleges.js` function with no existing test file). `npm run build`
+clean. Verified live end-to-end through the real UI (Add term → Stanford University): correct
+"Autumn 2026" naming, quarter system, plausible dates, no address field anywhere.
+
+## v2.73.0 — 2026-09-15
+
+**School Info: delete an "Upcoming" term**
+
+There was previously no way to remove a term at all — each term row only had an Edit (pencil)
+button. Added a delete option, scoped deliberately narrow:
+
+- **Only "Upcoming" terms are deletable** — never "Current" (actively driving the planner) or
+  "Completed" (real history). The trash icon only renders next to an upcoming term's row.
+- **Blocked (not cascaded) when courses are already attached.** A student can prep courses against
+  a future term before it starts (Academics' term selector allows it), so silently deleting those
+  along with the term would be a much bigger, easy-to-miss loss than the term itself — the toast
+  names exactly how many courses are in the way instead.
+- Deleting a clear (no-courses) upcoming term goes through the existing `useConfirm()` dialog
+  (same pattern already used for the term-date-overlap warning in this file), naming the exact
+  term and dates before removal — matches this component's own established confirm-before-destroy
+  convention, unlike the app's usual delete-with-no-confirm pattern for simpler list items.
+- New `canDeleteTerm(term, courses)` (`lib/data/terms.js`) holds the actual rule, kept out of the
+  component so it's unit-testable without mocking `confirm`/`toast2` — 7 new tests covering each
+  status, singular/plural wording, and a term with no attached courses.
+
+**Validation:** 151 tests pass (7 new). `npm run build` clean. Verified live: delete button shows
+only on the upcoming term, confirm dialog names the exact term/dates, Cancel is a safe no-op.
+
+## v2.72.3 — 2026-09-14
+
+**Focus Time mobile: time-range text sat a few px lower than the class name (final alignment pass)**
+
+- Root cause: `.ft-actions`/`.ft-time` zeroed `padding-bottom` below 640px (so they'd stop
+  reaching into line 2's row, from v2.72.2) but kept `padding-top:12px`. The course-name cell
+  beside them has no padding at all, so `align-items:center` centers it on the cell's true
+  geometric center — but the action/time cells' now-asymmetric padding (12px top, 0 bottom) shifted
+  *their* centered content a few px below that same center. `padding-top` now also zeroes out
+  below 640px, matching the course-name cell's zero-padding box exactly.
+- Confirmed via `getBoundingClientRect()`: course name, play button, and time-range text all
+  center at the identical y (was off by ~5-6px before). Desktop unaffected (re-verified —
+  untouched above 640px).
+
 ## v2.72.2 — 2026-09-14
 
 **Focus Time mobile: play button and time range truly centered on the class-name line; assignment gets the full row width**

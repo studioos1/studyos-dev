@@ -349,7 +349,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      briefCache:null,briefDate:null,
+      briefCache:null,briefPeriod:null,
     });
     toast2("This term's academic data cleared — other terms, profile, and history kept!");
   }

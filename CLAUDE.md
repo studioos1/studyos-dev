@@ -98,7 +98,7 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   `Today`, `Acad`, `Sett`, `SchoolInfo` etc. all have their own copies). New sections should match
   this exactly, not invent new card styling — this was a real complaint when `SchoolInfo` first
   shipped with ad-hoc styling instead (v2.33.1 fixed it).
-- On-demand content (calendar, WhatsApp preview) lives behind small icon buttons with `data-tt`
+- On-demand content (calendar, daily message preview) lives behind small icon buttons with `data-tt`
   tooltips, opened as centered modals — not always-inline sections, and not text-labeled buttons
   once more than one or two exist in a header (keep headers minimal).
 - Time display: 12-hour with am/pm (`f12()`), never raw 24-hour — this was a real, confirmed
@@ -150,11 +150,17 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   never verified end-to-end with a live key.
 - "Planner diagnostics" panel in Preferences — simplified to just Refresh Plan history; a full
   diagnostic tool matching the *current* planner's concepts (slack, priority score) doesn't exist.
-- Day-view calendar (Today's "View day calendar" modal) — functional but its visual design is an
-  explicitly open, parked question, not finalized.
-- WhatsApp — currently a formatted preview to copy, not live sending. Email/username/password are
-  placeholder fields only, no real auth — both deferred to when notification infrastructure is
-  actually built.
+- ~~Day-view calendar (Today's "View day calendar" modal) — visual design~~ — done: unified with
+  the Calendar tab's own day view (`DayAgenda` shared component, this session) instead of two
+  separate designs.
+- WhatsApp — deliberately deferred, not being pursued. Renamed out of the UI entirely back in
+  v2.51.1 once it turned out nothing ever actually sent via WhatsApp — see that CHANGELOG entry.
+  The real outbound channel is **SMS via Twilio**: opt-in flow with an explicit consent checkbox
+  (`components/Sett.jsx`), `/api/sms/send` built and working, A2P 10DLC campaign registration in
+  progress (as of 2026-09-15). The "Morning Message" daily-briefing card (the feature formerly
+  labeled WhatsApp) is still preview-only, not auto-sent — separate from the scheduled SMS
+  reminders. Email/username/password fields on the Account modal / onboarding Welcome step remain
+  placeholders only, no real auth tied to them.
 - Mode 1 vs Mode 2 semester planning — original design had two distinct modes (a one-time coarse
   semester-level budget allocation vs. the rolling detailed plan). Worth reconsidering whether this
   distinction is still needed now that `planHorizon()` already does full-term detailed planning in

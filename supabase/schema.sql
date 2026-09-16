@@ -67,6 +67,41 @@ create policy "admin update bug reports" on public.bug_reports
   for update using ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'))
   with check ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'));
 
+-- Shared, cross-user cache for college-calendar lookups (term dates/holidays from
+-- /api/college-calendar's real Anthropic web-search call) — real cost concern: without this,
+-- every user's every lookup of the same school pays for a fresh AI call, even if someone else
+-- already looked up that exact school recently. Deliberately NOT a bulk pre-fetch of every US
+-- school (considered and rejected — this app's real users only ever touch a handful of schools,
+-- and academic calendars are per-term so a bulk fetch goes stale almost immediately anyway); this
+-- populates lazily, one row per school actually looked up, reused until that term's own end date
+-- passes. Not sensitive data (public academic calendars), so RLS is deliberately permissive: any
+-- signed-in user can read or write any row.
+create table if not exists public.college_calendar_cache (
+  school_name   text not null,
+  after_date    text not null default '', -- '' = no anchor ("current or upcoming"); part of the key since a different anchor needs a different answer
+  schedule_type text,
+  term_name     text,
+  term_start    text,
+  term_end      text,
+  holidays      jsonb,
+  source_url    text,
+  fetched_at    timestamptz not null default now(),
+  primary key (school_name, after_date)
+);
+
+alter table public.college_calendar_cache enable row level security;
+
+drop policy if exists "authenticated read calendar cache" on public.college_calendar_cache;
+drop policy if exists "authenticated insert calendar cache" on public.college_calendar_cache;
+drop policy if exists "authenticated update calendar cache" on public.college_calendar_cache;
+
+create policy "authenticated read calendar cache" on public.college_calendar_cache
+  for select using (auth.role() = 'authenticated');
+create policy "authenticated insert calendar cache" on public.college_calendar_cache
+  for insert with check (auth.role() = 'authenticated');
+create policy "authenticated update calendar cache" on public.college_calendar_cache
+  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 -- Invite codes — signup requires a valid code (cost/abuse control), and any signed-in user gets
 -- their own shareable code (the actual "invite a friend" feature). Redeeming happens BEFORE the
 -- auth account is created (no session yet), so it can't go through a normal RLS-gated table read
