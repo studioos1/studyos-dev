@@ -26,7 +26,9 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   const tl=logs.find(l=>l.date===td)||{date:td,completed:[],skipped:[],notes:""};
   const [comp,setComp]=useState(tl.completed||[]);
   const [notes,setNotes]=useState(tl.notes||"");
-  const [fb,setFb]=useState(null);
+  // Seeded from today's already-saved log (if any) so a re-visit shows the earlier AI feedback
+  // immediately, without needing to hit Submit again.
+  const [fb,setFb]=useState(tl.feedback||null);
   const [sub,setSub]=useState(false);
   // Catch Up — forgetting to mark a study session done used to be permanent: history is
   // read-only (saveBlockToDay), so Study Pace's denominator was stuck deflated forever with no
@@ -56,7 +58,12 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
 
   async function submit(){
     setSub(true);
-    const nl={date:td,completed:comp,skipped:tasks.map(t=>t.id).filter(id=>!comp.includes(id)),notes,savedAt:new Date().toISOString()};
+    // AI feedback is capped at ONE real call per day: today's log (if any already exists —
+    // e.g. this is a resubmit after editing notes/checkboxes) carries its `feedback` forward
+    // unchanged. Editing and resubmitting the same day's check-in re-saves the log but reuses the
+    // already-generated message rather than paying for a new one each time.
+    const existingFeedback=tl.feedback||null;
+    const nl={date:td,completed:comp,skipped:tasks.map(t=>t.id).filter(id=>!comp.includes(id)),notes,feedback:existingFeedback,savedAt:new Date().toISOString()};
     // Checked assignment tasks get marked done on the real record. (Exam tasks are "did you
     // study" — not "the exam is over" — so those are left alone; the Plan status drawer's Overdue
     // list is where a past exam gets marked done.)
@@ -68,6 +75,11 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
       // unmark-done control exists), so a guarded set is enough — never overwritten once set.
       ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
     });
+    if(existingFeedback){
+      setFb(existingFeedback);
+      toast2("Check-in saved! 🎯");setSub(false);
+      return;
+    }
     try{
       const t=await AI(`Warm encouraging assistant. ${p.name} has ADD. Lead with achievements. 3-4 sentences. Plain text.`,
         `Check-in: ${comp.length}/${tasks.length} done.
@@ -75,6 +87,7 @@ Done: ${comp.map(id=>tasks.find(t=>t.id===id)?.l||id).join(", ")||"None"}
 Notes: ${notes||"None"}
 Celebrate, no guilt, one encouragement for tomorrow.`);
       setFb(t);
+      upd({dailyLogs:[...logs.filter(l=>l.date!==td),{...nl,feedback:t}]});
     }catch{}
     toast2("Check-in saved! 🎯");setSub(false);
   }
