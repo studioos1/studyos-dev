@@ -103,7 +103,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               default above-trigger placement rendered clipped above the visible viewport (real
               reported bug) — open it downward instead, anchored to the button's right edge since
               it's also the rightmost element in its row. */}
-          <button className={`btn btn-sm tt tt-below tt-right ${dirty?"btn-action":"btn-ghost"}`} data-tour="replan" data-tt="Re-plans every day from today through the end of your term — but only if something that actually affects scheduling changed (term dates, wake/sleep/meal times, focus length, energy peak, gym days). Other changes just save." onClick={saveReplan} disabled={planning||!dirty} title={dirty?"Refresh your plan with these new settings":"No changes to refresh"}>
+          <button className={`btn btn-sm tt tt-below tt-right ${dirty?"btn-action":"btn-ghost"}`} data-tt="Re-plans every day from today through the end of your term — but only if something that actually affects scheduling changed (term dates, wake/sleep/meal times, focus length, energy peak, gym days). Other changes just save." onClick={saveReplan} disabled={planning||!dirty} title={dirty?"Refresh your plan with these new settings":"No changes to refresh"}>
             {planning?<><Sp sz={12}/> Replanning...</>:<><i className="ti ti-refresh"/> Save &amp; Replan</>}
           </button>
         </div>

@@ -1,46 +1,5 @@
 # StudyOS Changelog
 
-## v2.74.0 — 2026-09-15
-
-**Onboarding tour: first-time guided walkthrough of the live app, "?" help menu**
-
-Designed via an interactive HTML mockup first (spotlight overlay, callout card, welcome/done
-states, validated live before writing any real app code), then built for real.
-
-- **New `TourOverlay` component** (`components/shared/Tour.jsx`) — a full-viewport dim with a
-  4-rectangle spotlight cutout (not a CSS clip-path mask, for pixel-accurate rounded corners) and
-  an amber glow ring around the real element being highlighted, plus a positioned callout card
-  (step counter, title, body, progress dots, Skip/Back/Next). The spotlighted element itself stays
-  inert during the tour — a click can't accidentally start a real Focus Time session or trigger a
-  real Replan while the tour is just pointing at it.
-- **Two acts:** "here's what you get every day" (Today tab — Progress, Focus Time), then "here's
-  how the plan actually gets built" (Academics' syllabus upload tab, Preferences' Save & Replan) —
-  the tour switches tabs itself when a step's target lives elsewhere, polling for the element to
-  exist (mount time varies) rather than guessing with a fixed timeout, then scrolls it into view.
-- **Real bug found via live testing, not assumed:** `scrollIntoView({block:"center"})` has no
-  awareness of the app's fixed header — a target near the top of a tab's own content (the
-  Academics sub-nav bar) ended up scrolled to `top:-33`, genuinely hidden underneath the header.
-  Fixed with a post-scroll nudge (`HEADER_CLEARANCE`) that corrects for it before measuring.
-- **Auto-fires once for a genuinely new signup, never for an existing account.** The real
-  distinguishing signal: `wasOnboardedOnLoadRef` captures whether `data.onboarded` was already
-  `true` the first time data loaded this session. If so (a returning account), a new
-  `backfillTourOfferedIfNeeded()` (`lib/data/tour.js`) silently sets `tourOfferedAt` with no
-  popup — existing users aren't surprised by this after it ships. If not (we watched them finish
-  the signup wizard just now), the real tour shows and `tourOfferedAt` is set so it never
-  auto-fires again, even if skipped.
-- **New "?" header icon**, same `icon-btn-28` styling and click-outside-to-close pattern as the
-  existing hamburger menu — opens a one-item menu ("Take the tour") today, built as a menu rather
-  than an instant-start button so a fuller help feature can slot in later without redesigning the
-  icon.
-- Skip and Finish both close the overlay; only Finish sets `tourCompletedAt` (informational —
-  Skip deliberately leaves it unset, per `tourOfferedAt`'s own gating already covering "never
-  auto-pop again").
-
-**Validation:** 162 tests pass (3 new — `backfillTourOfferedIfNeeded`). `npm run build` clean.
-Verified live end-to-end: welcome → all 4 spotlight steps (including the tab-switch +
-header-clearance fix, confirmed via direct `getBoundingClientRect()` measurement) → done screen →
-manual replay from "?" → skip-from-welcome closes immediately with no further popup.
-
 ## v2.73.4 — 2026-09-15
 
 **School autocomplete: partial acronym matched nothing; college calendar lookup was slow**

@@ -30,4 +30,3 @@ export { WeekGrid } from "./WeekGrid";
 export { Timeline } from "./Timeline";
 export { PaceRunner } from "./PaceRunner";
 export { DayAgenda } from "./DayAgenda";
-export { TourOverlay } from "./Tour";

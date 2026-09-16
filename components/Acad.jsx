@@ -782,7 +782,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           <div className="acad-tabs-row" style={{display:"flex",gap:4}}>
             {VIEWS.map(v=>(
               <button key={v.id} className="acad-tab-btn"
-                data-tour={v.id==="sync"?"syllabus":undefined}
                 style={{
                   background:view===v.id?"var(--amber-bg)":"var(--card2)",
                   color:view===v.id?"var(--amber)":"var(--t3)"}}
