@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.73.8 — 2026-09-15
+
+**School Info: every API call is now strictly by-demand — including picking from the autocomplete**
+
+Follow-up to v2.73.6's "no auto-search on open" fix, per an explicit instruction to reduce this
+screen's calls to only-by-demand, full stop. Picking a school from the autocomplete dropdown
+(`onSelect`) was still auto-searching — that's now removed too.
+
+- `handleSchoolSelected()` (fires when a suggestion is clicked) now only fills the School field and
+  pre-fills the term type for an existing school — both free, local operations, no API call.
+- **"Find Upcoming Term" is the one and only trigger for a real search anywhere on this screen**,
+  for both a brand-new school and one already on record.
+
+**Validation:** 163 tests pass (no logic change — this is UI wiring). `npm run build` clean.
+Verified live via network-request inspection: typing "Stanford University" and clicking it from
+the dropdown fires zero API calls; the "Find Upcoming Term" button still works correctly when
+clicked (unchanged from v2.73.6).
+
 ## v2.73.7 — 2026-09-15
 
 **Daily briefing: refreshes once per day at 8am local time — not on every rebuild**

@@ -46,11 +46,9 @@ export function SchoolInfo({data,upd,updP,toast2}){
   }
   // Opening defaults the School field to the CURRENT school (per explicit request — most "add
   // term" clicks are adding the NEXT term at the school you're already at) but does NOT run the
-  // lookup automatically — that used to fire a real, paid API call on every single open, even if
-  // the modal was immediately closed without saving. Finding the upcoming term is now the
-  // explicit "Find Upcoming Term" button below, so a real search only happens when actually asked
-  // for. (Picking a school from the autocomplete dropdown still searches automatically — that's a
-  // deliberate action, not just opening the modal.)
+  // lookup — every API call on this screen is strictly by-demand now (real cost concern: this
+  // used to fire a real, paid call on every single open, even if immediately closed without
+  // saving). "Find Upcoming Term" is the one and only trigger, for any school.
   function openAddTerm(){
     setShowAddTerm(true);
     const school=currentTerm&&schools.find(s=>s.id===currentTerm.schoolId);
@@ -142,13 +140,15 @@ export function SchoolInfo({data,upd,updP,toast2}){
     return{afterDate:latest?.end||null,type:latest?.type||null};
   }
 
-  // Picking a school from the autocomplete dropdown is a deliberate action, so it still searches
-  // automatically — unlike just opening the modal (see openAddTerm above).
-  async function handleSchoolSelected(schoolName){
+  // Picking a school from the autocomplete dropdown fills the field and pre-fills the type for an
+  // existing school (both free, local, no API call) — it no longer searches automatically.
+  // "Find Upcoming Term" below is now the ONLY trigger for a real search, for both a brand-new
+  // school and one already on record — every API call from this screen is strictly by-demand,
+  // per explicit instruction.
+  function handleSchoolSelected(schoolName){
     setNewSchool(schoolName);
-    const{afterDate,type}=anchorForSchool(schoolName);
+    const{type}=anchorForSchool(schoolName);
     if(type)setNewType(type);
-    await runLookupAndFill(schoolName,afterDate);
   }
 
   // The explicit, click-to-search button — the ONLY way an existing school's term now gets
@@ -278,10 +278,9 @@ export function SchoolInfo({data,upd,updP,toast2}){
             <div style={{marginBottom:12}}>
               <label>School</label>
               <CollegeAutocomplete value={newSchool} onChange={setNewSchool} onSelect={handleSchoolSelected} placeholder="Type an existing school, or a new one to transfer..."/>
-              {/* Explicit, click-to-search — no longer automatic on open. Picking a suggestion
-                  from the dropdown above still searches right away (that's a deliberate action);
-                  this is for when the School field already has your current school pre-filled and
-                  you actually want the next term looked up. */}
+              {/* The only trigger for a real search anywhere on this screen — not on opening the
+                  modal, and not on picking a school from the dropdown above either (both just
+                  fill the field). Every API call from School Info is strictly by-demand. */}
               {lookupState==="loading"?(
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates...</div>
               ):(
