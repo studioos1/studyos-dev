@@ -1,5 +1,20 @@
 # StudyOS Changelog
 
+## v2.73.5 — 2026-09-15
+
+**Removed the onboarding tour**
+
+Shipped in v2.74.0, removed the same day after real use turned up problems the design/mockup pass
+and live verification didn't catch: the welcome screen's "Skip" looped back to "start tour"
+instead of dismissing, the callout felt unengaging, the Next/Back buttons rendered outside the
+card, and the spotlighted "Save & Replan" button read as visually enlarged. Rather than patch a
+design that wasn't landing, reverted cleanly (`git revert`) back to the pre-tour state — the "?"
+header icon, `TourOverlay` component, and the two `tourOfferedAt`/`tourCompletedAt` profile fields
+are all gone. `lib/colleges.js`'s autocomplete fix and the college-calendar speed fix from v2.73.4
+are unaffected (separate commit, not touched).
+
+**Validation:** 159 tests pass (back to the pre-tour count). `npm run build` clean.
+
 ## v2.73.4 — 2026-09-15
 
 **School autocomplete: partial acronym matched nothing; college calendar lookup was slow**
