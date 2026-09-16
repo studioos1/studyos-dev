@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.74.1 — 2026-09-15
+
+**Evening check-in: AI feedback capped at once per day**
+
+Part of the same cost-review pass as v2.74.0. `Prog.jsx`'s evening check-in previously called the
+AI-feedback endpoint on every single Submit click — resubmitting the same day (editing notes,
+double-clicking, revisiting the tab) fired a fresh paid call each time, with the generated message
+never even persisted (it only ever lived in local component state, so it was gone on reload
+anyway).
+
+- Today's `dailyLogs` entry now stores a `feedback` field. Submit checks it first: if today's log
+  already has feedback, it's reused as-is and the AI call is skipped entirely — a real call only
+  ever happens once per day, on the first check-in.
+- Re-visiting Progress later the same day now also shows the earlier feedback immediately (seeded
+  from the saved log), instead of the message disappearing until the next Submit.
+
 ## v2.74.0 — 2026-09-15
 
 **College calendar lookups: shared cross-user cache — a real AI call only happens once per school**
