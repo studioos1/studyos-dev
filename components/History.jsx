@@ -129,7 +129,7 @@ export function History({data,upd,toast2}){
     upd({
       history:[...(data.history||[]),snapshot],
       courses:[],assignments:[],exams:[],
-      briefCache:null,briefDate:null,
+      briefCache:null,briefPeriod:null,
     });
     setClosing(false);
     setQName("");

@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.73.7 — 2026-09-15
+
+**Daily briefing: refreshes once per day at 8am local time — not on every rebuild**
+
+Real cost concern, confirmed live: the cached daily brief only stayed valid if `briefVersion`
+matched the app's exact `APP_VERSION` string — so every rebuild/redeploy (multiple times a day,
+every commit) silently invalidated the cache and fired a real, paid `/api/ai` call on next load,
+completely unrelated to whether the day's actual facts had changed. Reproduced directly: reloading
+the page after a version bump changed the brief text with no other input changing at all.
+
+- New `briefPeriodStart()` (`lib/time.js`) — the current "brief day," anchored to **8am local
+  time**, not midnight and not the build version. Before 8am, still counts as yesterday's period
+  (a student up late studying shouldn't get a fresh brief at 12:01am).
+- Cache check is now `briefCache && briefPeriod===briefPeriodStart()` — the build version plays no
+  role at all. `briefDate`/`briefVersion` fields replaced with `briefPeriod` everywhere they're
+  reset (`History.jsx`, `Week.jsx`, `Acad.jsx`, `App.jsx`, `schema.js`'s defaults).
+- A tab left open across the 8am boundary now actually regenerates without needing a manual
+  reload — a 10-minute interval re-checks whether the period has rolled over.
+
+**Validation:** 163 tests pass (4 new — `briefPeriodStart`, including the before/after-8am
+boundary and a month-rollover case). `npm run build` clean. Verified live end-to-end: captured the
+exact brief text, bumped `APP_VERSION` (a real rebuild), reloaded — confirmed via network-request
+inspection that **zero** `/api/ai` calls fired and the brief text was byte-identical to before.
+
 ## v2.73.6 — 2026-09-15
 
 **School Info: "Find Upcoming Term" is now a real button, not an automatic call on every open**
