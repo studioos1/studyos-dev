@@ -45,13 +45,20 @@ export function SchoolInfo({data,upd,updP,toast2}){
     setNewSchool("");setNewType("quarter");setNewName("");setNewStart("");setNewEnd("");setNewHolidays([]);setNewSource(null);setLookupState("idle");
   }
   // Opening defaults the School field to the CURRENT school (per explicit request — most "add
-  // term" clicks are adding the NEXT term at the school you're already at) and immediately runs
-  // the same lookup a manual selection would, rather than opening blank and waiting for the
-  // student to re-type/re-select a school they're already enrolled at.
+  // term" clicks are adding the NEXT term at the school you're already at) but does NOT run the
+  // lookup automatically — that used to fire a real, paid API call on every single open, even if
+  // the modal was immediately closed without saving. Finding the upcoming term is now the
+  // explicit "Find Upcoming Term" button below, so a real search only happens when actually asked
+  // for. (Picking a school from the autocomplete dropdown still searches automatically — that's a
+  // deliberate action, not just opening the modal.)
   function openAddTerm(){
     setShowAddTerm(true);
     const school=currentTerm&&schools.find(s=>s.id===currentTerm.schoolId);
-    if(school)handleSchoolSelected(school.name);
+    if(school){
+      setNewSchool(school.name);
+      const{type}=anchorForSchool(school.name);
+      if(type)setNewType(type);
+    }
   }
 
   // Editing an EXISTING term — name/type/dates only (typo correction), not which school it
@@ -124,18 +131,34 @@ export function SchoolInfo({data,upd,updP,toast2}){
     }
   }
 
+  // Anchors the "next term" search on an existing school's LATEST known term end date (so the
+  // lookup finds what comes after it, not a repeat) — shared by picking a school from the
+  // autocomplete and the manual "Find Upcoming Term" button, so there's one place this rule lives.
+  function anchorForSchool(schoolName){
+    const existing=schools.find(s=>s.name===schoolName);
+    if(!existing)return{afterDate:null,type:null};
+    const existingTerms=[...termStatuses.filter(t=>t.schoolId===existing.id)].sort((a,b)=>(a.end||"").localeCompare(b.end||""));
+    const latest=existingTerms[existingTerms.length-1];
+    return{afterDate:latest?.end||null,type:latest?.type||null};
+  }
+
+  // Picking a school from the autocomplete dropdown is a deliberate action, so it still searches
+  // automatically — unlike just opening the modal (see openAddTerm above).
   async function handleSchoolSelected(schoolName){
     setNewSchool(schoolName);
-    const existing=schools.find(s=>s.name===schoolName);
-    let afterDate=null;
-    if(existing){
-      // Anchor the search on the LATEST term already on record for this school, so the lookup
-      // finds the next one after it instead of re-fetching a term the student already has.
-      const existingTerms=[...termStatuses.filter(t=>t.schoolId===existing.id)].sort((a,b)=>(a.end||"").localeCompare(b.end||""));
-      const latest=existingTerms[existingTerms.length-1];
-      if(latest){setNewType(latest.type);afterDate=latest.end||null;}
-    }
+    const{afterDate,type}=anchorForSchool(schoolName);
+    if(type)setNewType(type);
     await runLookupAndFill(schoolName,afterDate);
+  }
+
+  // The explicit, click-to-search button — the ONLY way an existing school's term now gets
+  // looked up (real reported cost concern: the previous auto-search-on-open fired a real, paid
+  // API call every time the modal was opened, even without saving).
+  function findUpcomingTerm(){
+    if(!newSchool)return;
+    const{afterDate,type}=anchorForSchool(newSchool);
+    if(type)setNewType(type);
+    runLookupAndFill(newSchool,afterDate);
   }
 
   function saveNewTerm(){
@@ -255,7 +278,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
             <div style={{marginBottom:12}}>
               <label>School</label>
               <CollegeAutocomplete value={newSchool} onChange={setNewSchool} onSelect={handleSchoolSelected} placeholder="Type an existing school, or a new one to transfer..."/>
-              {lookupState==="loading"&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates...</div>}
+              {/* Explicit, click-to-search — no longer automatic on open. Picking a suggestion
+                  from the dropdown above still searches right away (that's a deliberate action);
+                  this is for when the School field already has your current school pre-filled and
+                  you actually want the next term looked up. */}
+              {lookupState==="loading"?(
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--t3)",marginTop:5}}><Sp sz={12}/> Looking up term dates...</div>
+              ):(
+                <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={findUpcomingTerm} disabled={!newSchool}>
+                  <i className="ti ti-search"/> Find Upcoming Term
+                </button>
+              )}
             </div>
             <div className="g2" style={{marginBottom:12}}>
               <div><label>Term name</label><input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="e.g. Winter 2027"/></div>

@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.73.6 — 2026-09-15
+
+**School Info: "Find Upcoming Term" is now a real button, not an automatic call on every open**
+
+Real cost concern raised directly: the "Add term" default-school auto-search added in v2.73.3 was
+firing a real, paid Anthropic API call **every single time the modal opened** for your current
+school — even if you immediately closed it without saving.
+
+- Opening "Add term" still pre-fills the School field with your current school (that part stays —
+  most opens are adding the next term at the school you're already at) but no longer searches
+  automatically.
+- New **"Find Upcoming Term"** button, right under the School field — the lookup now only runs
+  when actually clicked.
+- Picking a school from the autocomplete dropdown is unchanged — that's a deliberate action, so it
+  still searches right away, same as before.
+- `anchorForSchool()` extracted as a shared helper (the "search for what comes after your latest
+  known term" logic) so the automatic dropdown-select path and the new manual button use the exact
+  same rule, not two copies that could drift apart.
+
+**Validation:** 159 tests pass (no logic change to tested code — this is UI wiring). `npm run
+build` clean. Verified live via network-request inspection: opening "Add term" now fires zero API
+calls; clicking "Find Upcoming Term" correctly runs the search (confirmed: Winter 2027,
+2027-01-04 – 2027-03-20).
+
 ## v2.73.5 — 2026-09-15
 
 **Removed the onboarding tour**
