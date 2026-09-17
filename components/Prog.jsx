@@ -5,7 +5,7 @@ import { calcGPA } from "@/lib/grades";
 import { AI } from "@/lib/api";
 import { sparkleBurst } from "@/lib/sparkle";
 import { GYM0 } from "@/lib/data";
-import { catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
+import { catchUpDays, todayPassedBlocks, catchUpMarkComplete } from "@/lib/calendar";
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
@@ -37,17 +37,21 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   // people already look for "what did I get done" — same list/checkbox pattern as Evening
   // Check-in above, just for a bounded window of past days instead of only today.
   const catchDays=catchUpDays(data);
-  const [caught,setCaught]=useState([]); // composite "date|blockId" keys
+  // Today's own scheduled sessions whose time has already passed — real, individual sessions
+  // (e.g. all 7 of today's exam-prep blocks), not a single "Study for X exam" summary row. Real
+  // reported bug this replaces: the old summary row let you check off exam-prep as "done" with
+  // zero connection to which of today's actual sessions happened, and nothing stopped checking a
+  // session scheduled for later today before it had even happened.
+  const todayBlocks=todayPassedBlocks(data);
+  const [caught,setCaught]=useState([]); // composite "date|blockId" keys — covers both today's passed sessions and past-day catch-up
   function toggleCatch(key){setCaught(prev=>prev.includes(key)?prev.filter(x=>x!==key):[...prev,key]);}
-  const tasks=[
-    // Overdue and due-within-2-days assignments both show here — checking one off marks the real
-    // assignment done (see submit), so overdue work doesn't quietly pile up on the planner.
-    ...data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)<=2).map(a=>{
-      const d=du(a.dueDate);
-      return{id:`a-${a.id}`,l:`${a.title} (${courseNameFor(data.courses,a.courseId)})${d<0?` — ${-d}d overdue`:""}`,t:"assignment",days:d};
-    }),
-    ...data.exams.filter(e=>{const d=du(e.date);return d>=0&&d<=e.prepDays;}).map(e=>({id:`e-${e.id}`,l:`Study for ${courseNameFor(data.courses,e.courseId)} exam`,t:"exam",days:du(e.date)})),
-  ].sort((a,b)=>a.days-b.days);
+  // Overdue and due-within-2-days assignments — checking one off marks the real assignment done
+  // (see submit), so overdue work doesn't quietly pile up on the planner. Exam-prep no longer
+  // appears here as its own summary row — see todayBlocks above for the real per-session list.
+  const tasks=data.assignments.filter(a=>a.status!=="done"&&a.dueDate&&du(a.dueDate)<=2).map(a=>{
+    const d=du(a.dueDate);
+    return{id:`a-${a.id}`,l:`${a.title} (${courseNameFor(data.courses,a.courseId)})${d<0?` — ${-d}d overdue`:""}`,t:"assignment",days:d};
+  }).sort((a,b)=>a.days-b.days);
 
   async function submit(){
     setSub(true);
@@ -133,7 +137,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
 
       <div className="card" style={{marginBottom:12}}>
         <SecHead icon="ti-checkbox" title="Evening Check-in"/>
-        {tasks.length===0&&catchDays.length===0
+        {tasks.length===0&&todayBlocks.length===0&&catchDays.length===0
           ?<div style={{fontSize:14,color:"var(--a-study-t)",textAlign:"center",padding:"10px"}}>Nothing urgent today</div>
           :<div>
             {tasks.map((t,i)=>(
@@ -147,6 +151,21 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
                 <span style={{fontSize:14,flex:1,textDecoration:comp.includes(t.id)?"line-through":"none",color:"var(--t1)"}}>{t.l}</span>
               </div>
             ))}
+            {/* Today's own scheduled sessions whose time has already passed — real per-session
+                rows (see todayPassedBlocks), not a coarse "Study for X exam" summary. Shares the
+                same caught/toggleCatch + catchUpMarkComplete mechanism as the past-day Catch Up
+                list right below, since both are just "mark this specific block done". */}
+            {todayBlocks.map(({date,blocks})=>blocks.map(b=>{
+              const key=`${date}|${b.id}`;
+              const on=caught.includes(key);
+              return(
+                <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={e=>{toggleCatch(key);if(!on)sparkleBurst(e.currentTarget,"task");}}>
+                  <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
+                  <span style={{fontSize:11,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.06em",flexShrink:0}}>Today</span>
+                  <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
+                </div>
+              );
+            }))}
             {/* Catch Up — past unmarked sessions (within the catch-up window), folded into the
                 same list/button instead of a separate card, so there's one place and one report
                 action for "what actually happened" regardless of which day it was. */}
