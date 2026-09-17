@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { iso, du, m2t, t2m, f12, fmtDur, briefPeriodStart } from "@/lib/time";
+import { sparkleBurst } from "@/lib/sparkle";
 import { termScopedForPlanning, getQ, isFin, isHol, GYM0 } from "@/lib/data";
 import {
   findRawDayBlock,
@@ -171,6 +172,10 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
         const mins=raw.e-raw.s;
         upd({pomodoroLogs:[...(data.pomodoroLogs||[]),{id:Date.now(),date:td,mins,task:raw.label}]});
         toast2(auto?`🎉 Session done — ${mins} min logged!`:`✓ Marked complete — ${mins} min logged!`);
+        // Same DOM node whether this is a manual click or the timer auto-completing at 0 —
+        // looked up by id rather than threading an event target through, since the auto path
+        // has no click event to grab one from.
+        sparkleBurst(document.getElementById(`complete-btn-${blockId}`),"task");
       }
     }
     if(runningBlockId===blockId){setRunningBlockId(null);setPaused(false);}
@@ -662,7 +667,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                         style={{...rowIconBtn,color:"var(--amber)"}}>
                         <i className={`ti ${paused?"ti-player-play":"ti-player-pause"}`} style={{fontSize:13}}/>
                       </button>
-                      <button className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
+                      <button id={`complete-btn-${b.id}`} className="tt icon-btn-28" data-tt="Mark complete" onClick={()=>completeSession(b.id,false)}
                         style={{...rowIconBtn,color:"var(--green)"}}>
                         <i className="ti ti-check" style={{fontSize:14}}/>
                       </button>
