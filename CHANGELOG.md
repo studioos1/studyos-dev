@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.76.2 — 2026-09-17
+
+**Evening Check-in: AI feedback card is now light gray with dark text**
+
+Replaced the dark-green background / light-blue-grey text combo with a light gray card (`#eef0f4`)
+and dark text (`#242933`) — a deliberate, isolated break from the app's otherwise all-dark
+palette for this one card, since it's a warm personal note rather than a status/severity signal.
+
 ## v2.76.1 — 2026-09-17
 
 **Check-in icon now always in the topbar; the nudge itself still starts at 8pm**

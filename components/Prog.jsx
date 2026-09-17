@@ -169,7 +169,11 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
         <button className="btn btn-action" onClick={submit} disabled={sub}>
           {sub?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-send"/> Report Complete</>}
         </button>
-        {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"var(--green-bg)",borderRadius:9,fontSize:13,lineHeight:1.7,color:"var(--t2)"}}><div style={{fontSize:10,color:"var(--a-study-t)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
+        {/* Light-gray card, deliberately breaking from the app's otherwise all-dark palette —
+            this is a warm, personal note (not a status/severity signal like the other tinted
+            cards), and a light background with dark text reads noticeably easier here than the
+            dark-green-on-light-blue-grey combo it replaced. */}
+        {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"#eef0f4",borderRadius:9,fontSize:13,lineHeight:1.7,color:"#242933"}}><div style={{fontSize:10,color:"#6b7480",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
       </div>
 
       <div className="card" style={{marginBottom:12}}>
