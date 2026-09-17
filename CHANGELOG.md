@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.75.4 — 2026-09-17
+
+**Progress: headline moved under the page title, styling matched to Catch Up**
+
+Correction to v2.75.3 — "Keep the pace and mark your progress daily" moved from inside the
+Evening Check-in card to directly under the "Progress" page title (above the stat cards),
+and restyled plain (`fontSize:13`, no bold, no explicit color) to match the Catch Up section's
+own description paragraph exactly, instead of the bold white treatment from the last pass.
+
 ## v2.75.3 — 2026-09-17
 
 **Evening Check-in: new headline copy, removed the %/progress bar**

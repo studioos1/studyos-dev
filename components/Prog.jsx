@@ -110,7 +110,8 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
           <i className="ti ti-chevron-left" style={{fontSize:18}}/>
         </button>
       )}
-      <h2 style={{marginBottom:16}}>Progress</h2>
+      <h2 style={{marginBottom:6}}>Progress</h2>
+      <p style={{fontSize:13,marginBottom:16}}>Keep the pace and mark your progress daily</p>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"
           tt="0–100 composite: streak (4 pts/day) + check-in completion rate (×0.4) + gym consistency (up to 20 pts) + 10 for completing onboarding."/>
@@ -129,7 +130,6 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       </div>
 
       <div className="card" style={{marginBottom:12}}>
-        <p style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:12}}>Keep the pace and mark your progress daily</p>
         <SecHead icon="ti-checkbox" title="Evening Check-in"/>
         {tasks.length===0
           ?<div style={{fontSize:14,color:"var(--a-study-t)",textAlign:"center",padding:"10px"}}>Nothing urgent today</div>
