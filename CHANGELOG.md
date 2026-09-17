@@ -1,5 +1,20 @@
 # StudyOS Changelog
 
+## v2.76.5 — 2026-09-17
+
+**Calendar: study blocks now show their break portion as a faded tone of the same color**
+
+Every planner-scheduled study/homework/project block is really one focus+break Pomodoro chunk
+(`presetLenFor`) with zero visual distinction between the two parts. Split the block's bar into
+two proportional segments — full-tone for the study portion, the same color at 0.4 opacity for
+the break portion — using the real `focusMins`/`breakMins` ratio, not absolute minutes, so it
+stays correct even if 15-min rounding made the placed block a bit longer/shorter than
+focusMins+breakMins exactly. Fixed-duration activities (class, gym, meals, commute, etc.) are
+unaffected — only `study`/`homework`/`project` kinds get the split.
+
+Verified live: a 45/15 focus/break profile renders as a 75%/25% split at the exact same RGB color,
+confirmed via direct DOM inspection of the rendered segments.
+
 ## v2.76.4 — 2026-09-17
 
 **Calendar block edit: same "not before its time" rule as Progress**
