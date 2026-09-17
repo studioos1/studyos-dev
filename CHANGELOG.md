@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.75.2 — 2026-09-17
+
+**Progress: removed redundant Habit Score section, added tooltips to every stat card**
+
+- Removed the large "Habit Score" card/bar section — it duplicated the "Habit score" stat card
+  right above it with no added information.
+- `StatCard` (shared component) now accepts an optional `tt` prop — hover tooltip explaining what
+  the metric is/how it's computed, using the existing `.tt`/`data-tt` mechanism. Opens below the
+  card (`tt-below`) since these sit near the top of the page, where the default above-trigger
+  placement would clip off-screen.
+- All 7 Progress stat cards (Habit score, Streak, Completion, Gym/30d, GPA, Focus/30d, College
+  ready) now have one.
+
 ## v2.75.1 — 2026-09-17
 
 **Sparkle re-scoped to real completions; wordmark now STUDYOS**

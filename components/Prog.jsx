@@ -113,22 +113,20 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       )}
       <h2 style={{marginBottom:16}}>Progress</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
-        <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"/>
-        <StatCard label="Streak" value={streak} sub=" days" col="var(--a-study-t)" icon="ti-flame"/>
-        <StatCard label="Completion" value={cr} sub="%" col="var(--amber)" icon="ti-chart-bar"/>
-        <StatCard label="Gym/30d" value={g30} sub={`/${gymTarget*4}`} col="var(--a-gym-t)" icon="ti-barbell"/>
-        <StatCard label="GPA" value={gpa!==null?gpa.toFixed(2):"—"} sub="" col="var(--amber)" icon="ti-award"/>
-        <StatCard label="Focus/30d" value={focus30} sub=" min" col="var(--a-study-t)" icon="ti-clock-play"/>
-        <StatCard label="College ready" value={ms.filter(m=>m.ok).length} sub={`/${ms.length}`} col="var(--lime)" icon="ti-school"/>
-      </div>
-
-      <div className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <SecHead icon="ti-star" title="Habit Score"/>
-          <span style={{fontSize:18,color:"var(--blue)"}}>{hs}/100</span>
-        </div>
-        <div className="bar" style={{marginBottom:7}}><div className="bar-fill" style={{width:`${hs}%`,background:hs>=75?"var(--a-study-t)":hs>=50?"var(--amber)":"var(--blue)"}}/></div>
-        <div style={{fontSize:13,color:"var(--t2)"}}>{hs>=75?"College-ready habits forming":hs>=50?"Good progress — keep going":"Every check-in builds the habit"}</div>
+        <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"
+          tt="0–100 composite: streak (4 pts/day) + check-in completion rate (×0.4) + gym consistency (up to 20 pts) + 10 for completing onboarding."/>
+        <StatCard label="Streak" value={streak} sub=" days" col="var(--a-study-t)" icon="ti-flame"
+          tt="Consecutive days, counting back from today, with at least one item checked off in Evening Check-in."/>
+        <StatCard label="Completion" value={cr} sub="%" col="var(--amber)" icon="ti-chart-bar"
+          tt="% of your logged check-in days where you completed at least one item."/>
+        <StatCard label="Gym/30d" value={g30} sub={`/${gymTarget*4}`} col="var(--a-gym-t)" icon="ti-barbell"
+          tt="Gym sessions logged in the last 30 days, out of your weekly gym-day target ×4."/>
+        <StatCard label="GPA" value={gpa!==null?gpa.toFixed(2):"—"} sub="" col="var(--amber)" icon="ti-award"
+          tt="Weighted GPA across courses with a grade entered, weighted by credit units."/>
+        <StatCard label="Focus/30d" value={focus30} sub=" min" col="var(--a-study-t)" icon="ti-clock-play"
+          tt="Total Focus Time minutes logged in the last 30 days."/>
+        <StatCard label="College ready" value={ms.filter(m=>m.ok).length} sub={`/${ms.length}`} col="var(--lime)" icon="ti-school"
+          tt="How many of the 6 college-readiness milestones below you've hit."/>
       </div>
 
       <div className="card" style={{marginBottom:12}}>

@@ -208,9 +208,14 @@ export function DayPick({val=[],onChange,col="var(--blue)"}){
   );
 }
 
-export function StatCard({label,value,sub,col,icon}){
+// `tt`, when given, explains what the metric means/how it's computed — shown on hover via the
+// shared .tt tooltip mechanism. Opens below the card (tt-below) since these cards typically sit
+// near the top of their page, where the default above-trigger placement would clip off-screen
+// (the same real bug fixed elsewhere for top-of-page controls).
+export function StatCard({label,value,sub,col,icon,tt}){
   return(
-    <div style={{background:"var(--card)",borderRadius:10,padding:"14px",textAlign:"center"}}>
+    <div className={tt?"tt tt-below":undefined} data-tt={tt}
+      style={{background:"var(--card)",borderRadius:10,padding:"14px",textAlign:"center"}}>
       {icon&&<i className={`ti ${icon}`} style={{fontSize:18,color:col,display:"block",marginBottom:5}}/>}
       <div style={{fontSize:11,color:"var(--t3)",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
       <div style={{fontSize:24,color:col,lineHeight:1}}>{value}<span style={{fontSize:12,color:"var(--t3)"}}>{sub}</span></div>
