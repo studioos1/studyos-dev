@@ -3,7 +3,6 @@ import { t2m, f12, iso } from "@/lib/time";
 import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
-import { sparkleBurst } from "@/lib/sparkle";
 import { SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
@@ -35,13 +34,9 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   const dirty=planRelevantSnapshot(data.profile)!==baseline;
   // Runs the EXACT same quarter-wide replanning as Weekly's "Refresh Plan" button — not a
   // different, lighter action. Marks the current profile as the new saved baseline either way.
-  async function saveReplan(e){
-    const btn=e?.currentTarget;
+  async function saveReplan(){
     await refreshQuarterPlan();
     setBaseline(planRelevantSnapshot(data.profile));
-    // Fires after the replan actually completes, not on the click itself — the button already
-    // shows "Replanning..." during the wait, so this reads as the payoff, not a premature promise.
-    sparkleBurst(btn,"save");
   }
 
   function mk(fn){fn();}

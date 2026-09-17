@@ -1,7 +1,7 @@
 import "./globals.css";
 import Script from "next/script";
 
-export const metadata = { title: "StudyOS" };
+export const metadata = { title: "STUDYOS" };
 export const viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }) {

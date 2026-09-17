@@ -4,7 +4,7 @@ import { iso, du } from "@/lib/time";
 import { courseNameFor } from "@/lib/courses";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
-import { freeSlots, weekStartOf } from "@/lib/calendar";
+import { freeSlots, weekStartOf, hasCheckInWork } from "@/lib/calendar";
 import { useConfirm, AccountModal, BugReportModal } from "@/components/shared";
 import { planHorizon } from "@/lib/planner";
 import { ADMIN_EMAILS } from "@/lib/constants";
@@ -444,6 +444,20 @@ function App(){
     }
   },[data?.onboarded]);
 
+  // Evening "report complete" nudge — a small amber badge in the top bar from 8pm onward,
+  // ONLY when there's actually something to report (hasCheckInWork) and today's check-in hasn't
+  // been submitted yet. The × hides it from view but does NOT stop the nudge: `nudgeSnoozedUntil`
+  // just delays the next re-show by 30 minutes — the badge keeps coming back on that cadence
+  // until the real condition (today's dailyLogs entry existing) clears it, never from the × alone.
+  // `nowTick` exists purely so this re-evaluates over time without any user interaction — a plain
+  // derived boolean computed once at mount would never notice 8pm arriving or 30 minutes passing.
+  const [nudgeSnoozedUntil,setNudgeSnoozedUntil]=useState(null);
+  const [nowTick,setNowTick]=useState(()=>Date.now());
+  useEffect(()=>{
+    const t=setInterval(()=>setNowTick(Date.now()),60*1000);
+    return()=>clearInterval(t);
+  },[]);
+
   // Render gates — placed after every hook so hook count/order stays identical across renders,
   // per the rules of hooks. Order: still checking the session → nothing; signed out → Login;
   // signed in but this user's row still loading → nothing.
@@ -454,6 +468,9 @@ function App(){
 
   const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
+  const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
+  const nudgeEligible=data.onboarded&&new Date(nowTick).getHours()>=20&&!checkedInToday&&hasCheckInWork(data);
+  const nudgeShown=nudgeEligible&&(!nudgeSnoozedUntil||nowTick>=nudgeSnoozedUntil);
 
   const isAdmin=ADMIN_EMAILS.includes(session.user?.email);
   const TABS=data.onboarded?[
@@ -511,16 +528,35 @@ function App(){
               )}
             </div>
           )}
-          <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>StudyOS</span>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,letterSpacing:"0.01em",background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>STUDYOS</span>
           <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {q&&<span className="badge badge-blue topbar-term">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
           {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
+          {/* The "click to report complete" text + × only appear once the nudge is actually
+              active — the icon itself (below, in the right-hand icon group) is always there. */}
+          {nudgeShown&&(
+            <span className="badge badge-amber topbar-missing" style={{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}} onClick={()=>go("prog")}>
+              Click to report complete
+              <i className="ti ti-x" style={{fontSize:12,opacity:0.8}} onClick={e=>{e.stopPropagation();setNudgeSnoozedUntil(Date.now()+30*60*1000);}}/>
+            </span>
+          )}
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
             {api!==null&&<span className={`badge ${api?"badge-green":"badge-red"} topbar-api`}>{api?"✓ Connected":"✗ No API key"}</span>}
             <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
+            {/* Evening check-in shortcut — always present (unlike the "click to report complete"
+                text badge above, which only shows once the nudge is actually active) so there's
+                always a quick way to Progress. Turns amber and bounces once the nudge kicks in. */}
+            {data.onboarded&&(
+              <button className="tt tt-below tt-right icon-btn-28" data-tt="Evening check-in" onClick={()=>go("prog")}
+                style={{borderRadius:"50%",border:`1px solid ${nudgeShown?"var(--amber)":"var(--b1)"}`,
+                  background:nudgeShown?"var(--amber-bg)":"var(--card2)",
+                  color:nudgeShown?"var(--amber)":"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                <i className={`ti ti-checkbox${nudgeShown?" nudge-bounce":""}`} style={{fontSize:15}}/>
+              </button>
+            )}
             {data.onboarded&&(
               <button className="tt tt-below tt-right icon-btn-28" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",

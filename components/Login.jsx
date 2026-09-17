@@ -168,8 +168,8 @@ export function Login({ recoveryMode = false, onDone }) {
         <span style={{
           fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 700,
           background: "linear-gradient(120deg,var(--blue),var(--teal))",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-        }}>StudyOS</span>
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "0.01em",
+        }}>STUDYOS</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", letterSpacing: "0.06em", marginLeft: 6, verticalAlign: "middle" }}>BETA</span>
 
         <div style={{
@@ -260,8 +260,8 @@ export function Login({ recoveryMode = false, onDone }) {
             fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 700,
             background: "linear-gradient(120deg,var(--blue),var(--teal))",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            cursor: !recoveryMode ? "pointer" : "default",
-          }}>StudyOS</span>
+            cursor: !recoveryMode ? "pointer" : "default", letterSpacing: "0.01em",
+          }}>STUDYOS</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", letterSpacing: "0.06em", marginLeft: 7, verticalAlign: "middle" }}>BETA</span>
           <div style={{ marginTop: 10, lineHeight: 1.4 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)" }}>

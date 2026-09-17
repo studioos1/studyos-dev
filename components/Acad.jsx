@@ -280,11 +280,9 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     toast2("Study preferences saved!");
   }
 
-  async function saveDifficultyAndReplan(e){
-    const btn=e?.currentTarget;
+  async function saveDifficultyAndReplan(){
     saveDifficulty();
     await refreshQuarterPlan();
-    sparkleBurst(btn,"save");
   }
 
   // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —
@@ -955,7 +953,10 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     <td style={{padding:"9px 8px"}}>
                       <div
                         title="Mark as completed"
-                        onClick={()=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"done",completedAt:x.completedAt||new Date().toISOString()}:x)})}
+                        onClick={e=>{
+                          upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"done",completedAt:x.completedAt||new Date().toISOString()}:x)});
+                          sparkleBurst(e.currentTarget,"task");
+                        }}
                         style={{width:20,height:20,borderRadius:6,border:"2px solid var(--t3)",
                           background:"var(--card2)",cursor:"pointer",flexShrink:0,
                           display:"flex",alignItems:"center",justifyContent:"center",

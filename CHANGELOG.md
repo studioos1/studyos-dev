@@ -1,5 +1,142 @@
 # StudyOS Changelog
 
+## v2.76.3 — 2026-09-17
+
+**Evening Check-in: AI feedback card background darkened to a clearer gray**
+
+`#eef0f4` read too close to white — darkened to `#c9ccd2`, with text darkened to match
+(`#20242e`) so contrast stays strong.
+
+## v2.76.2 — 2026-09-17
+
+**Evening Check-in: AI feedback card is now light gray with dark text**
+
+Replaced the dark-green background / light-blue-grey text combo with a light gray card (`#eef0f4`)
+and dark text (`#242933`) — a deliberate, isolated break from the app's otherwise all-dark
+palette for this one card, since it's a warm personal note rather than a status/severity signal.
+
+## v2.76.1 — 2026-09-17
+
+**Check-in icon now always in the topbar; the nudge itself still starts at 8pm**
+
+Split the evening nudge into two pieces, per feedback: a plain check-in shortcut icon in the
+top bar's right-hand icon group (next to Bug Report/Account) is now always present — muted grey,
+just a quick way to jump to Progress. The "Click to report complete" text badge + × still only
+appears once the real nudge conditions are met (8pm, real work to report, not yet checked in);
+when it does, the always-there icon also turns amber and bounces, tying the two together.
+
+## v2.76.0 — 2026-09-17
+
+**Evening report-complete nudge**
+
+A small amber badge in the top bar (visible on every tab, not just Progress) — "🔔 Click to
+report complete" — appears from 8pm onward, but ONLY when there's actually something to report
+(`hasCheckInWork`: a due/overdue assignment, an exam inside its prep window, or an unmarked past
+session) and today's check-in hasn't been submitted yet. Clicking it jumps to the Progress tab.
+
+- New `lib/calendar`'s `hasCheckInWork(data)` — a cheap boolean version of Progress's own
+  tasks/catchDays logic, used purely to gate the nudge without duplicating the display lists.
+- The × hides the badge from view but does **not** stop it — it comes back in 30 minutes. The
+  only thing that actually clears the nudge is submitting Report Complete (today's `dailyLogs`
+  entry existing).
+- Bell icon bounces gently (`.nudge-bounce`, respects `prefers-reduced-motion`).
+- A `nowTick` state (re-evaluated every 60s) is what makes 8pm arriving and each 30-minute snooze
+  actually take effect without requiring the user to do anything.
+
+## v2.75.8 — 2026-09-17
+
+**Progress: shorter, plain-language tooltips on the top stat cards**
+
+Replaced the formula-heavy tooltip text (weights, multipliers, math notation) on all 7 Progress
+stat cards with short, plain-language sentences — same accuracy, easier to actually read at a
+glance.
+
+## v2.75.7 — 2026-09-17
+
+**Progress: merged Evening Check-in and Catch Up into one list, one Report Complete button**
+
+- Evening Check-in and Catch Up are no longer two separate cards with two separate submit
+  buttons — one combined checklist, one "Report Complete" button that applies both: today's
+  checked assignments/exam-prep AND any past unmarked sessions checked off, in one click.
+- Today's items show "Today" in amber (matching the Catch Up rows' inline date styling) instead
+  of no date label at all.
+- `submit()` now runs `catchUpMarkComplete` for any checked catch-up items before saving the
+  daily log; the AI-feedback once-per-day cap is unaffected. The confirmation toast mentions how
+  many sessions were caught up, when any were.
+
+## v2.75.6 — 2026-09-17
+
+**Progress: removed redundant exam badge, sized action buttons to their content**
+
+- Evening Check-in task rows: removed the right-side "exam"/type badge — redundant with the
+  item's own label already saying "exam."
+- "Submit Check-in" and "Mark caught up" no longer stretch to `width:100%` — sized to their
+  content like a normal button.
+
+## v2.75.5 — 2026-09-17
+
+**Progress: headline in its own card; Catch Up rows show date inline, drop course name**
+
+- "Keep the pace and mark your progress daily" now sits inside its own `.card`, directly under
+  the page title — back in the normal page-body content flow instead of bare text, same plain
+  styling as Catch Up's description.
+- Catch Up list rows: removed the per-day date header (shown separately, in `--t3`/blue-ish) and
+  the right-aligned course-name label on each item. The date is now shown inline on the item's own
+  row, immediately after the checkbox, in amber.
+
+## v2.75.4 — 2026-09-17
+
+**Progress: headline moved under the page title, styling matched to Catch Up**
+
+Correction to v2.75.3 — "Keep the pace and mark your progress daily" moved from inside the
+Evening Check-in card to directly under the "Progress" page title (above the stat cards),
+and restyled plain (`fontSize:13`, no bold, no explicit color) to match the Catch Up section's
+own description paragraph exactly, instead of the bold white treatment from the last pass.
+
+## v2.75.3 — 2026-09-17
+
+**Evening Check-in: new headline copy, removed the %/progress bar**
+
+- The card's intro line is now "Keep the pace and mark your progress daily" — bold, white
+  (`var(--t1)`), placed above the "Evening Check-in" title as the card's first element. Replaces
+  "No judgment — tracking so tomorrow's plan is smarter."
+- Removed the "What got done? / NN%" row and its progress bar entirely — straight into the task
+  checklist now. The unused `dp` (done %) variable was removed with it.
+
+## v2.75.2 — 2026-09-17
+
+**Progress: removed redundant Habit Score section, added tooltips to every stat card**
+
+- Removed the large "Habit Score" card/bar section — it duplicated the "Habit score" stat card
+  right above it with no added information.
+- `StatCard` (shared component) now accepts an optional `tt` prop — hover tooltip explaining what
+  the metric is/how it's computed, using the existing `.tt`/`data-tt` mechanism. Opens below the
+  card (`tt-below`) since these sit near the top of the page, where the default above-trigger
+  placement would clip off-screen.
+- All 7 Progress stat cards (Habit score, Streak, Completion, Gym/30d, GPA, Focus/30d, College
+  ready) now have one.
+
+## v2.75.1 — 2026-09-17
+
+**Sparkle re-scoped to real completions; wordmark now STUDYOS**
+
+Correction to v2.75.0, per direct feedback: the sparkle burst was wired to Preferences/Academics
+"Save & Replan," which was never the intended trigger. Removed entirely from both Save & Replan
+buttons. The real, intended trigger is "the user clicks CHECK on a study-plan item or an
+assignment, anywhere" — now wired at every real place that happens:
+
+- Today's Focus Time "Mark complete" (unchanged from v2.75.0 — this one was already right)
+- Academics: the assignment-row checkbox that marks it done
+- Progress → Evening Check-in: each task checkbox, fired on check (not uncheck)
+- Progress → Catch Up: each missed-session checkbox, same as above
+- The shared Block Edit modal's "Mark as completed" checkbox (Timeline/Week's edit-a-block flow)
+
+Also: the "StudyOS" wordmark is now displayed **STUDYOS** (all-caps) everywhere it appears as the
+stylized brand mark — the top bar (`App.jsx`), both Login screen instances, the SMS opt-in
+evidence page, and the browser tab title. Left as mixed-case "StudyOS" only inside running legal
+prose (Terms/Privacy body text), where all-caps would read as shouting mid-sentence rather than a
+brand mark.
+
 ## v2.75.0 — 2026-09-17
 
 **Sparkle burst: a lightweight celebration on Mark Complete and Save & Replan**
