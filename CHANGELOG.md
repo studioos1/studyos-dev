@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.76.1 — 2026-09-17
+
+**Check-in icon now always in the topbar; the nudge itself still starts at 8pm**
+
+Split the evening nudge into two pieces, per feedback: a plain check-in shortcut icon in the
+top bar's right-hand icon group (next to Bug Report/Account) is now always present — muted grey,
+just a quick way to jump to Progress. The "Click to report complete" text badge + × still only
+appears once the real nudge conditions are met (8pm, real work to report, not yet checked in);
+when it does, the always-there icon also turns amber and bounces, tying the two together.
+
 ## v2.76.0 — 2026-09-17
 
 **Evening report-complete nudge**

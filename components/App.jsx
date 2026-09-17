@@ -533,9 +533,10 @@ function App(){
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {q&&<span className="badge badge-blue topbar-term">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
           {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
+          {/* The "click to report complete" text + × only appear once the nudge is actually
+              active — the icon itself (below, in the right-hand icon group) is always there. */}
           {nudgeShown&&(
             <span className="badge badge-amber topbar-missing" style={{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}} onClick={()=>go("prog")}>
-              <i className="ti ti-bell-ringing-2 nudge-bounce" style={{fontSize:13}}/>
               Click to report complete
               <i className="ti ti-x" style={{fontSize:12,opacity:0.8}} onClick={e=>{e.stopPropagation();setNudgeSnoozedUntil(Date.now()+30*60*1000);}}/>
             </span>
@@ -545,6 +546,17 @@ function App(){
             <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
+            {/* Evening check-in shortcut — always present (unlike the "click to report complete"
+                text badge above, which only shows once the nudge is actually active) so there's
+                always a quick way to Progress. Turns amber and bounces once the nudge kicks in. */}
+            {data.onboarded&&(
+              <button className="tt tt-below tt-right icon-btn-28" data-tt="Evening check-in" onClick={()=>go("prog")}
+                style={{borderRadius:"50%",border:`1px solid ${nudgeShown?"var(--amber)":"var(--b1)"}`,
+                  background:nudgeShown?"var(--amber-bg)":"var(--card2)",
+                  color:nudgeShown?"var(--amber)":"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+                <i className={`ti ti-checkbox${nudgeShown?" nudge-bounce":""}`} style={{fontSize:15}}/>
+              </button>
+            )}
             {data.onboarded&&(
               <button className="tt tt-below tt-right icon-btn-28" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
