@@ -3,6 +3,7 @@ import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction, findProbableDuplicate } from "@/lib/syllabus";
 import { supabase } from "@/lib/supabase";
 import { getMyInviteInfo } from "@/lib/invites";
+import { sparkleBurst } from "@/lib/sparkle";
 import { Sp, ExtractionIssues, PasswordInput } from "./ui";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
@@ -312,7 +313,7 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
           </div>
           {!isNew&&(
             <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:completed?"var(--green-bg)":"var(--card2)",borderRadius:8,cursor:"pointer"}}
-              onClick={()=>setCompleted(c=>!c)}>
+              onClick={e=>{setCompleted(c=>!c);if(!completed)sparkleBurst(e.currentTarget,"task");}}>
               <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${completed?"var(--green)":"var(--t3)"}`,background:completed?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 {completed&&<i className="ti ti-check" style={{fontSize:13,color:"#0a2410"}}/>}
               </div>

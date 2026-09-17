@@ -1,5 +1,26 @@
 # StudyOS Changelog
 
+## v2.75.1 — 2026-09-17
+
+**Sparkle re-scoped to real completions; wordmark now STUDYOS**
+
+Correction to v2.75.0, per direct feedback: the sparkle burst was wired to Preferences/Academics
+"Save & Replan," which was never the intended trigger. Removed entirely from both Save & Replan
+buttons. The real, intended trigger is "the user clicks CHECK on a study-plan item or an
+assignment, anywhere" — now wired at every real place that happens:
+
+- Today's Focus Time "Mark complete" (unchanged from v2.75.0 — this one was already right)
+- Academics: the assignment-row checkbox that marks it done
+- Progress → Evening Check-in: each task checkbox, fired on check (not uncheck)
+- Progress → Catch Up: each missed-session checkbox, same as above
+- The shared Block Edit modal's "Mark as completed" checkbox (Timeline/Week's edit-a-block flow)
+
+Also: the "StudyOS" wordmark is now displayed **STUDYOS** (all-caps) everywhere it appears as the
+stylized brand mark — the top bar (`App.jsx`), both Login screen instances, the SMS opt-in
+evidence page, and the browser tab title. Left as mixed-case "StudyOS" only inside running legal
+prose (Terms/Privacy body text), where all-caps would read as shouting mid-sentence rather than a
+brand mark.
+
 ## v2.75.0 — 2026-09-17
 
 **Sparkle burst: a lightweight celebration on Mark Complete and Save & Replan**

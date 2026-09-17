@@ -3,6 +3,7 @@ import { iso, du } from "@/lib/time";
 import { courseNameFor } from "@/lib/courses";
 import { calcGPA } from "@/lib/grades";
 import { AI } from "@/lib/api";
+import { sparkleBurst } from "@/lib/sparkle";
 import { GYM0 } from "@/lib/data";
 import { CATCHUP_DAYS, catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
 import { StatCard, SecHead, Sp } from "@/components/shared";
@@ -142,7 +143,11 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
             </div>
             <div className="bar" style={{marginBottom:12}}><div className="bar-fill" style={{width:`${dp}%`,background:dp>=80?"var(--a-study-t)":dp>=50?"var(--amber)":"var(--red)"}}/></div>
             {tasks.map((t,i)=>(
-              <div key={t.id} className="list-item" style={{cursor:"pointer",opacity:comp.includes(t.id)?0.5:1}} onClick={()=>setComp(prev=>prev.includes(t.id)?prev.filter(x=>x!==t.id):[...prev,t.id])}>
+              <div key={t.id} className="list-item" style={{cursor:"pointer",opacity:comp.includes(t.id)?0.5:1}} onClick={e=>{
+                const checking=!comp.includes(t.id);
+                setComp(prev=>prev.includes(t.id)?prev.filter(x=>x!==t.id):[...prev,t.id]);
+                if(checking)sparkleBurst(e.currentTarget,"task");
+              }}>
                 <div className={`chk${comp.includes(t.id)?" on":""}`}>{comp.includes(t.id)&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
                 <span style={{fontSize:14,flex:1,textDecoration:comp.includes(t.id)?"line-through":"none",color:"var(--t1)"}}>{t.l}</span>
                 <span className={`badge ${t.t==="exam"?"badge-amber":"badge-blue"}`} style={{fontSize:11}}>{t.t}</span>
@@ -172,7 +177,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
                 const key=`${date}|${b.id}`;
                 const on=caught.includes(key);
                 return(
-                  <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={()=>toggleCatch(key)}>
+                  <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={e=>{toggleCatch(key);if(!on)sparkleBurst(e.currentTarget,"task");}}>
                     <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
                     <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
                     {b.course&&<span style={{fontSize:12,color:"var(--t3)"}}>{b.course}</span>}

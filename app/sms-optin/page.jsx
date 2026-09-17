@@ -11,9 +11,9 @@ export default function SmsOptIn() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--t1)", fontFamily: "'Inter',sans-serif" }}>
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 20px 80px" }}>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6,
+        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6, letterSpacing: "0.01em",
           background: "linear-gradient(120deg,var(--blue),var(--teal))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          StudyOS
+          STUDYOS
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>SMS Opt-In</h1>
         <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 32 }}>How consumers consent to receive text messages from StudyOS</p>
