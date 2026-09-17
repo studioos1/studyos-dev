@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.77.0 — 2026-09-17
+
+**Focus Time: automatic study→break→complete, with a chime + notification at each transition**
+
+One Play click now runs the whole session — study phase, then automatically into break, then
+complete — using the real `focusMins`/`breakMins` profile values (not the block's own rounded
+combined duration), matching the calendar's new split-color bars from earlier today.
+
+- New `lib/notify.js`: a short two-tone chime (Web Audio, no permission needed — rising tone for
+  "break starts," falling for "break's over") plus a best-effort browser Notification if
+  permission is already granted. Never requests permission itself.
+- `Today.jsx`'s countdown is now phase-aware (`study`/`break`): at 0 in the study phase it
+  switches straight to a break countdown with no click needed; at 0 in break it fires the
+  "break's over" signal and completes the session exactly as before.
+- The running row shows a small "BREAK" label in teal during the break phase, distinct from the
+  amber study countdown.
+- Onboarding's Study step (right under the Focus/Break length dropdowns) now offers to enable
+  browser notifications — optional, skippable, reuses the same `Notification.requestPermission()`
+  flow already in Preferences, framed honestly as ongoing (break alerts + the existing once-daily
+  priorities notification).
+
+Verified live: starting a session now begins the countdown at the real `focusMins` value (tested
+by temporarily setting Focus/Break to 15/5 min and confirming the timer started at 14:57, not the
+block's own 60-minute duration), with no console errors from the new chime code. Preferences
+restored to their real 45/15 values afterward. The full real-time phase transition (15+ minutes)
+wasn't practical to wait out via automation — verified through code review instead.
+
 ## v2.76.5 — 2026-09-17
 
 **Calendar: study blocks now show their break portion as a faded tone of the same color**
