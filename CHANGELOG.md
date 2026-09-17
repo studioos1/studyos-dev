@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.76.0 — 2026-09-17
+
+**Evening report-complete nudge**
+
+A small amber badge in the top bar (visible on every tab, not just Progress) — "🔔 Click to
+report complete" — appears from 8pm onward, but ONLY when there's actually something to report
+(`hasCheckInWork`: a due/overdue assignment, an exam inside its prep window, or an unmarked past
+session) and today's check-in hasn't been submitted yet. Clicking it jumps to the Progress tab.
+
+- New `lib/calendar`'s `hasCheckInWork(data)` — a cheap boolean version of Progress's own
+  tasks/catchDays logic, used purely to gate the nudge without duplicating the display lists.
+- The × hides the badge from view but does **not** stop it — it comes back in 30 minutes. The
+  only thing that actually clears the nudge is submitting Report Complete (today's `dailyLogs`
+  entry existing).
+- Bell icon bounces gently (`.nudge-bounce`, respects `prefers-reduced-motion`).
+- A `nowTick` state (re-evaluated every 60s) is what makes 8pm arriving and each 30-minute snooze
+  actually take effect without requiring the user to do anything.
+
 ## v2.75.8 — 2026-09-17
 
 **Progress: shorter, plain-language tooltips on the top stat cards**

@@ -562,6 +562,14 @@
       .pr-runner,.pr-legBack,.pr-legFront,.pr-armBack,.pr-armFront,.pr-shinBack,.pr-shinFront,.pr-hair{animation:none !important;}
     }
 
+    /* Evening report-complete nudge (App.jsx topbar badge) — small bell bounce, same
+       reduced-motion guard as the runner animation above. */
+    .nudge-bounce{animation:nudge-bounce 1s ease-in-out infinite;}
+    @keyframes nudge-bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+    @media (prefers-reduced-motion: reduce){
+      .nudge-bounce{animation:none !important;}
+    }
+
     /* Diff badges */
     .d1,.d2,.d3{background:var(--green-bg); color:var(--green);}
     .d4,.d5,.d6{background:var(--amber-bg); color:var(--amber);}
