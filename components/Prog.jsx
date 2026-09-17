@@ -5,7 +5,7 @@ import { calcGPA } from "@/lib/grades";
 import { AI } from "@/lib/api";
 import { sparkleBurst } from "@/lib/sparkle";
 import { GYM0 } from "@/lib/data";
-import { CATCHUP_DAYS, catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
+import { catchUpDays, catchUpMarkComplete } from "@/lib/calendar";
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
@@ -38,15 +38,7 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   // Check-in above, just for a bounded window of past days instead of only today.
   const catchDays=catchUpDays(data);
   const [caught,setCaught]=useState([]); // composite "date|blockId" keys
-  const [subCatch,setSubCatch]=useState(false);
   function toggleCatch(key){setCaught(prev=>prev.includes(key)?prev.filter(x=>x!==key):[...prev,key]);}
-  function submitCatchUp(){
-    setSubCatch(true);
-    const items=caught.map(key=>{const i=key.indexOf("|");return{date:key.slice(0,i),blockId:key.slice(i+1)};});
-    catchUpMarkComplete(data,upd,items);
-    toast2(`✓ ${items.length} session${items.length!==1?"s":""} caught up!`);
-    setCaught([]);setSubCatch(false);
-  }
   const tasks=[
     // Overdue and due-within-2-days assignments both show here — checking one off marks the real
     // assignment done (see submit), so overdue work doesn't quietly pile up on the planner.
@@ -59,6 +51,13 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
 
   async function submit(){
     setSub(true);
+    // Evening Check-in and Catch Up used to be two separate cards with two separate submit
+    // buttons — merged into one combined report so a single click covers both: today's tasks
+    // AND any past unmarked sessions checked off above.
+    const caughtItems=caught.map(key=>{const i=key.indexOf("|");return{date:key.slice(0,i),blockId:key.slice(i+1)};});
+    if(caughtItems.length)catchUpMarkComplete(data,upd,caughtItems);
+    const caughtCount=caughtItems.length;
+    setCaught([]);
     // AI feedback is capped at ONE real call per day: today's log (if any already exists —
     // e.g. this is a resubmit after editing notes/checkboxes) carries its `feedback` forward
     // unchanged. Editing and resubmitting the same day's check-in re-saves the log but reuses the
@@ -76,9 +75,10 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
       // unmark-done control exists), so a guarded set is enough — never overwritten once set.
       ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
     });
+    const savedMsg=caughtCount?`Check-in saved — ${caughtCount} session${caughtCount!==1?"s":""} caught up! 🎯`:"Check-in saved! 🎯";
     if(existingFeedback){
       setFb(existingFeedback);
-      toast2("Check-in saved! 🎯");setSub(false);
+      toast2(savedMsg);setSub(false);
       return;
     }
     try{
@@ -90,7 +90,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       setFb(t);
       upd({dailyLogs:[...logs.filter(l=>l.date!==td),{...nl,feedback:t}]});
     }catch{}
-    toast2("Check-in saved! 🎯");setSub(false);
+    toast2(savedMsg);setSub(false);
   }
 
   const gpa=calcGPA(data.courses);
@@ -133,7 +133,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
 
       <div className="card" style={{marginBottom:12}}>
         <SecHead icon="ti-checkbox" title="Evening Check-in"/>
-        {tasks.length===0
+        {tasks.length===0&&catchDays.length===0
           ?<div style={{fontSize:14,color:"var(--a-study-t)",textAlign:"center",padding:"10px"}}>Nothing urgent today</div>
           :<div>
             {tasks.map((t,i)=>(
@@ -143,46 +143,34 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
                 if(checking)sparkleBurst(e.currentTarget,"task");
               }}>
                 <div className={`chk${comp.includes(t.id)?" on":""}`}>{comp.includes(t.id)&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
+                <span style={{fontSize:11,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.06em",flexShrink:0}}>Today</span>
                 <span style={{fontSize:14,flex:1,textDecoration:comp.includes(t.id)?"line-through":"none",color:"var(--t1)"}}>{t.l}</span>
               </div>
             ))}
+            {/* Catch Up — past unmarked sessions (within the catch-up window), folded into the
+                same list/button instead of a separate card, so there's one place and one report
+                action for "what actually happened" regardless of which day it was. */}
+            {catchDays.map(({date,blocks})=>blocks.map(b=>{
+              const key=`${date}|${b.id}`;
+              const on=caught.includes(key);
+              return(
+                <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={e=>{toggleCatch(key);if(!on)sparkleBurst(e.currentTarget,"task");}}>
+                  <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
+                  <span style={{fontSize:11,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.06em",flexShrink:0}}>
+                    {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
+                  </span>
+                  <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
+                </div>
+              );
+            }))}
           </div>
         }
         <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Anything to add?" style={{width:"100%",minHeight:55,fontFamily:"inherit",fontSize:13,resize:"vertical",marginTop:12,marginBottom:10}}/>
         <button className="btn btn-action" onClick={submit} disabled={sub}>
-          {sub?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-send"/> Submit Check-in</>}
+          {sub?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-send"/> Report Complete</>}
         </button>
         {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"var(--green-bg)",borderRadius:9,fontSize:13,lineHeight:1.7,color:"var(--t2)"}}><div style={{fontSize:10,color:"var(--a-study-t)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
       </div>
-
-      {/* Catch Up — only appears when there's actually something to catch up on, same as every
-          other conditional section in this app; most days this card simply isn't here. */}
-      {catchDays.length>0&&(
-        <div className="card" style={{marginBottom:12}}>
-          <SecHead icon="ti-history" title="Catch Up"/>
-          <p style={{fontSize:13,marginBottom:12}}>Sessions from the last {CATCHUP_DAYS} days still unmarked — check off what actually happened.</p>
-          {catchDays.map(({date,blocks})=>(
-            <div key={date} style={{marginBottom:10}}>
-              {blocks.map(b=>{
-                const key=`${date}|${b.id}`;
-                const on=caught.includes(key);
-                return(
-                  <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={e=>{toggleCatch(key);if(!on)sparkleBurst(e.currentTarget,"task");}}>
-                    <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
-                    <span style={{fontSize:11,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.06em",flexShrink:0}}>
-                      {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
-                    </span>
-                    <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          <button className="btn btn-action" style={{marginTop:4}} onClick={submitCatchUp} disabled={subCatch||caught.length===0}>
-            {subCatch?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-check"/> Mark {caught.length||""} caught up</>}
-          </button>
-        </div>
-      )}
 
       <div className="card" style={{marginBottom:12}}>
         <SecHead icon="ti-school" title="College Readiness"/>

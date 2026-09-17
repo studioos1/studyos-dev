@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.75.7 — 2026-09-17
+
+**Progress: merged Evening Check-in and Catch Up into one list, one Report Complete button**
+
+- Evening Check-in and Catch Up are no longer two separate cards with two separate submit
+  buttons — one combined checklist, one "Report Complete" button that applies both: today's
+  checked assignments/exam-prep AND any past unmarked sessions checked off, in one click.
+- Today's items show "Today" in amber (matching the Catch Up rows' inline date styling) instead
+  of no date label at all.
+- `submit()` now runs `catchUpMarkComplete` for any checked catch-up items before saving the
+  daily log; the AI-feedback once-per-day cap is unaffected. The confirmation toast mentions how
+  many sessions were caught up, when any were.
+
 ## v2.75.6 — 2026-09-17
 
 **Progress: removed redundant exam badge, sized action buttons to their content**
