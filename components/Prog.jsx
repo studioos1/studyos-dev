@@ -116,19 +116,19 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"
-          tt="0–100 composite: streak (4 pts/day) + check-in completion rate (×0.4) + gym consistency (up to 20 pts) + 10 for completing onboarding."/>
+          tt="Your overall consistency: streak, check-ins, and gym combined."/>
         <StatCard label="Streak" value={streak} sub=" days" col="var(--a-study-t)" icon="ti-flame"
-          tt="Consecutive days, counting back from today, with at least one item checked off in Evening Check-in."/>
+          tt="Days in a row you've checked in and gotten something done."/>
         <StatCard label="Completion" value={cr} sub="%" col="var(--amber)" icon="ti-chart-bar"
-          tt="% of your logged check-in days where you completed at least one item."/>
+          tt="Share of your check-in days where you completed at least one item."/>
         <StatCard label="Gym/30d" value={g30} sub={`/${gymTarget*4}`} col="var(--a-gym-t)" icon="ti-barbell"
-          tt="Gym sessions logged in the last 30 days, out of your weekly gym-day target ×4."/>
+          tt="Gym sessions logged in the last 30 days."/>
         <StatCard label="GPA" value={gpa!==null?gpa.toFixed(2):"—"} sub="" col="var(--amber)" icon="ti-award"
-          tt="Weighted GPA across courses with a grade entered, weighted by credit units."/>
+          tt="Your GPA across courses with a grade entered."/>
         <StatCard label="Focus/30d" value={focus30} sub=" min" col="var(--a-study-t)" icon="ti-clock-play"
-          tt="Total Focus Time minutes logged in the last 30 days."/>
+          tt="Total study time logged in the last 30 days."/>
         <StatCard label="College ready" value={ms.filter(m=>m.ok).length} sub={`/${ms.length}`} col="var(--lime)" icon="ti-school"
-          tt="How many of the 6 college-readiness milestones below you've hit."/>
+          tt="How many readiness habits below you've hit."/>
       </div>
 
       <div className="card" style={{marginBottom:12}}>

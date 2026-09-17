@@ -1,5 +1,13 @@
 # StudyOS Changelog
 
+## v2.75.8 — 2026-09-17
+
+**Progress: shorter, plain-language tooltips on the top stat cards**
+
+Replaced the formula-heavy tooltip text (weights, multipliers, math notation) on all 7 Progress
+stat cards with short, plain-language sentences — same accuracy, easier to actually read at a
+glance.
+
 ## v2.75.7 — 2026-09-17
 
 **Progress: merged Evening Check-in and Catch Up into one list, one Report Complete button**
