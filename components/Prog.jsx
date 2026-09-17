@@ -144,13 +144,12 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
               }}>
                 <div className={`chk${comp.includes(t.id)?" on":""}`}>{comp.includes(t.id)&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
                 <span style={{fontSize:14,flex:1,textDecoration:comp.includes(t.id)?"line-through":"none",color:"var(--t1)"}}>{t.l}</span>
-                <span className={`badge ${t.t==="exam"?"badge-amber":"badge-blue"}`} style={{fontSize:11}}>{t.t}</span>
               </div>
             ))}
           </div>
         }
         <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Anything to add?" style={{width:"100%",minHeight:55,fontFamily:"inherit",fontSize:13,resize:"vertical",marginTop:12,marginBottom:10}}/>
-        <button className="btn btn-action" style={{width:"100%"}} onClick={submit} disabled={sub}>
+        <button className="btn btn-action" onClick={submit} disabled={sub}>
           {sub?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-send"/> Submit Check-in</>}
         </button>
         {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"var(--green-bg)",borderRadius:9,fontSize:13,lineHeight:1.7,color:"var(--t2)"}}><div style={{fontSize:10,color:"var(--a-study-t)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
@@ -179,7 +178,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
               })}
             </div>
           ))}
-          <button className="btn btn-action" style={{width:"100%",marginTop:4}} onClick={submitCatchUp} disabled={subCatch||caught.length===0}>
+          <button className="btn btn-action" style={{marginTop:4}} onClick={submitCatchUp} disabled={subCatch||caught.length===0}>
             {subCatch?<><Sp sz={13}/> Saving...</>:<><i className="ti ti-check"/> Mark {caught.length||""} caught up</>}
           </button>
         </div>

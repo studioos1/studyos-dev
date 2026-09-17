@@ -1,5 +1,14 @@
 # StudyOS Changelog
 
+## v2.75.6 — 2026-09-17
+
+**Progress: removed redundant exam badge, sized action buttons to their content**
+
+- Evening Check-in task rows: removed the right-side "exam"/type badge — redundant with the
+  item's own label already saying "exam."
+- "Submit Check-in" and "Mark caught up" no longer stretch to `width:100%` — sized to their
+  content like a normal button.
+
 ## v2.75.5 — 2026-09-17
 
 **Progress: headline in its own card; Catch Up rows show date inline, drop course name**
