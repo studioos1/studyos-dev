@@ -110,8 +110,10 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
           <i className="ti ti-chevron-left" style={{fontSize:18}}/>
         </button>
       )}
-      <h2 style={{marginBottom:6}}>Progress</h2>
-      <p style={{fontSize:13,marginBottom:16}}>Keep the pace and mark your progress daily</p>
+      <h2 style={{marginBottom:16}}>Progress</h2>
+      <div className="card" style={{marginBottom:12}}>
+        <p style={{fontSize:13}}>Keep the pace and mark your progress daily</p>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Habit score" value={hs} sub="/100" col="var(--blue)" icon="ti-star"
           tt="0–100 composite: streak (4 pts/day) + check-in completion rate (×0.4) + gym consistency (up to 20 pts) + 10 for completing onboarding."/>
@@ -162,17 +164,16 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
           <p style={{fontSize:13,marginBottom:12}}>Sessions from the last {CATCHUP_DAYS} days still unmarked — check off what actually happened.</p>
           {catchDays.map(({date,blocks})=>(
             <div key={date} style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>
-                {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
-              </div>
               {blocks.map(b=>{
                 const key=`${date}|${b.id}`;
                 const on=caught.includes(key);
                 return(
                   <div key={key} className="list-item" style={{cursor:"pointer",opacity:on?0.5:1}} onClick={e=>{toggleCatch(key);if(!on)sparkleBurst(e.currentTarget,"task");}}>
                     <div className={`chk${on?" on":""}`}>{on&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}</div>
+                    <span style={{fontSize:11,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.06em",flexShrink:0}}>
+                      {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
+                    </span>
                     <span style={{fontSize:14,flex:1,textDecoration:on?"line-through":"none",color:"var(--t1)"}}>{b.task}</span>
-                    {b.course&&<span style={{fontSize:12,color:"var(--t3)"}}>{b.course}</span>}
                   </div>
                 );
               })}

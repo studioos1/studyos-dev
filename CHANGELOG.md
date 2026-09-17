@@ -1,5 +1,16 @@
 # StudyOS Changelog
 
+## v2.75.5 — 2026-09-17
+
+**Progress: headline in its own card; Catch Up rows show date inline, drop course name**
+
+- "Keep the pace and mark your progress daily" now sits inside its own `.card`, directly under
+  the page title — back in the normal page-body content flow instead of bare text, same plain
+  styling as Catch Up's description.
+- Catch Up list rows: removed the per-day date header (shown separately, in `--t3`/blue-ish) and
+  the right-aligned course-name label on each item. The date is now shown inline on the item's own
+  row, immediately after the checkbox, in amber.
+
 ## v2.75.4 — 2026-09-17
 
 **Progress: headline moved under the page title, styling matched to Catch Up**
