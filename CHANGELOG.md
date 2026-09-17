@@ -1,5 +1,15 @@
 # StudyOS Changelog
 
+## v2.75.3 — 2026-09-17
+
+**Evening Check-in: new headline copy, removed the %/progress bar**
+
+- The card's intro line is now "Keep the pace and mark your progress daily" — bold, white
+  (`var(--t1)`), placed above the "Evening Check-in" title as the card's first element. Replaces
+  "No judgment — tracking so tomorrow's plan is smarter."
+- Removed the "What got done? / NN%" row and its progress bar entirely — straight into the task
+  checklist now. The unused `dp` (done %) variable was removed with it.
+
 ## v2.75.2 — 2026-09-17
 
 **Progress: removed redundant Habit Score section, added tooltips to every stat card**

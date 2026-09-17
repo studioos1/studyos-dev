@@ -93,7 +93,6 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
     toast2("Check-in saved! 🎯");setSub(false);
   }
 
-  const dp=tasks.length?Math.round(comp.length/tasks.length*100):100;
   const gpa=calcGPA(data.courses);
   const pomoLogs=data.pomodoroLogs||[];
   const focus30=pomoLogs.filter(l=>{const d=new Date(l.date);const a=new Date();a.setDate(a.getDate()-30);return d>=a;}).reduce((s,l)=>s+l.mins,0);
@@ -130,16 +129,11 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
       </div>
 
       <div className="card" style={{marginBottom:12}}>
+        <p style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:12}}>Keep the pace and mark your progress daily</p>
         <SecHead icon="ti-checkbox" title="Evening Check-in"/>
-        <p style={{fontSize:13,marginBottom:12}}>No judgment — tracking so tomorrow's plan is smarter.</p>
         {tasks.length===0
           ?<div style={{fontSize:14,color:"var(--a-study-t)",textAlign:"center",padding:"10px"}}>Nothing urgent today</div>
           :<div>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <span style={{fontSize:13,color:"var(--t2)"}}>What got done?</span>
-              <span style={{fontSize:13,color:dp>=80?"var(--a-study-t)":dp>=50?"var(--amber)":"var(--red)"}}>{dp}%</span>
-            </div>
-            <div className="bar" style={{marginBottom:12}}><div className="bar-fill" style={{width:`${dp}%`,background:dp>=80?"var(--a-study-t)":dp>=50?"var(--amber)":"var(--red)"}}/></div>
             {tasks.map((t,i)=>(
               <div key={t.id} className="list-item" style={{cursor:"pointer",opacity:comp.includes(t.id)?0.5:1}} onClick={e=>{
                 const checking=!comp.includes(t.id);
