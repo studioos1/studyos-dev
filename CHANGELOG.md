@@ -1,5 +1,12 @@
 # StudyOS Changelog
 
+## v2.76.3 — 2026-09-17
+
+**Evening Check-in: AI feedback card background darkened to a clearer gray**
+
+`#eef0f4` read too close to white — darkened to `#c9ccd2`, with text darkened to match
+(`#20242e`) so contrast stays strong.
+
 ## v2.76.2 — 2026-09-17
 
 **Evening Check-in: AI feedback card is now light gray with dark text**

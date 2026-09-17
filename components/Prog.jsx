@@ -173,7 +173,7 @@ Celebrate, no guilt, one encouragement for tomorrow.`);
             this is a warm, personal note (not a status/severity signal like the other tinted
             cards), and a light background with dark text reads noticeably easier here than the
             dark-green-on-light-blue-grey combo it replaced. */}
-        {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"#eef0f4",borderRadius:9,fontSize:13,lineHeight:1.7,color:"#242933"}}><div style={{fontSize:10,color:"#6b7480",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
+        {fb&&<div style={{marginTop:11,padding:"12px 15px",background:"#c9ccd2",borderRadius:9,fontSize:13,lineHeight:1.7,color:"#20242e"}}><div style={{fontSize:10,color:"#565c68",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:5}}>AI feedback</div>{fb}</div>}
       </div>
 
       <div className="card" style={{marginBottom:12}}>
