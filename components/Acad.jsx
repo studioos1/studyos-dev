@@ -13,6 +13,7 @@ import {
 } from "@/lib/planner";
 import { CI } from "@/lib/api";
 import { PDF } from "@/lib/pdf";
+import { sparkleBurst } from "@/lib/sparkle";
 import { reclassifyMisplacedQuizzes } from "@/lib/syllabus";
 import { DS, CC } from "@/lib/constants";
 import {
@@ -279,9 +280,11 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     toast2("Study preferences saved!");
   }
 
-  async function saveDifficultyAndReplan(){
+  async function saveDifficultyAndReplan(e){
+    const btn=e?.currentTarget;
     saveDifficulty();
     await refreshQuarterPlan();
+    sparkleBurst(btn,"save");
   }
 
   // Re-runs the web-search-backed difficulty lookup (B-01) on a course that already exists —

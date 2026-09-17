@@ -1,5 +1,25 @@
 # StudyOS Changelog
 
+## v2.75.0 — 2026-09-17
+
+**Sparkle burst: a lightweight celebration on Mark Complete and Save & Replan**
+
+Prototyped first as a standalone Claude Artifact mockup (matched to StudyOS's real palette —
+`app/globals.css` tokens, the real `StudyOS` Syne/gradient wordmark — and tuned for pacing across
+a few rounds of feedback) before being wired into the real app.
+
+- New `lib/sparkle.js` — a small canvas particle burst, not a React component: a single
+  module-level canvas is created lazily on first use and painted only while particles are alive
+  (nothing runs at rest, no idle loop, no library). Colors are read live from the app's real
+  `--amber`/`--blue`/`--green`/`--teal` custom properties, so it always matches the current theme.
+  Respects `prefers-reduced-motion` — no-ops entirely when set.
+- Two tiers: `sparkleBurst(el,"task")` — a small ~20-particle amber/green spark, wired to Today's
+  "Mark complete" button (both a manual click and the timer auto-completing at 0 use the same
+  code path). `sparkleBurst(el,"save")` — a fuller ~60-particle burst in the full amber/blue/teal
+  mix, wired to both real "Save & Replan" buttons (Settings, and Academics' difficulty-research
+  Save & Replan) — fired after the replan actually completes, not on the click itself, so it reads
+  as the payoff rather than a premature promise.
+
 ## v2.74.1 — 2026-09-15
 
 **Evening check-in: AI feedback capped at once per day**
