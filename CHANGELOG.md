@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.76.4 — 2026-09-17
+
+**Calendar block edit: same "not before its time" rule as Progress**
+
+Same "can't act on a session before its time" rule as the Progress todayPassedBlocks fix earlier
+this session, applied to the Calendar page's block edit modal (double-click a session to open it):
+
+- **Start time** now has a `min` of the current time when editing a block on today's date — the
+  browser's own time picker won't offer an earlier slot, and saving is blocked with an inline
+  "Can't schedule a start time in the past" error (and a disabled Save button) even if a value
+  slips past the picker (manual entry, mobile browsers).
+- **"Mark as completed"** is now disabled — greyed out, with a tooltip explaining why — until the
+  block's own (possibly just-edited) end time has actually passed. Already-completed blocks can
+  still be unchecked any time, to fix a mistake.
+- Verified live: opening a not-yet-happened session today shows the checkbox correctly locked
+  with the tooltip, and forcing an earlier start time (bypassing the native picker) correctly
+  shows the error and disables Save.
+
 ## v2.76.3 — 2026-09-17
 
 **Evening Check-in: AI feedback card background darkened to a clearer gray**

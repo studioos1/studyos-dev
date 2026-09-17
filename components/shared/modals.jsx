@@ -220,9 +220,22 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
   const [selectedDate,setSelectedDate]=useState(dateStr);
   const effectiveDate=isNew?selectedDate:dateStr;
 
+  // Same "can't act on a time slot that hasn't happened yet" rule as Progress's
+  // todayPassedBlocks, applied here in the two places editing a block can violate it: you
+  // shouldn't be able to (re)schedule a today block to start in the past relative to right now,
+  // and you shouldn't be able to mark one complete before its (possibly just-edited) end time has
+  // actually passed. Only meaningful for today — a future day's whole timeline is ahead of now by
+  // definition, and a past day is already fully behind it.
+  const nowHM=(()=>{const d=new Date();return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;})();
+  const nowMin=t2m(nowHM);
+  const editingToday=effectiveDate===today;
+  const startTooEarly=editingToday&&t2m(startTime)<nowMin;
+  const blockTimePassed=dateStr<today||(dateStr===today&&t2m(endTime)<=nowMin);
+
   function handleSave(){
     const s=t2m(startTime),e=t2m(endTime);
     if(!Number.isFinite(s)||!Number.isFinite(e)||e<=s)return;
+    if(editingToday&&s<nowMin)return; // can't schedule a today block to start in the past
     const now=new Date().toISOString();
     const kind=type==="homework"?"homework":type==="chore"?"chore":"personal";
     const finalCourseId=type==="homework"?(courseId||null):null;
@@ -308,18 +321,29 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
             <input value={description} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Study with Sarah for MATH midterm" style={{width:"100%"}}/>
           </div>
           <div className="g2" style={{marginBottom:4}}>
-            <div><label style={{fontSize:12,color:"var(--t3)",display:"block",marginBottom:5}}>Start</label><input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/></div>
-            <div><label style={{fontSize:12,color:"var(--t3)",display:"block",marginBottom:5}}>End</label><input type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
+            <div><label style={{fontSize:12,color:"var(--t3)",display:"block",marginBottom:5}}>Start</label><input type="time" value={startTime} min={editingToday?nowHM:undefined} onChange={e=>setStartTime(e.target.value)}/></div>
+            <div><label style={{fontSize:12,color:"var(--t3)",display:"block",marginBottom:5}}>End</label><input type="time" value={endTime} min={editingToday?startTime:undefined} onChange={e=>setEndTime(e.target.value)}/></div>
           </div>
-          {!isNew&&(
-            <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:completed?"var(--green-bg)":"var(--card2)",borderRadius:8,cursor:"pointer"}}
-              onClick={e=>{setCompleted(c=>!c);if(!completed)sparkleBurst(e.currentTarget,"task");}}>
-              <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${completed?"var(--green)":"var(--t3)"}`,background:completed?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                {completed&&<i className="ti ti-check" style={{fontSize:13,color:"#0a2410"}}/>}
-              </div>
-              <span style={{fontSize:14,color:completed?"var(--green)":"var(--t2)"}}>Mark as completed</span>
-            </div>
+          {startTooEarly&&(
+            <div style={{fontSize:12,color:"var(--red)",marginBottom:4}}>Can't schedule a start time in the past.</div>
           )}
+          {!isNew&&(()=>{
+            // Locked shut only while UNCHECKED and the block's own time hasn't passed — an
+            // already-completed block can still be unchecked any time, to fix a mistake.
+            const disabledComplete=!completed&&!blockTimePassed;
+            return(
+              <div className="tt" data-tt={disabledComplete?"Available once this session's scheduled time has passed":undefined}
+                style={{marginTop:12,display:"flex",alignItems:"center",gap:8,padding:"9px 11px",
+                  background:completed?"var(--green-bg)":"var(--card2)",borderRadius:8,
+                  cursor:disabledComplete?"not-allowed":"pointer",opacity:disabledComplete?0.55:1}}
+                onClick={disabledComplete?undefined:e=>{setCompleted(c=>!c);if(!completed)sparkleBurst(e.currentTarget,"task");}}>
+                <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${completed?"var(--green)":"var(--t3)"}`,background:completed?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  {completed&&<i className="ti ti-check" style={{fontSize:13,color:"#0a2410"}}/>}
+                </div>
+                <span style={{fontSize:14,color:completed?"var(--green)":"var(--t2)"}}>Mark as completed</span>
+              </div>
+            );
+          })()}
         </div>
         <div style={{padding:"14px 22px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           {!isNew&&onDelete?(
@@ -337,7 +361,7 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
           ):<div/>}
           <div style={{display:"flex",gap:8}}>
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-action" onClick={handleSave}>Save</button>
+            <button className="btn btn-action" onClick={handleSave} disabled={startTooEarly}>Save</button>
           </div>
         </div>
       </div>
