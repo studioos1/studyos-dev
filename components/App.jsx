@@ -4,7 +4,7 @@ import { iso, du } from "@/lib/time";
 import { courseNameFor } from "@/lib/courses";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
-import { freeSlots, weekStartOf, hasCheckInWork } from "@/lib/calendar";
+import { freeSlots, weekStartOf, hasCheckInWork, scheduleReminders } from "@/lib/calendar";
 import { useConfirm, AccountModal, BugReportModal } from "@/components/shared";
 import { planHorizon } from "@/lib/planner";
 import { ADMIN_EMAILS } from "@/lib/constants";
@@ -460,6 +460,37 @@ function App(){
       pushNotification(data,upd,{title,body}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
     }
   },[data?.onboarded]);
+
+  // Schedule-driven study/break reminders — fires at the PLANNED clock time of each of today's
+  // real study/homework/project sessions, independent of whether the user has ever clicked Play
+  // on Today's Focus Time timer (that timer is still there as a separate, self-contained active-
+  // session tool — this is the passive "it's time" nudge the click-to-start flow can't provide by
+  // itself). Real reported gap this fixes: notifications only fired for a session the student had
+  // already manually started; StudyOS never proactively said "10:00 MATH 180A — start studying."
+  // Refs (not the effect's own dependency array) keep the ticking interval's closure on the
+  // LATEST data/upd without tearing down and losing notifiedRef's per-block/day dedupe on every
+  // unrelated data change — the effect itself only needs to (re)start once onboarding completes.
+  const dataRef=useRef(data); dataRef.current=data;
+  const updRef=useRef(upd); updRef.current=upd;
+  const notifiedRef=useRef(new Set()); // "date|blockId|phase" keys already fired this session
+  useEffect(()=>{
+    if(!data?.onboarded)return;
+    function check(){
+      const d=dataRef.current,u=updRef.current;
+      if(!d||d.profile?.remindersOn===false)return;
+      const today=iso();
+      scheduleReminders(d).forEach(({key,title,body})=>{
+        const fullKey=`${today}|${key}`;
+        if(notifiedRef.current.has(fullKey))return;
+        notifiedRef.current.add(fullKey);
+        try{if(typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification(title,{body});}catch{}
+        pushNotification(d,u,{title,body});
+      });
+    }
+    check();
+    const t=setInterval(check,30*1000);
+    return()=>clearInterval(t);
+  },[data?.onboarded]); // eslint-disable-line
 
   // Evening "report complete" nudge — a small amber badge in the top bar from 8pm onward,
   // ONLY when there's actually something to report (hasCheckInWork) and today's check-in hasn't

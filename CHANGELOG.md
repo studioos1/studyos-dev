@@ -1,5 +1,31 @@
 # StudyOS Changelog
 
+## v2.79.0 — 2026-09-18
+
+**Schedule-driven study/break reminders — fires at the real planned clock time**
+
+Correction per direct feedback: the Focus Time signals built earlier today only fired for a
+session the student had already manually clicked Play on. The actual ask was proactive: "10:00
+MATH 180A — start studying," "10:45 — time for a break," independent of whether Play was ever
+touched. Today's click-to-start live timer (Play/Pause/countdown) is untouched and still there as
+its own active-session tool — this is a separate, passive watcher layered on top.
+
+- New `scheduleReminders(data,now)` in `lib/calendar/weeks.js` — a pure, testable function: for
+  each of today's real study/homework/project sessions, checks whether *right now* is within 10
+  minutes of that session's study-start, break-start, or block-end clock time (using the real
+  `focusMins`/`breakMins` split), and returns the reminder(s) due. Bounded to a 10-minute window
+  after each boundary — deliberately not open-ended, so a session from hours ago never fires a
+  stale flurry of "start studying" reminders the moment the app happens to be reopened.
+- App.jsx ticks this every 30 seconds via a small ref-based watcher (refs keep the interval on the
+  latest data without tearing down its per-block/day dedupe on every unrelated data change), firing
+  a browser Notification (if granted) and logging every reminder to the new notification bell —
+  the same log/badge/panel shipped earlier today.
+- 9 new unit tests with a controlled clock, covering every boundary and the "must stay silent"
+  cases (gap between windows, already completed, wrong kind, other day, hours-later staleness).
+
+Live browser verification wasn't available for this one (Chrome extension disconnected mid-session)
+— shipped on build success + the full unit-test suite (184 tests, all green) + code review.
+
 ## v2.78.0 — 2026-09-18
 
 **Notification bell — a persistent log of real alerts, with an unread badge**
