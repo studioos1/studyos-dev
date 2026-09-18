@@ -22,6 +22,8 @@ import {
   normalizeCourseNamesIfNeeded,
   repairTermLinkageIfNeeded,
   syncActiveTermToProfilePatch,
+  pushNotification,
+  markAllNotificationsRead,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
 import { supabase } from "@/lib/supabase";
@@ -36,6 +38,18 @@ import { Prog } from "@/components/Prog";
 import { Login } from "@/components/Login";
 import { BugReports } from "@/components/BugReports";
 console.log(`StudyOS v${APP_VERSION} (built ${APP_BUILD_DATE} ${APP_BUILD_TIME}) loaded`);
+// Short relative-time label for the notification panel ("Just now", "5m ago", "3h ago", "2d ago")
+// — falls back to a real date once it's more than a week old.
+function timeAgo(iso){
+  const mins=Math.floor((Date.now()-new Date(iso).getTime())/60000);
+  if(mins<1)return"Just now";
+  if(mins<60)return`${mins}m ago`;
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return`${hrs}h ago`;
+  const days=Math.floor(hrs/24);
+  if(days<7)return`${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+}
 // ── Reminders ─────────────────────────────────────────────────────────────
 function urgentItems(data){
   const items=[];
@@ -138,6 +152,7 @@ function App(){
   const {confirm:confirmApp,modal:modalApp}=useConfirm();
   const [showAccount,setShowAccount]=useState(false);
   const [showBugReport,setShowBugReport]=useState(false);
+  const [showNotifPanel,setShowNotifPanel]=useState(false);
   const [showMobileMenu,setShowMobileMenu]=useState(false); // hamburger dropdown, mobile-only (<768px)
   // App is the root component and never unmounts — the render gates below just swap in <Login/>.
   // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
@@ -437,10 +452,12 @@ function App(){
     if(localStorage.getItem(key))return;
     const items=urgentItems(data);
     if(items.length){
+      const title="StudyOS — today's priorities",body=items.slice(0,3).join("\n");
       try{
-        new Notification("StudyOS — today's priorities",{body:items.slice(0,3).join("\n")});
+        new Notification(title,{body});
         localStorage.setItem(key,"1");
       }catch{}
+      pushNotification(data,upd,{title,body}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
     }
   },[data?.onboarded]);
 
@@ -469,6 +486,8 @@ function App(){
   const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
   const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
+  const notifLog=data.notifications||[];
+  const unreadCount=notifLog.filter(n=>!n.read).length;
   const nudgeEligible=data.onboarded&&new Date(nowTick).getHours()>=20&&!checkedInToday&&hasCheckInWork(data);
   const nudgeShown=nudgeEligible&&(!nudgeSnoozedUntil||nowTick>=nudgeSnoozedUntil);
 
@@ -546,6 +565,48 @@ function App(){
             <span className="tt topbar-version" data-tt={`Built ${APP_BUILD_DATE} ${APP_BUILD_TIME}`} style={{fontSize:11,color:"var(--t3)",flexShrink:0,cursor:"default"}}>
               v{APP_VERSION}
             </span>
+            {/* Notification log — the real alerts StudyOS has sent (daily priorities, Focus
+                Time break/study signals), not routine toasts. Opening the panel marks every
+                currently-listed entry read in one pass (markAllNotificationsRead), matching how
+                most notification bells behave — no per-item click needed. */}
+            {data.onboarded&&(
+              <div style={{position:"relative"}}>
+                <button className="tt tt-below tt-right icon-btn-28" data-tt="Notifications" onClick={()=>{
+                  const opening=!showNotifPanel;
+                  setShowNotifPanel(v=>!v);
+                  if(opening)markAllNotificationsRead(data,upd);
+                }}
+                  style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                    color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,position:"relative"}}>
+                  <i className="ti ti-bell" style={{fontSize:15}}/>
+                  {unreadCount>0&&(
+                    <span style={{position:"absolute",top:-2,right:-2,minWidth:14,height:14,borderRadius:7,
+                      background:"var(--red)",color:"#fff",fontSize:9,fontWeight:700,lineHeight:"14px",
+                      textAlign:"center",padding:"0 3px",border:"1.5px solid var(--bg)"}}>
+                      {unreadCount>9?"9+":unreadCount}
+                    </span>
+                  )}
+                </button>
+                {showNotifPanel&&(
+                  <>
+                    <div onClick={()=>setShowNotifPanel(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+                    <div style={{position:"absolute",top:"120%",right:0,zIndex:200,width:320,maxHeight:400,overflowY:"auto",
+                      background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                      <div style={{padding:"11px 14px",borderBottom:"1px solid var(--b1)",fontSize:13,fontWeight:600,color:"var(--t1)"}}>Notifications</div>
+                      {notifLog.length===0?(
+                        <div style={{padding:"20px 14px",textAlign:"center",fontSize:13,color:"var(--t3)"}}>No notifications yet</div>
+                      ):notifLog.map(n=>(
+                        <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--b1)"}}>
+                          <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{n.title}</div>
+                          <div style={{fontSize:12,color:"var(--t2)",whiteSpace:"pre-wrap",marginBottom:4}}>{n.body}</div>
+                          <div style={{fontSize:11,color:"var(--t3)"}}>{timeAgo(n.createdAt)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {/* Evening check-in shortcut — always present (unlike the "click to report complete"
                 text badge above, which only shows once the nudge is actually active) so there's
                 always a quick way to Progress. Turns amber and bounces once the nudge kicks in. */}

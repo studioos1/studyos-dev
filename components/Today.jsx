@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { iso, du, m2t, t2m, f12, fmtDur, briefPeriodStart } from "@/lib/time";
 import { sparkleBurst } from "@/lib/sparkle";
 import { notifyPhase } from "@/lib/notify";
-import { termScopedForPlanning, getQ, isFin, isHol, GYM0 } from "@/lib/data";
+import { termScopedForPlanning, getQ, isFin, isHol, GYM0, pushNotification } from "@/lib/data";
 import {
   findRawDayBlock,
   saveBlockToDay,
@@ -159,12 +159,18 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
     if(secsLeft<=0){
       if(phase==="study"){
         const breakMins=(+p.breakMins)||5;
-        notifyPhase("break-start","Break time! ☕",`Take a ${breakMins}-min break — you've earned it.`);
+        const title="Break time! ☕",body=`Take a ${breakMins}-min break — you've earned it.`;
+        notifyPhase("break-start",title,body);
+        pushNotification(data,upd,{title,body});
         setPhase("break");
         setSecsLeft(breakMins*60);
         return;
       }
-      notifyPhase("break-end","Break's over 💪","Back to it — resume when you're ready.");
+      {
+        const title="Break's over 💪",body="Back to it — resume when you're ready.";
+        notifyPhase("break-end",title,body);
+        pushNotification(data,upd,{title,body});
+      }
       completeSession(runningBlockId,true);
       return;
     }

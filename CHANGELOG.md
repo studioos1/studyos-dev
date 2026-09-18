@@ -1,5 +1,30 @@
 # StudyOS Changelog
 
+## v2.78.0 — 2026-09-18
+
+**Notification bell — a persistent log of real alerts, with an unread badge**
+
+A bell icon in the top bar's right-hand icon group (next to the Evening Check-in shortcut) opens
+a dropdown listing the real alerts StudyOS has sent — the daily priorities notification and Focus
+Time's break-start/break-over signals — not routine toasts (those stay transient, as before).
+
+- New `lib/data/notifications.js`: `pushNotification(data,upd,{title,body})` appends an unread
+  entry (capped at 50, oldest dropped); `markAllNotificationsRead(data,upd)` marks the whole log
+  read in one pass, no-ops if nothing's unread.
+- `notifications:[]` added to the data schema — old accounts default to an empty log via the
+  existing `data.notifications||[]` guard, no migration needed.
+- Wired at the two real trigger points: App.jsx's once-daily priorities Notification, and
+  Today.jsx's two Focus Time phase signals (break-start, break-over) — logged regardless of
+  whether the OS-level browser Notification itself fired (permission not granted, etc.), so the
+  bell is a reliable fallback even without notification permission.
+- Bell shows a red unread-count badge (9+ caps display); opening the panel marks everything
+  visible read immediately — no per-item click needed, matching most notification-bell UIs.
+- 6 new unit tests for the pure data-layer logic (add/cap/mark-read/no-op-when-clean).
+
+Verified live end-to-end, not simulated: the badge showed a real unread count from the daily
+priorities notification, the panel displayed its actual logged content and timestamp, and the
+badge correctly cleared after opening.
+
 ## v2.77.0 — 2026-09-17
 
 **Focus Time: automatic study→break→complete, with a chime + notification at each transition**
