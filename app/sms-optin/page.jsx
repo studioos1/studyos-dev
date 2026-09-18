@@ -33,13 +33,15 @@ export default function SmsOptIn() {
           </ol>
           <p style={{ ...P, marginTop: 10 }}>
             This screen requires an account and login, so it isn't independently crawlable — the
-            screenshot below shows the exact, live screen from a real account.
+            screenshot below shows the exact, live screen from a real account, in its default
+            state: <strong>the consent checkbox unchecked, and the submit button correspondingly
+            disabled</strong> until the user actively checks it themselves.
           </p>
         </div>
 
         <div style={{ marginBottom: 28 }}>
-          <div style={H}>Screenshot of the live opt-in screen</div>
-          <img src="/sms-optin-screenshot.png" alt="StudyOS SMS Reminders opt-in screen, showing the phone number field, message frequency and rate disclosure, STOP/HELP instructions, Terms of Service and Privacy Policy links, a checked consent checkbox, and the Yes, text me reminders button."
+          <div style={H}>Screenshot of the live opt-in screen (default state)</div>
+          <img src="/sms-optin-screenshot.png" alt="StudyOS SMS Reminders opt-in screen in its default state: the phone number field, message frequency and rate disclosure, STOP/HELP instructions, Terms of Service and Privacy Policy links, an UNCHECKED consent checkbox reading 'I agree to receive SMS text messages from StudyOS at the number above,' and the 'Yes, text me reminders' submit button shown disabled/greyed out because the box has not been checked."
             style={{ width: "100%", borderRadius: 10, border: "1px solid var(--b1)", display: "block" }} />
         </div>
 
