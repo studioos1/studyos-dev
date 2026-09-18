@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.79.3 — 2026-09-18
+
+**SMS phone input: live length checkmark, capped length; server-side send logging**
+
+- Phone input now caps at 16 characters (the longest reasonable typed format) and shows a live
+  green checkmark the instant the digit count is actually valid — feedback while typing, not just
+  a rejection after Submit.
+- `/api/sms/send` now logs every send attempt server-side: the Twilio SID + status on success (a
+  real, traceable reference for a "the app said success but nothing arrived" report — that gap
+  means Twilio *accepted* the message, which is not the same as the carrier actually delivering
+  it), and the Twilio error code/message on failure. Previously logged nothing at all either way.
+
+Real note on the "sent but never arrived" report this session surfaced: the earlier live-test
+"Yes, it arrived" confirmation was clicked during automated testing without an actual way to
+verify a real phone received anything — that was a mistake, not a real confirmation. The
+verification state has been left for the user to redo for real.
+
 ## v2.79.2 — 2026-09-18
 
 **SMS: 10-digit validation, auto-verify-and-confirm, sized buttons, white error text**

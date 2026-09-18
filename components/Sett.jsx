@@ -383,7 +383,18 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             </p>
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
-              <input type="tel" value={p.phone} onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:e.target.value});})} placeholder="+1 555 123 4567"/>
+              <div style={{position:"relative"}}>
+                {/* maxLength caps it to the longest reasonable typed format ("+1 555 123 4567" is
+                    15 chars) — real reported gap: nothing stopped typing extra/missing digits
+                    until Submit. The checkmark is live positive feedback the instant the digit
+                    count is actually right, not just a rejection after the fact. */}
+                <input type="tel" value={p.phone} maxLength={16}
+                  onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:e.target.value});})}
+                  placeholder="+1 555 123 4567" style={{paddingRight:34}}/>
+                {isValidUsPhone(p.phone)&&(
+                  <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
+                )}
+              </div>
             </div>
 
             {/* A test text just went out — nothing is actually saved as "on" until the user

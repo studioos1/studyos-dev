@@ -45,8 +45,16 @@ export async function POST(req) {
       }
     );
     const twilioData = await twilioRes.json();
-    if (!twilioRes.ok) return Response.json({ error: twilioData?.message || "Twilio error" }, { status: twilioRes.status });
-    return Response.json({ ok: true, sid: twilioData.sid });
+    if (!twilioRes.ok) {
+      console.error("StudyOS: Twilio send rejected —", twilioData?.code, twilioData?.message);
+      return Response.json({ error: twilioData?.message || "Twilio error" }, { status: twilioRes.status });
+    }
+    // "Accepted" here only means Twilio's API took the request — it does NOT mean the carrier
+    // actually delivered it. The SID is what lets a real delivery-status lookup happen afterward
+    // (Twilio Console → Monitor → Logs → Messaging, or GET .../Messages/{sid}.json) — logged so a
+    // "the API said success but nothing arrived" report is actually traceable.
+    console.log(`StudyOS: SMS accepted by Twilio — sid=${twilioData.sid} status=${twilioData.status} to=${to164}`);
+    return Response.json({ ok: true, sid: twilioData.sid, status: twilioData.status });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
