@@ -68,6 +68,17 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     const d10=digits.length===11&&digits[0]==="1"?digits.slice(1):digits;
     return d10.length===10;
   }
+  // The actual fix for "still accepts illegal entry": maxLength alone only caps character COUNT
+  // (letters, symbols, and extra digits all still typed fine, up to that many characters). This
+  // strips every non-digit as it's typed and hard-caps at 10 significant digits (a leading 1 is
+  // treated as the country code, not an 11th digit), always re-rendering as a clean +1XXXXXXXXXX
+  // — once 10 real digits are in, nothing further can be typed into the field at all.
+  function maskUsPhone(raw){
+    let digits=String(raw||"").replace(/\D/g,"");
+    if(digits[0]==="1")digits=digits.slice(1);
+    digits=digits.slice(0,10);
+    return digits?`+1${digits}`:"";
+  }
   // Raw send — no toasts of its own, just ok/error, so both the pre-enable verify flow and the
   // always-available "Send me a test text" button (once already on) can each react their own way.
   async function sendTestRaw(to){
@@ -388,14 +399,15 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
               <div style={{position:"relative",maxWidth:220}}>
-                {/* maxLength caps it to the longest reasonable typed format ("+1 555 123 4567" is
-                    15 chars) — real reported gap: nothing stopped typing extra/missing digits
-                    until Submit. maxWidth on the wrapper (not the default full-card width every
-                    input gets) matches how short the actual content is — real reported bug ("the
-                    phone field is way too wide"). The checkmark is live positive feedback the
-                    instant the digit count is actually right, not just a rejection after the fact. */}
-                <input type="tel" value={p.phone} maxLength={16}
-                  onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:e.target.value});})}
+                {/* Real reported gap: maxLength alone only capped character COUNT — letters,
+                    symbols, and extra/missing digits still typed in fine. maskUsPhone strips
+                    every keystroke down to digits and hard-caps at 10, so the field can only ever
+                    hold a clean +1XXXXXXXXXX (or a valid prefix of one) — nothing illegal can be
+                    typed in at all, not just flagged after the fact. maxWidth on the wrapper
+                    matches how short the actual content is. The checkmark is live positive
+                    feedback the instant all 10 digits are in. */}
+                <input type="tel" value={p.phone} maxLength={12}
+                  onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:maskUsPhone(e.target.value)});})}
                   placeholder="+1 555 123 4567" style={{paddingRight:34}}/>
                 {isValidUsPhone(p.phone)&&(
                   <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>

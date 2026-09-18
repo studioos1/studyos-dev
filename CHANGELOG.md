@@ -1,5 +1,18 @@
 # StudyOS Changelog
 
+## v2.79.5 — 2026-09-18
+
+**Phone number field now masks to digits-only, hard-capped at 10 — illegal input can't be typed in**
+
+`maxLength` alone only capped total character count — letters, symbols, and extra/missing digits
+all still typed in fine, only caught later by the Submit-time check. `maskUsPhone` now strips every
+keystroke down to digits and hard-caps at 10 significant digits (a leading `1` is treated as the
+country code, not counted as an 11th digit), always re-rendering as a clean `+1XXXXXXXXXX` — the
+field can only ever hold a valid number or a valid prefix of one.
+
+Verified live: typing `abc555123456789999xyz` directly into the field correctly masked down to
+`+15551234567` in real time.
+
 ## v2.79.4 — 2026-09-18
 
 **Preferences UI consistency pass: sized buttons/toggle/input, fixed tinted-text-on-tinted-bg banners**
