@@ -705,9 +705,12 @@ function App(){
         // amber-on-amber-tinted-dark read poorly (real reported bug: "display text in amber over
         // dark background - look bad"). Severity is still legible at a glance via a colored left
         // accent bar, same pattern .card-warn/.card-critical already use for the same reason.
+        // Explicit #fff (not var(--t1)) for error/warning specifically — real reported bug:
+        // near-white text over the dark-red/amber tint still read as low-contrast/reddish at a
+        // glance. Pure white against these dark, low-saturation tints leaves no ambiguity.
         const palette={error:{bg:"var(--red-bg)",accent:"var(--red)"},warning:{bg:"var(--amber-bg)",accent:"var(--amber)"},success:{bg:"var(--card2)",accent:null}};
         const{bg,accent}=palette[toast.sev]||palette.success;
-        const fg=toast.sev==="success"?"var(--t2)":"var(--t1)";
+        const fg=toast.sev==="success"?"var(--t2)":"#fff";
         const structured=typeof toast.m==="object";
         return(
           <div className="toast" style={{background:bg,color:fg,borderLeft:accent?`3px solid ${accent}`:undefined}}>

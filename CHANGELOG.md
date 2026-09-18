@@ -1,5 +1,78 @@
 # StudyOS Changelog
 
+## v2.79.5 — 2026-09-18
+
+**Phone number field now masks to digits-only, hard-capped at 10 — illegal input can't be typed in**
+
+`maxLength` alone only capped total character count — letters, symbols, and extra/missing digits
+all still typed in fine, only caught later by the Submit-time check. `maskUsPhone` now strips every
+keystroke down to digits and hard-caps at 10 significant digits (a leading `1` is treated as the
+country code, not counted as an 11th digit), always re-rendering as a clean `+1XXXXXXXXXX` — the
+field can only ever hold a valid number or a valid prefix of one.
+
+Verified live: typing `abc555123456789999xyz` directly into the field correctly masked down to
+`+15551234567` in real time.
+
+## v2.79.4 — 2026-09-18
+
+**Preferences UI consistency pass: sized buttons/toggle/input, fixed tinted-text-on-tinted-bg banners**
+
+Real reported issues, plus a consistency sweep of the same patterns elsewhere in this page:
+
+- **Browser permission On/Off toggle** was stretching to the full card width (`.toggle-opt` is
+  `flex:1`, and the bare `.toggle-group` here had nothing constraining its own width, unlike every
+  other toggle-group in this file which sits in a row next to a label). Now `display:"inline-flex"`
+  hugs its own content.
+- **Phone number field** now caps at `maxWidth:220` instead of the global input default of
+  `width:100%` — proportionate to how short the actual content is.
+- **"Add chore," "Enable notifications," and "Add reminder"** buttons no longer stretch
+  `width:100%` across their cards — sized to content, matching the SMS buttons fixed earlier today.
+- **Consistency sweep**: found the same low-contrast pattern already fixed on the main toast
+  (colored text directly on its own color-tinted background) still present in three inline
+  warning banners on this same page (meal/gym schedule conflict warnings). Text switched to white,
+  with the icon keeping the severity color as the at-a-glance cue — same split the toast uses.
+
+## v2.79.3 — 2026-09-18
+
+**SMS phone input: live length checkmark, capped length; server-side send logging**
+
+- Phone input now caps at 16 characters (the longest reasonable typed format) and shows a live
+  green checkmark the instant the digit count is actually valid — feedback while typing, not just
+  a rejection after Submit.
+- `/api/sms/send` now logs every send attempt server-side: the Twilio SID + status on success (a
+  real, traceable reference for a "the app said success but nothing arrived" report — that gap
+  means Twilio *accepted* the message, which is not the same as the carrier actually delivering
+  it), and the Twilio error code/message on failure. Previously logged nothing at all either way.
+
+Real note on the "sent but never arrived" report this session surfaced: the earlier live-test
+"Yes, it arrived" confirmation was clicked during automated testing without an actual way to
+verify a real phone received anything — that was a mistake, not a real confirmation. The
+verification state has been left for the user to redo for real.
+
+## v2.79.2 — 2026-09-18
+
+**SMS: 10-digit validation, auto-verify-and-confirm, sized buttons, white error text**
+
+Real feedback from testing the just-approved SMS flow directly:
+
+1. **Phone number validation** — a 9-digit number (missing a digit) used to be silently accepted
+   and only failed deep inside a confusing Twilio API error. Now checked client-side first
+   (`isValidUsPhone`): a full 10 digits required, or a clear toast before anything is sent.
+2. **Auto-test-and-confirm on a new/changed number** — entering a phone and opting in no longer
+   just flips SMS on and hopes for the best. It now sends a real test text first and shows
+   "Did it arrive? [Yes, it arrived] [No, let me fix it]" — SMS only actually turns on once
+   confirmed. The same applies to an already-enabled account whose number changes: a new
+   `smsVerifiedPhone` field tracks exactly which number was last confirmed, and any mismatch shows
+   an amber "This number hasn't been verified yet" prompt instead of silently trusting it.
+3. **Buttons sized to content** — "Yes, text me reminders" and "Send me a test text" no longer
+   stretch `width:100%` across the card.
+4. **Error toast text is now pure white** (`#fff`, not `var(--t1)`) instead of reading as
+   low-contrast/reddish against the dark red-tinted background.
+
+Verified live end-to-end: a real test text confirmed delivery through the full flow, the
+9-digit-number validation correctly blocked before any API call, and the toast's computed color
+confirmed `rgb(255,255,255)` text on the dark red background.
+
 ## v2.79.1 — 2026-09-18
 
 **SMS opt-in evidence page: screenshot now shows the real unchecked-by-default state**
