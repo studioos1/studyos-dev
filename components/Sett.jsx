@@ -61,27 +61,57 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   // scheduled 8:30/12:00/18:00 sends are a separate server-side cron job (Phase 2), not this route.
   const [smsBusy,setSmsBusy]=useState(false);
   const [smsConsent,setSmsConsent]=useState(false); // the opt-in checkbox — always starts unchecked, never persisted
-  function enableSms(){
-    if(!p.phone||!smsConsent)return;
-    updP({smsEnabled:true,smsConsentAt:new Date().toISOString()});
+  // Real reported bug: a 9-digit number was silently accepted and only failed at Twilio, deep
+  // into a confusing error. Client-side length check first, so a typo never even reaches the API.
+  function isValidUsPhone(v){
+    const digits=String(v||"").replace(/\D/g,"");
+    const d10=digits.length===11&&digits[0]==="1"?digits.slice(1):digits;
+    return d10.length===10;
+  }
+  // Raw send — no toasts of its own, just ok/error, so both the pre-enable verify flow and the
+  // always-available "Send me a test text" button (once already on) can each react their own way.
+  async function sendTestRaw(to){
+    const {data:{session}}=await supabase.auth.getSession();
+    const res=await fetch("/api/sms/send",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.access_token||""}`},
+      body:JSON.stringify({to,message:"StudyOS test message — SMS reminders are working! 🎓"}),
+    });
+    const j=await res.json();
+    if(!res.ok||j.error)throw new Error(j.error||"Couldn't send the test text");
+  }
+  // A phone number only counts as trustworthy once a real test text has actually reached it —
+  // real reported gap: a typo'd number could sit "enabled" indefinitely with nothing ever
+  // actually arriving. smsVerifiedPhone tracks exactly which number that confirmation covers, so
+  // entering a NEW or CHANGED number always needs its own fresh verify before relying on it.
+  const [awaitingConfirm,setAwaitingConfirm]=useState(false); // "test just sent, waiting on Yes/No"
+  const phoneVerified=p.phone&&p.phone===p.smsVerifiedPhone;
+  async function startVerify(){
+    if(!p.phone||(!p.smsEnabled&&!smsConsent))return;
+    if(!isValidUsPhone(p.phone)){toast2("Enter a full 10-digit phone number, e.g. +1 555 123 4567",true);return;}
+    setSmsBusy(true);
+    try{
+      await sendTestRaw(p.phone);
+      setAwaitingConfirm(true);
+    }catch(err){toast2(err.message,true);}
+    setSmsBusy(false);
+  }
+  function confirmVerified(){
+    updP({smsEnabled:true,smsConsentAt:p.smsConsentAt||new Date().toISOString(),smsVerifiedPhone:p.phone});
     setSmsConsent(false);
+    setAwaitingConfirm(false);
     toast2("SMS reminders on");
+  }
+  function denyVerified(){
+    setAwaitingConfirm(false);
+    toast2("No text? Double-check the number and try again.",true);
   }
   function disableSms(){updP({smsEnabled:false});toast2("SMS reminders off");}
   async function sendTestSms(){
     if(!p.phone){toast2("Add a phone number first",true);return;}
     setSmsBusy(true);
-    try{
-      const {data:{session}}=await supabase.auth.getSession();
-      const res=await fetch("/api/sms/send",{
-        method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.access_token||""}`},
-        body:JSON.stringify({to:p.phone,message:"StudyOS test message — SMS reminders are working! 🎓"}),
-      });
-      const j=await res.json();
-      if(!res.ok||j.error)throw new Error(j.error||"Couldn't send the test text");
-      toast2("Test text sent — check your phone!");
-    }catch(err){toast2(err.message,true);}
+    try{ await sendTestRaw(p.phone); toast2("Test text sent — check your phone!"); }
+    catch(err){toast2(err.message,true);}
     setSmsBusy(false);
   }
 
@@ -353,10 +383,24 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             </p>
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
-              <input type="tel" value={p.phone} onChange={e=>mk(()=>updP({phone:e.target.value}))} placeholder="+1 555 123 4567"/>
+              <input type="tel" value={p.phone} onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:e.target.value});})} placeholder="+1 555 123 4567"/>
             </div>
 
-            {!p.smsEnabled?(
+            {/* A test text just went out — nothing is actually saved as "on" until the user
+                confirms it arrived. Shared by both the first-time opt-in flow below and
+                re-verifying a number changed after SMS was already on. */}
+            {awaitingConfirm?(
+              <div style={{background:"var(--amber-bg)",borderRadius:9,padding:"13px 15px",marginBottom:14}}>
+                <div style={{fontSize:13,color:"var(--t1)",marginBottom:10,lineHeight:1.5}}>
+                  <i className="ti ti-send" style={{marginRight:6,color:"var(--amber)"}}/>
+                  Test text sent to {p.phone}. Did it arrive?
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-action btn-sm" onClick={confirmVerified}>Yes, it arrived</button>
+                  <button className="btn btn-ghost btn-sm" onClick={denyVerified}>No, let me fix it</button>
+                </div>
+              </div>
+            ):!p.smsEnabled?(
               <>
                 <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.7,background:"var(--card2)",borderRadius:9,padding:"11px 13px",marginBottom:14}}>
                   Message frequency varies — typically up to a few texts a day. Message and data rates may apply. Reply <strong>STOP</strong> to any text to cancel, <strong>HELP</strong> for help. See our{" "}
@@ -369,10 +413,22 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                     style={{width:16,height:16,marginTop:2,flexShrink:0}}/>
                   <span style={{fontSize:13,color:"var(--t2)",lineHeight:1.5}}>I agree to receive SMS text messages from StudyOS at the number above.</span>
                 </label>
-                <button className="btn btn-action" style={{width:"100%"}} onClick={enableSms} disabled={!p.phone||!smsConsent}>
-                  <i className="ti ti-message-2"/> Yes, text me reminders
+                <button className="btn btn-action" onClick={startVerify} disabled={!p.phone||!smsConsent||smsBusy}>
+                  {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-message-2"/> Yes, text me reminders</>}
                 </button>
               </>
+            ):!phoneVerified?(
+              // Number was changed since the last confirmed text — real reported gap: a typo'd
+              // update used to just sit "enabled" with nothing to prove it actually works.
+              <div style={{background:"var(--amber-bg)",borderRadius:9,padding:"13px 15px"}}>
+                <div style={{fontSize:13,color:"var(--t1)",marginBottom:10,lineHeight:1.5}}>
+                  <i className="ti ti-alert-triangle" style={{marginRight:6,color:"var(--amber)"}}/>
+                  This number hasn't been verified yet — send a test text to confirm it works.
+                </div>
+                <button className="btn btn-action btn-sm" onClick={startVerify} disabled={smsBusy}>
+                  {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Verify this number</>}
+                </button>
+              </div>
             ):(
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--green-bg)",borderRadius:9,marginBottom:12}}>
@@ -399,7 +455,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                     </div>
                   ))}
                 </div>
-                <button className="btn btn-ghost" style={{width:"100%"}} onClick={sendTestSms} disabled={smsBusy}>
+                <button className="btn btn-ghost" onClick={sendTestSms} disabled={smsBusy}>
                   {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
                 </button>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>

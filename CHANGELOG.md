@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.79.2 — 2026-09-18
+
+**SMS: 10-digit validation, auto-verify-and-confirm, sized buttons, white error text**
+
+Real feedback from testing the just-approved SMS flow directly:
+
+1. **Phone number validation** — a 9-digit number (missing a digit) used to be silently accepted
+   and only failed deep inside a confusing Twilio API error. Now checked client-side first
+   (`isValidUsPhone`): a full 10 digits required, or a clear toast before anything is sent.
+2. **Auto-test-and-confirm on a new/changed number** — entering a phone and opting in no longer
+   just flips SMS on and hopes for the best. It now sends a real test text first and shows
+   "Did it arrive? [Yes, it arrived] [No, let me fix it]" — SMS only actually turns on once
+   confirmed. The same applies to an already-enabled account whose number changes: a new
+   `smsVerifiedPhone` field tracks exactly which number was last confirmed, and any mismatch shows
+   an amber "This number hasn't been verified yet" prompt instead of silently trusting it.
+3. **Buttons sized to content** — "Yes, text me reminders" and "Send me a test text" no longer
+   stretch `width:100%` across the card.
+4. **Error toast text is now pure white** (`#fff`, not `var(--t1)`) instead of reading as
+   low-contrast/reddish against the dark red-tinted background.
+
+Verified live end-to-end: a real test text confirmed delivery through the full flow, the
+9-digit-number validation correctly blocked before any API call, and the toast's computed color
+confirmed `rgb(255,255,255)` text on the dark red background.
+
 ## v2.79.1 — 2026-09-18
 
 **SMS opt-in evidence page: screenshot now shows the real unchecked-by-default state**

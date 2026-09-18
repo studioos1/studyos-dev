@@ -22,11 +22,17 @@ export async function POST(req) {
     const { data: { user }, error: authErr } = await authClient.auth.getUser(token);
     if (authErr || !user) return Response.json({ error: "Not signed in." }, { status: 401 });
 
-    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER } = process.env;
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM_NUMBER)
+    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TWILIO_MESSAGING_SERVICE_SID } = process.env;
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !(TWILIO_MESSAGING_SERVICE_SID || TWILIO_FROM_NUMBER))
       return Response.json({ error: "SMS isn't configured on the server yet." }, { status: 500 });
 
-    const body = new URLSearchParams({ To: to164, From: TWILIO_FROM_NUMBER, Body: message });
+    // Prefer the Messaging Service — that's what the approved A2P 10DLC campaign is actually
+    // registered against, so sending this way ties outbound messages to it for carrier filtering.
+    // A bare `From` number (no campaign attached) risks being filtered/blocked as unregistered
+    // traffic even with valid credentials. TWILIO_FROM_NUMBER is kept only as a fallback for a
+    // deploy that hasn't set the Messaging Service SID yet.
+    const body = new URLSearchParams({ To: to164, Body: message,
+      ...(TWILIO_MESSAGING_SERVICE_SID ? { MessagingServiceSid: TWILIO_MESSAGING_SERVICE_SID } : { From: TWILIO_FROM_NUMBER }) });
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       {
