@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { iso, du, m2t, t2m, f12, fmtDur, briefPeriodStart } from "@/lib/time";
 import { sparkleBurst } from "@/lib/sparkle";
-import { termScopedForPlanning, getQ, isFin, isHol, GYM0 } from "@/lib/data";
+import { notifyPhase } from "@/lib/notify";
+import { termScopedForPlanning, getQ, isFin, isHol, GYM0, pushNotification } from "@/lib/data";
 import {
   findRawDayBlock,
   saveBlockToDay,
@@ -46,6 +47,11 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const [runningBlockId,setRunningBlockId]=useState(null);
   const [secsLeft,setSecsLeft]=useState(0);
   const [paused,setPaused]=useState(false);
+  // "study" or "break" — the timer runs BOTH phases back-to-back off one Play click (no second
+  // click to start the break), using the real profile focusMins/breakMins split rather than the
+  // block's own rounded combined duration — see lib/notify.js for the beep+notification fired at
+  // each transition.
+  const [phase,setPhase]=useState("study");
   const td=iso(),di=new Date().getDay(),p=data.profile;
   const q=getQ(p),fin=isFin(td,p),hol=isHol(td,p);
   const hr=new Date().getHours();
@@ -144,18 +150,38 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const chores=(p.chores||[]).filter(c=>c.days?.includes(di));
   const todayAdhoc=(data.adhoc||[]).filter(e=>e.date===td);
 
-  // Countdown for whichever row is currently running. Auto-completes at zero, same as a manual
-  // Complete click — see completeSession below.
+  // Countdown for whichever row is currently running. At 0: study phase rolls straight into
+  // break (no click needed — same Play that started study already committed to the whole
+  // session), break phase auto-completes, same as a manual Complete click — see completeSession
+  // below. A phase transition is exactly when notifyPhase fires.
   useEffect(()=>{
     if(!runningBlockId||paused)return;
-    if(secsLeft<=0){completeSession(runningBlockId,true);return;}
+    if(secsLeft<=0){
+      if(phase==="study"){
+        const breakMins=(+p.breakMins)||5;
+        const title="Break time! ☕",body=`Take a ${breakMins}-min break — you've earned it.`;
+        notifyPhase("break-start",title,body);
+        pushNotification(data,upd,{title,body});
+        setPhase("break");
+        setSecsLeft(breakMins*60);
+        return;
+      }
+      {
+        const title="Break's over 💪",body="Back to it — resume when you're ready.";
+        notifyPhase("break-end",title,body);
+        pushNotification(data,upd,{title,body});
+      }
+      completeSession(runningBlockId,true);
+      return;
+    }
     const t=setTimeout(()=>setSecsLeft(s=>s-1),1000);
     return()=>clearTimeout(t);
-  },[runningBlockId,paused,secsLeft]); // eslint-disable-line
+  },[runningBlockId,paused,secsLeft,phase]); // eslint-disable-line
 
   function startSession(block){
     setRunningBlockId(block.id);
-    setSecsLeft((block.duration||25)*60);
+    setPhase("study");
+    setSecsLeft(((+p.focusMins)||25)*60);
     setPaused(false);
   }
   function completeSession(blockId,auto){
@@ -695,8 +721,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 <div className="ft-time" style={{gridColumn:4,gridRowStart:rowStart,opacity:cellOpacity,
                   alignSelf:"stretch",display:"flex","--cell-border":cellBorder}}>
                   {isRunning?(
-                    <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
-                      {mm}:{ss}
+                    <span style={{display:"flex",flexDirection:"column",alignItems:"flex-end",lineHeight:1.1}}>
+                      {phase==="break"&&<span style={{fontSize:10,color:"var(--teal)",textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:700}}>Break</span>}
+                      <span style={{fontSize:18,fontFamily:"'Syne',sans-serif",fontWeight:700,color:phase==="break"?"var(--teal)":"var(--amber)",whiteSpace:"nowrap",textAlign:"right"}}>
+                        {mm}:{ss}
+                      </span>
                     </span>
                   ):(
                     <span style={{fontSize:14,color:"var(--amber)",fontWeight:500,whiteSpace:"nowrap",textAlign:"right"}}>

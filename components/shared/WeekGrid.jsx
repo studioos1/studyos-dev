@@ -15,6 +15,14 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
   const START=7,END=24,TOTAL=(END-START)*60;
   function pct(m){return((m-START*60)/TOTAL*100).toFixed(4)+"%";}
   function dpct(m){return(m/TOTAL*100).toFixed(4)+"%";}
+  // Study/homework/project blocks are one planner-scheduled focus+break chunk (presetLenFor,
+  // lib/planner/schedule.js) — the same real focusMins/breakMins the Pomodoro timer now splits at
+  // runtime. Rendered as a ratio of the block's actual on-screen width rather than absolute
+  // minutes, so it stays visually correct even in the rare case presetLen's 15-min rounding made
+  // the placed block a few minutes shorter or longer than focusMins+breakMins exactly.
+  const focusMins=(+data.profile.focusMins)||25, breakMins=(+data.profile.breakMins)||5;
+  const breakFrac=breakMins/(focusMins+breakMins);
+  const STUDY_KINDS=new Set(["study","homework","project"]);
 
   const ws=weekStart?new Date(weekStart):(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d;})();
   const dates=Array.from({length:7},(_,i)=>{const d=new Date(ws);d.setDate(ws.getDate()+i);return iso(d);});
@@ -161,11 +169,22 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                           {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.label}
                         </div>
                       )}
-                      <div style={{
-                        width:"100%",height:BLOCK_H,
-                        background:c.line,borderRadius:2,
-                        opacity:b.type==="commute"?0.45:b.completed?0.4:1,
-                      }}/>
+                      {STUDY_KINDS.has(b.type)?(
+                        // Split bar — study portion full-tone, break portion a faded (lower-
+                        // opacity) version of the SAME color, not a different one, so it still
+                        // reads as "part of this session" rather than a separate activity.
+                        <div style={{width:"100%",height:BLOCK_H,display:"flex",borderRadius:2,overflow:"hidden",
+                          opacity:b.completed?0.4:1}}>
+                          <div style={{width:`${(1-breakFrac)*100}%`,height:"100%",background:c.line}}/>
+                          <div style={{width:`${breakFrac*100}%`,height:"100%",background:c.line,opacity:0.4}}/>
+                        </div>
+                      ):(
+                        <div style={{
+                          width:"100%",height:BLOCK_H,
+                          background:c.line,borderRadius:2,
+                          opacity:b.type==="commute"?0.45:b.completed?0.4:1,
+                        }}/>
+                      )}
                     </div>
                   );
                 })}

@@ -1,5 +1,98 @@
 # StudyOS Changelog
 
+## v2.79.0 — 2026-09-18
+
+**Schedule-driven study/break reminders — fires at the real planned clock time**
+
+Correction per direct feedback: the Focus Time signals built earlier today only fired for a
+session the student had already manually clicked Play on. The actual ask was proactive: "10:00
+MATH 180A — start studying," "10:45 — time for a break," independent of whether Play was ever
+touched. Today's click-to-start live timer (Play/Pause/countdown) is untouched and still there as
+its own active-session tool — this is a separate, passive watcher layered on top.
+
+- New `scheduleReminders(data,now)` in `lib/calendar/weeks.js` — a pure, testable function: for
+  each of today's real study/homework/project sessions, checks whether *right now* is within 10
+  minutes of that session's study-start, break-start, or block-end clock time (using the real
+  `focusMins`/`breakMins` split), and returns the reminder(s) due. Bounded to a 10-minute window
+  after each boundary — deliberately not open-ended, so a session from hours ago never fires a
+  stale flurry of "start studying" reminders the moment the app happens to be reopened.
+- App.jsx ticks this every 30 seconds via a small ref-based watcher (refs keep the interval on the
+  latest data without tearing down its per-block/day dedupe on every unrelated data change), firing
+  a browser Notification (if granted) and logging every reminder to the new notification bell —
+  the same log/badge/panel shipped earlier today.
+- 9 new unit tests with a controlled clock, covering every boundary and the "must stay silent"
+  cases (gap between windows, already completed, wrong kind, other day, hours-later staleness).
+
+Live browser verification wasn't available for this one (Chrome extension disconnected mid-session)
+— shipped on build success + the full unit-test suite (184 tests, all green) + code review.
+
+## v2.78.0 — 2026-09-18
+
+**Notification bell — a persistent log of real alerts, with an unread badge**
+
+A bell icon in the top bar's right-hand icon group (next to the Evening Check-in shortcut) opens
+a dropdown listing the real alerts StudyOS has sent — the daily priorities notification and Focus
+Time's break-start/break-over signals — not routine toasts (those stay transient, as before).
+
+- New `lib/data/notifications.js`: `pushNotification(data,upd,{title,body})` appends an unread
+  entry (capped at 50, oldest dropped); `markAllNotificationsRead(data,upd)` marks the whole log
+  read in one pass, no-ops if nothing's unread.
+- `notifications:[]` added to the data schema — old accounts default to an empty log via the
+  existing `data.notifications||[]` guard, no migration needed.
+- Wired at the two real trigger points: App.jsx's once-daily priorities Notification, and
+  Today.jsx's two Focus Time phase signals (break-start, break-over) — logged regardless of
+  whether the OS-level browser Notification itself fired (permission not granted, etc.), so the
+  bell is a reliable fallback even without notification permission.
+- Bell shows a red unread-count badge (9+ caps display); opening the panel marks everything
+  visible read immediately — no per-item click needed, matching most notification-bell UIs.
+- 6 new unit tests for the pure data-layer logic (add/cap/mark-read/no-op-when-clean).
+
+Verified live end-to-end, not simulated: the badge showed a real unread count from the daily
+priorities notification, the panel displayed its actual logged content and timestamp, and the
+badge correctly cleared after opening.
+
+## v2.77.0 — 2026-09-17
+
+**Focus Time: automatic study→break→complete, with a chime + notification at each transition**
+
+One Play click now runs the whole session — study phase, then automatically into break, then
+complete — using the real `focusMins`/`breakMins` profile values (not the block's own rounded
+combined duration), matching the calendar's new split-color bars from earlier today.
+
+- New `lib/notify.js`: a short two-tone chime (Web Audio, no permission needed — rising tone for
+  "break starts," falling for "break's over") plus a best-effort browser Notification if
+  permission is already granted. Never requests permission itself.
+- `Today.jsx`'s countdown is now phase-aware (`study`/`break`): at 0 in the study phase it
+  switches straight to a break countdown with no click needed; at 0 in break it fires the
+  "break's over" signal and completes the session exactly as before.
+- The running row shows a small "BREAK" label in teal during the break phase, distinct from the
+  amber study countdown.
+- Onboarding's Study step (right under the Focus/Break length dropdowns) now offers to enable
+  browser notifications — optional, skippable, reuses the same `Notification.requestPermission()`
+  flow already in Preferences, framed honestly as ongoing (break alerts + the existing once-daily
+  priorities notification).
+
+Verified live: starting a session now begins the countdown at the real `focusMins` value (tested
+by temporarily setting Focus/Break to 15/5 min and confirming the timer started at 14:57, not the
+block's own 60-minute duration), with no console errors from the new chime code. Preferences
+restored to their real 45/15 values afterward. The full real-time phase transition (15+ minutes)
+wasn't practical to wait out via automation — verified through code review instead.
+
+## v2.76.5 — 2026-09-17
+
+**Calendar: study blocks now show their break portion as a faded tone of the same color**
+
+Every planner-scheduled study/homework/project block is really one focus+break Pomodoro chunk
+(`presetLenFor`) with zero visual distinction between the two parts. Split the block's bar into
+two proportional segments — full-tone for the study portion, the same color at 0.4 opacity for
+the break portion — using the real `focusMins`/`breakMins` ratio, not absolute minutes, so it
+stays correct even if 15-min rounding made the placed block a bit longer/shorter than
+focusMins+breakMins exactly. Fixed-duration activities (class, gym, meals, commute, etc.) are
+unaffected — only `study`/`homework`/`project` kinds get the split.
+
+Verified live: a 45/15 focus/break profile renders as a 75%/25% split at the exact same RGB color,
+confirmed via direct DOM inspection of the rendered segments.
+
 ## v2.76.4 — 2026-09-17
 
 **Calendar block edit: same "not before its time" rule as Progress**

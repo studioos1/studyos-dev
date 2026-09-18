@@ -38,6 +38,17 @@ export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
   const [nc,setNc]=useState({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
   const [collegeLookup,setCollegeLookup]=useState("idle"); // idle | loading | done | error
   const p=data.profile;
+  // Same permission this app uses ongoing (once-daily due-date priorities, and now Focus Time's
+  // study/break chime) — asked here, right where Focus/Break length is being set, so the "why"
+  // is obvious in context. Mirrors Sett.jsx's enableNotifs; optional, skippable, never blocks
+  // onboarding either way.
+  const [notifPerm,setNotifPerm]=useState(typeof Notification!=="undefined"?Notification.permission:"unsupported");
+  async function enableNotifs(){
+    if(typeof Notification==="undefined"){toast2("Notifications aren't supported in this browser",true);return;}
+    const perm=await Notification.requestPermission();
+    setNotifPerm(perm);
+    if(perm==="granted")toast2("Notifications enabled! 🔔");
+  }
 
   // Every step advance persists the resume point, so closing the tab (or "Save & Continue Later")
   // picks up on the same step. Profile edits within a step already auto-save via updP.
@@ -459,6 +470,22 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 </select>
               </div>
             </div>
+            {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+                padding:"11px 14px",background:"var(--card2)",borderRadius:9,marginBottom:16}}>
+                <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.5}}>
+                  Want a heads-up when it's break time, and a daily priorities notification? Enable browser notifications — optional, skip any time.
+                </div>
+                <button className="btn btn-ghost btn-sm" style={{flexShrink:0}} onClick={enableNotifs}>
+                  <i className="ti ti-bell"/> Enable
+                </button>
+              </div>
+            )}
+            {notifPerm==="granted"&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--green)",marginBottom:16}}>
+                <i className="ti ti-circle-check"/> Notifications enabled
+              </div>
+            )}
             <div style={{marginBottom:16}}>
               {/* An actual time, not a morning/afternoon/evening bucket — see windowOrderFor
                   (lib/planner/schedule.js) for how a specific time gets classified into the
