@@ -1,5 +1,24 @@
 # StudyOS Changelog
 
+## v2.79.4 — 2026-09-18
+
+**Preferences UI consistency pass: sized buttons/toggle/input, fixed tinted-text-on-tinted-bg banners**
+
+Real reported issues, plus a consistency sweep of the same patterns elsewhere in this page:
+
+- **Browser permission On/Off toggle** was stretching to the full card width (`.toggle-opt` is
+  `flex:1`, and the bare `.toggle-group` here had nothing constraining its own width, unlike every
+  other toggle-group in this file which sits in a row next to a label). Now `display:"inline-flex"`
+  hugs its own content.
+- **Phone number field** now caps at `maxWidth:220` instead of the global input default of
+  `width:100%` — proportionate to how short the actual content is.
+- **"Add chore," "Enable notifications," and "Add reminder"** buttons no longer stretch
+  `width:100%` across their cards — sized to content, matching the SMS buttons fixed earlier today.
+- **Consistency sweep**: found the same low-contrast pattern already fixed on the main toast
+  (colored text directly on its own color-tinted background) still present in three inline
+  warning banners on this same page (meal/gym schedule conflict warnings). Text switched to white,
+  with the icon keeping the severity color as the at-a-glance cue — same split the toast uses.
+
 ## v2.79.3 — 2026-09-18
 
 **SMS phone input: live length checkmark, capped length; server-side send logging**

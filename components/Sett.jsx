@@ -221,8 +221,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                     </select>
                   </div>
                   {hasConflict&&(
-                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"var(--amber-bg)",borderRadius:8,fontSize:13,color:"var(--amber)"}}>
-                      <i className="ti ti-arrows-shuffle" style={{fontSize:14,flexShrink:0}}/>
+                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"var(--amber-bg)",borderRadius:8,fontSize:13,color:"#fff"}}>
+                      <i className="ti ti-arrows-shuffle" style={{fontSize:14,flexShrink:0,color:"var(--amber)"}}/>
                       Overlaps {conflictDays.map(c=>c.name.split("(")[0].trim()).join(", ")}
                       <span style={{color:"var(--t3)",marginLeft:4}}>— will auto-shift on those days</span>
                     </div>
@@ -238,8 +238,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
         <div>
           <div className="card">
             <SecHead icon="ti-barbell" title="Gym schedule"/>
-            <div style={{background:"var(--amber-bg)",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"var(--amber)",display:"flex",gap:8}}>
-              <i className="ti ti-alert-triangle" style={{fontSize:14,flexShrink:0,marginTop:1}}/>
+            <div style={{background:"var(--amber-bg)",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#fff",display:"flex",gap:8}}>
+              <i className="ti ti-alert-triangle" style={{fontSize:14,flexShrink:0,marginTop:1,color:"var(--amber)"}}/>
               Gym cannot overlap class or commute time. Conflicts shown per day.
             </div>
             {(p.gymDays||GYM0).map((gd,i)=>{
@@ -271,8 +271,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                     ):<span style={{fontSize:12,color:"var(--t3)"}}>rest day</span>}
                   </div>
                   {conflict&&(
-                    <div style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",background:"var(--red-bg)",borderRadius:7,marginTop:6,fontSize:12,color:"var(--red)"}}>
-                      <i className="ti ti-alert-circle" style={{fontSize:13}}/>
+                    <div style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",background:"var(--red-bg)",borderRadius:7,marginTop:6,fontSize:12,color:"#fff"}}>
+                      <i className="ti ti-alert-circle" style={{fontSize:13,color:"var(--red)"}}/>
                       Overlaps class or commute on {DF[gd.day]} — adjust time
                     </div>
                   )}
@@ -335,7 +335,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               <div><label>Time (optional)</label><input type="time" value={nc.time} onChange={e=>setNc(c=>({...c,time:e.target.value}))}/></div>
               <div><label>Duration (min)</label><input type="number" min="10" max="180" value={nc.dur} onChange={e=>setNc(c=>({...c,dur:+e.target.value}))}/></div>
             </div>
-            <button className="btn btn-action" style={{width:"100%"}} onClick={()=>{if(!nc.n||!nc.days.length)return;mk(()=>updP({chores:[...(p.chores||[]),{...nc,id:Date.now()}]}));setNc({n:"",e:"📋",days:[],time:"",dur:30});toast2("Chore added");}} disabled={!nc.n||!nc.days.length}>
+            <button className="btn btn-action" onClick={()=>{if(!nc.n||!nc.days.length)return;mk(()=>updP({chores:[...(p.chores||[]),{...nc,id:Date.now()}]}));setNc({n:"",e:"📋",days:[],time:"",dur:30});toast2("Chore added");}} disabled={!nc.n||!nc.days.length}>
               <i className="ti ti-plus"/> Add Chore
             </button>
           </div>
@@ -364,12 +364,16 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               </span>
             </div>
             {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
-              <button className="btn btn-action" style={{width:"100%"}} onClick={enableNotifs}>
+              <button className="btn btn-action" onClick={enableNotifs}>
                 <i className="ti ti-bell"/> Enable notifications
               </button>
             )}
             {notifPerm==="granted"&&(
-              <div className="toggle-group">
+              // Real reported bug: bare .toggle-group has no width of its own, so with nothing
+              // else in this row it stretched to the full card width — "super large" on/off
+              // buttons. display:"inline-flex" hugs its own content instead, same as every other
+              // toggle-group in this file already does by virtue of sitting in a row with a label.
+              <div className="toggle-group" style={{display:"inline-flex"}}>
                 <button className={`toggle-opt${p.remindersOn!==false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:true}));toast2("Reminders on");}}>On</button>
                 <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
               </div>
@@ -383,11 +387,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             </p>
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
-              <div style={{position:"relative"}}>
+              <div style={{position:"relative",maxWidth:220}}>
                 {/* maxLength caps it to the longest reasonable typed format ("+1 555 123 4567" is
                     15 chars) — real reported gap: nothing stopped typing extra/missing digits
-                    until Submit. The checkmark is live positive feedback the instant the digit
-                    count is actually right, not just a rejection after the fact. */}
+                    until Submit. maxWidth on the wrapper (not the default full-card width every
+                    input gets) matches how short the actual content is — real reported bug ("the
+                    phone field is way too wide"). The checkmark is live positive feedback the
+                    instant the digit count is actually right, not just a rejection after the fact. */}
                 <input type="tel" value={p.phone} maxLength={16}
                   onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:e.target.value});})}
                   placeholder="+1 555 123 4567" style={{paddingRight:34}}/>
@@ -502,7 +508,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               <div><label>Date</label><input type="date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/></div>
               <div><label>Time</label><input type="time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/></div>
             </div>
-            <button className="btn btn-action" style={{width:"100%"}} onClick={addCustomReminder} disabled={!ncReminder.text||!ncReminder.date}>
+            <button className="btn btn-action" onClick={addCustomReminder} disabled={!ncReminder.text||!ncReminder.date}>
               <i className="ti ti-plus"/> Add reminder
             </button>
           </div>
