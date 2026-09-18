@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.79.1 — 2026-09-18
+
+**SMS opt-in evidence page: screenshot now shows the real unchecked-by-default state**
+
+Real cause of a Twilio A2P 10DLC rejection (Error 30925, "opt-in flow ... does not show clear,
+affirmative consent ... checkbox cannot be pre-selected by default"): the actual code has always
+defaulted the consent checkbox to unchecked (`useState(false)`, confirmed) — the evidence
+screenshot on `studyos.io/sms-optin` just happened to have been captured with the box already
+checked, giving the reviewer the exact wrong impression.
+
+- Retook the screenshot from the real live screen in its true default state — box unchecked,
+  submit button visibly disabled/greyed (`disabled={!phone||!smsConsent}`) — with a placeholder
+  phone number (`+15551234567`) instead of a real one.
+- Fixed the image's `alt` text, which had separately (and wrongly) said "a checked consent
+  checkbox" — directly contradicting the correct "unchecked by default" text one paragraph above
+  it. Also strengthened the surrounding copy to call out the unchecked/disabled default state
+  explicitly, so there's no ambiguity for a human or automated reviewer this time.
+
 ## v2.79.0 — 2026-09-18
 
 **Schedule-driven study/break reminders — fires at the real planned clock time**
