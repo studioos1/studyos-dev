@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.80.1 — 2026-09-18
+
+**Preferences fields: label + field on one line, aligned to the longest label per section**
+
+Requested: "1) Field name and field at the same line. 2) all the fields to be aligned (right-to
+left) at the same line based on the space the longest field name need." New `.field-grid` CSS
+class (`app/globals.css`) — a 2-column grid (`max-content 1fr`) so the label column is
+automatically sized to whichever label is longest *in that section*, right-aligned, with every
+field's left edge landing in the same place. No manual pixel-width guessing, and it stays correct
+if a label's text ever changes.
+
+Applied across every plain label+field group in Preferences: Sleep & Wake, Study preferences
+(Focus/Break/Energy peak — now genuinely one aligned block, not just one row), Gym's Stretch
+prep/Drive to gym, Fun time targets (with each field's "Xh total" hint riding along inside its own
+cell), the whole "Add Chore" card (Quick select's button row and Which days?'s day-picker now
+align with the plain text fields too, not just inputs), and Custom reminders (Remind me
+about.../Date/Time). Left unchanged: the SMS phone number field (its own recent bespoke +1-prefix
+design), and the meal-time/gym-day/toggle rows, which already read as one line via their own
+icon/checkbox-led layout — a different, already-working pattern, not the stacked-label one being
+fixed here.
+
+Mobile: falls back to the same stacked (label-above-field) layout as `.g2`/`.g3` already use below
+480px, rather than force one line at any cost — a section whose longest label is genuinely long
+(e.g. "Focus length (study time before a break)") would otherwise leave no room for the field
+itself on a phone width. Verified against a REAL 375px viewport (an iframe with its own CSS media
+context, not just a fixed-width div — the earlier technique doesn't actually trigger a
+viewport-based media query): confirmed on Study preferences (longest-label case) and the full Add
+Chore card (most rows, mixed widget types — buttons, day-picker, inputs) — clean stack, full
+readable text, nothing clipped or overflowing.
+
 ## v2.80.0 — 2026-09-18
 
 **Preferences UI consistency + mobile pass — compact fields everywhere, Study preferences on one row, gym schedule redesigned, and an app-wide color-readability sweep**

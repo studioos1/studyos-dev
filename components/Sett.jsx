@@ -163,10 +163,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
         <div>
           <div className="card">
             <SecHead icon="ti-clock" title="Sleep & Wake"/>
-            <div className="g3">
-              <div><label>Wake time</label><input type="time" className="input-time" value={p.wakeTime} onChange={e=>mk(()=>updP({wakeTime:e.target.value}))}/></div>
-              <div><label>Sleep time</label><input type="time" className="input-time" value={p.sleepTime} onChange={e=>mk(()=>updP({sleepTime:e.target.value}))}/></div>
-              <div><label>Commute (min)</label><input type="number" className="input-num-sm" min="5" max="120" value={p.commuteMins} onChange={e=>mk(()=>updP({commuteMins:+e.target.value}))}/></div>
+            <div className="field-grid">
+              <label>Wake time</label>
+              <input type="time" className="input-time" value={p.wakeTime} onChange={e=>mk(()=>updP({wakeTime:e.target.value}))}/>
+              <label>Sleep time</label>
+              <input type="time" className="input-time" value={p.sleepTime} onChange={e=>mk(()=>updP({sleepTime:e.target.value}))}/>
+              <label>Commute (min)</label>
+              <input type="number" className="input-num-sm" min="5" max="120" value={p.commuteMins} onChange={e=>mk(()=>updP({commuteMins:+e.target.value}))}/>
             </div>
           </div>
           <div className="card">
@@ -178,31 +181,23 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 it once here is enough. Dropdowns instead of button rows for real resolution
                 (FOCUS_MIN_OPTIONS/BREAK_MIN_OPTIONS, lib/constants.js) — a button row of every
                 5-minute increment from 15–90 would be an unreadable wall of buttons. */}
-            {/* All three fields share one row, same as the Sleep & Wake card above — real
-                requested consistency fix: Energy peak used to sit in its own separate row below,
-                the odd one out. .g3 already collapses to one stacked column below 480px (see
-                globals.css), so mobile gets a clean single-column layout automatically, same as
-                every other .g3 in this file. */}
-            <div className="g3">
-              <div>
-                <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
-                <select className="select-compact" value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))} style={{marginTop:6}}>
-                  {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
-                </select>
-              </div>
-              <div>
-                <label>Break length</label>
-                <select className="select-compact" value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))} style={{marginTop:6}}>
-                  {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
-                </select>
-              </div>
-              <div>
-                {/* A specific time, not a morning/afternoon/evening bucket — classified into the
-                    same three broad windows internally (see windowOrderFor, schedule.js), but this
-                    is real precision instead of a coarse guess at which third of the day "counts". */}
-                <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
-                <input type="time" className="input-time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))} style={{marginTop:6}}/>
-              </div>
+            {/* Label + field on one line, all three aligned to the same left edge — see
+                .field-grid in globals.css. Energy peak used to sit in its own separate row below
+                Focus/Break, the odd one out; now all three are equal rows in the same grid. */}
+            <div className="field-grid">
+              <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
+              <select className="select-compact" value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))}>
+                {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+              </select>
+              <label>Break length</label>
+              <select className="select-compact" value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))}>
+                {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
+              </select>
+              {/* A specific time, not a morning/afternoon/evening bucket — classified into the
+                  same three broad windows internally (see windowOrderFor, schedule.js), but this
+                  is real precision instead of a coarse guess at which third of the day "counts". */}
+              <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
+              <input type="time" className="input-time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))}/>
             </div>
           </div>
 
@@ -320,16 +315,26 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 </div>
               );
             })}
-            <div className="g2" style={{marginTop:12}}>
-              <div><label>Stretch prep (min)</label><input type="number" className="input-num-sm" min="10" max="60" value={p.gymStretch||30} onChange={e=>mk(()=>updP({gymStretch:+e.target.value}))}/></div>
-              <div><label>Drive to gym (min)</label><input type="number" className="input-num-sm" min="5" max="30" value={p.gymDrive||10} onChange={e=>mk(()=>updP({gymDrive:+e.target.value}))}/></div>
+            <div className="field-grid" style={{marginTop:12}}>
+              <label>Stretch prep (min)</label>
+              <input type="number" className="input-num-sm" min="10" max="60" value={p.gymStretch||30} onChange={e=>mk(()=>updP({gymStretch:+e.target.value}))}/>
+              <label>Drive to gym (min)</label>
+              <input type="number" className="input-num-sm" min="5" max="30" value={p.gymDrive||10} onChange={e=>mk(()=>updP({gymDrive:+e.target.value}))}/>
             </div>
           </div>
           <div className="card">
             <SecHead icon="ti-mood-smile" title="Fun time targets"/>
-            <div className="g2">
-              <div><label>Weekday (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>mk(()=>updP({funWD:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Mon–Fri · {(p.funWD*5).toFixed(1)}h total</div></div>
-              <div><label>Weekend (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>mk(()=>updP({funWE:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Sat+Sun · {(p.funWE*2).toFixed(1)}h total</div></div>
+            <div className="field-grid">
+              <label>Weekday (hrs/day)</label>
+              <div>
+                <input type="number" className="input-num-sm" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>mk(()=>updP({funWD:+e.target.value}))}/>
+                <div className="field-hint">Mon–Fri · {(p.funWD*5).toFixed(1)}h total</div>
+              </div>
+              <label>Weekend (hrs/day)</label>
+              <div>
+                <input type="number" className="input-num-sm" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>mk(()=>updP({funWE:+e.target.value}))}/>
+                <div className="field-hint">Sat+Sun · {(p.funWE*2).toFixed(1)}h total</div>
+              </div>
             </div>
           </div>
         </div>
@@ -355,7 +360,10 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           )}
           <div className="card">
             <SecHead icon="ti-plus" title="Add Chore"/>
-            <div style={{marginBottom:10}}>
+            {/* One field-grid for every row in this card — label column sized to the widest
+                label here ("Or custom name"), so Quick select's button row and Which days?'s
+                DayPick line up with the rest instead of only the plain text inputs matching. */}
+            <div className="field-grid" style={{marginBottom:16}}>
               <label>Quick select</label>
               <div className="row" style={{flexWrap:"wrap"}}>
                 {CHORE_PRESETS.map(pr=>(
@@ -366,15 +374,16 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="g2" style={{marginBottom:10}}>
-              <div><label>Or custom name</label><input value={nc.n} onChange={e=>setNc(c=>({...c,n:e.target.value}))} placeholder="e.g. Water plants"/></div>
-              <div><label>Emoji</label><input value={nc.e} onChange={e=>setNc(c=>({...c,e:e.target.value}))} style={{maxWidth:80}}/></div>
-            </div>
-            <div style={{marginBottom:10}}><label>Which days?</label><DayPick val={nc.days} onChange={days=>setNc(c=>({...c,days}))} col="var(--teal)"/></div>
-            <div className="g3" style={{marginBottom:12}}>
-              <div><label>Time (optional)</label><input type="time" className="input-time" value={nc.time} onChange={e=>setNc(c=>({...c,time:e.target.value}))}/></div>
-              <div><label>Duration (min)</label><input type="number" className="input-num-sm" min="10" max="180" value={nc.dur} onChange={e=>setNc(c=>({...c,dur:+e.target.value}))}/></div>
+              <label>Or custom name</label>
+              <input value={nc.n} onChange={e=>setNc(c=>({...c,n:e.target.value}))} placeholder="e.g. Water plants"/>
+              <label>Emoji</label>
+              <input value={nc.e} onChange={e=>setNc(c=>({...c,e:e.target.value}))} style={{maxWidth:80}}/>
+              <label>Which days?</label>
+              <DayPick val={nc.days} onChange={days=>setNc(c=>({...c,days}))} col="var(--teal)"/>
+              <label>Time (optional)</label>
+              <input type="time" className="input-time" value={nc.time} onChange={e=>setNc(c=>({...c,time:e.target.value}))}/>
+              <label>Duration (min)</label>
+              <input type="number" className="input-num-sm" min="10" max="180" value={nc.dur} onChange={e=>setNc(c=>({...c,dur:+e.target.value}))}/>
             </div>
             <button className="btn btn-action" onClick={()=>{if(!nc.n||!nc.days.length)return;mk(()=>updP({chores:[...(p.chores||[]),{...nc,id:Date.now()}]}));setNc({n:"",e:"📋",days:[],time:"",dur:30});toast2("Chore added");}} disabled={!nc.n||!nc.days.length}>
               <i className="ti ti-plus"/> Add Chore
@@ -563,13 +572,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 ))}
               </div>
             )}
-            <div style={{marginBottom:10}}>
+            <div className="field-grid" style={{marginBottom:16}}>
               <label>Remind me about...</label>
               <input value={ncReminder.text} onChange={e=>setNcReminder(r=>({...r,text:e.target.value}))} placeholder="e.g. Bring lab notebook to discussion section"/>
-            </div>
-            <div className="g2" style={{marginBottom:12}}>
-              <div><label>Date</label><input type="date" className="input-date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/></div>
-              <div><label>Time</label><input type="time" className="input-time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/></div>
+              <label>Date</label>
+              <input type="date" className="input-date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/>
+              <label>Time</label>
+              <input type="time" className="input-time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/>
             </div>
             <button className="btn btn-action" onClick={addCustomReminder} disabled={!ncReminder.text||!ncReminder.date}>
               <i className="ti ti-plus"/> Add reminder
