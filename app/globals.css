@@ -132,6 +132,19 @@
        sizing to content — it doesn't need any label measured at all, so it can't drift out of
        alignment the way an earlier content-sized version briefly did. */
     .aligned-fields .field-grid{grid-template-columns:minmax(0,2fr) minmax(0,3fr); width:100%; max-width:none; margin:0;}
+    /* Real reported bug: a bare field element sitting directly in the (now much wider, 60%-of-card)
+       field column stretches to fill it by default — up to its OWN max-width, which for
+       .select-compact (150px) is well past what its text needs (measured live: 150px here vs
+       110px for the same class inside Meal times' flex-wrapped row, a visibly wider box with the
+       text sitting oddly off-center as a result). Meal times' fields look right specifically
+       because they're wrapped in a flex row that doesn't stretch its children — this makes every
+       bare field in this group behave the same way, without touching label:not(:first-child)
+       above, which deliberately keeps stretching to fill its column so right-alignment still lands
+       against the true boundary. */
+    .aligned-fields .field-grid>.input-time,
+    .aligned-fields .field-grid>.input-date,
+    .aligned-fields .field-grid>.input-num-sm,
+    .aligned-fields .field-grid>.select-compact{justify-self:start;}
     /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
        can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
        uses this class instead — same right-alignment as a real label, and the same mobile flip. */

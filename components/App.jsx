@@ -638,17 +638,11 @@ function App(){
                 )}
               </div>
             )}
-            {/* Evening check-in shortcut — always present (unlike the "click to report complete"
-                text badge above, which only shows once the nudge is actually active) so there's
-                always a quick way to Progress. Turns amber and bounces once the nudge kicks in. */}
-            {data.onboarded&&(
-              <button className="tt tt-below tt-right icon-btn-28" data-tt="Evening check-in" onClick={()=>go("prog")}
-                style={{borderRadius:"50%",border:`1px solid ${nudgeShown?"var(--amber)":"var(--b1)"}`,
-                  background:nudgeShown?"var(--amber-bg)":"var(--card2)",
-                  color:nudgeShown?"var(--amber)":"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
-                <i className={`ti ti-checkbox${nudgeShown?" nudge-bounce":""}`} style={{fontSize:15}}/>
-              </button>
-            )}
+            {/* Real reported duplication: this used to be a second "Evening check-in" checkbox
+                icon, always present on every tab — Today.jsx already has its own (amber, only
+                shown once there's actually unchecked-off work), so the header one was pure
+                redundancy rather than a different affordance. The "click to report complete" text
+                badge above still covers the header-level nudge; the icon itself is gone. */}
             {data.onboarded&&(
               <button className="tt tt-below tt-right icon-btn-28" data-tt="Report a bug" onClick={()=>setShowBugReport(true)}
                 style={{borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
