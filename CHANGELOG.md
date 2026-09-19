@@ -1,5 +1,31 @@
 # StudyOS Changelog
 
+## v2.80.5 — 2026-09-18
+
+**Focus Time: the last study session of the day skips the break — nothing to return to after it**
+
+Asked: "the last study session on any day - does not need to have a break. Is that big effort to
+fix?" Small — the Focus Time timer (`components/Today.jsx`) runs study and break as one continuous
+countdown per session (Play commits to both phases at once, no second click for the break), always
+transitioning study→break→complete regardless of whether anything else is scheduled after. A break
+after the actual last session just sat there counting down with no next session to return to.
+
+Fixed by checking, at the moment a session's study phase ends, whether it's the one with the
+LATEST end time among everything scheduled today (`todayRealBlocks`) — not array order, not
+completion state, so an earlier block finished out of order or already marked done doesn't change
+which one is chronologically last. If it is, the session completes immediately (same as a manual
+Complete click) with no break countdown and no "Break time! ☕" notification; every other session
+keeps the existing study→break→next behavior unchanged.
+
+Caught in review before shipping: my first pass at this edit introduced a brace-matching bug that
+would have made the "break's over" fallthrough code run in the wrong branch — found by re-reading
+the diff, not by a test catching it. Verified the actual `isLastToday` logic against realistic
+sample data (first/middle/last block, a single-block day, two blocks tied at the same end time, an
+unknown id) — all correct. Couldn't run a full live end-to-end timer test (today has no study
+blocks scheduled — exam day — and even on a day that did, the real fix only proves itself after a
+real 15–45 minute countdown, not a good use of anyone's time to sit through). Build clean, 184/184
+existing tests pass, page renders with no runtime error.
+
 ## v2.80.4 — 2026-09-18
 
 **Field alignment moved to ~40% from the left; mobile label-to-field spacing tightened**

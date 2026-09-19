@@ -154,10 +154,24 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   // break (no click needed — same Play that started study already committed to the whole
   // session), break phase auto-completes, same as a manual Complete click — see completeSession
   // below. A phase transition is exactly when notifyPhase fires.
+  //
+  // EXCEPTION: the day's actual last session skips the break phase entirely and completes
+  // straight away — real reported gap: there's nothing to "return to" after the last scheduled
+  // block, so a 5-min break countdown was just idle waiting with no purpose. "Last" is computed
+  // from every block's own end time (todayRealBlocks), not array order or completion state — an
+  // earlier block finished out of order, or already marked done, doesn't change which block is
+  // chronologically last today.
   useEffect(()=>{
     if(!runningBlockId||paused)return;
     if(secsLeft<=0){
       if(phase==="study"){
+        const running=todayRealBlocks.find(b=>b.id===runningBlockId);
+        const runningEnd=running?t2m(running.time)+(running.duration||25):-1;
+        const isLastToday=running&&todayRealBlocks.every(b=>t2m(b.time)+(b.duration||25)<=runningEnd);
+        if(isLastToday){
+          completeSession(runningBlockId,true);
+          return;
+        }
         const breakMins=(+p.breakMins)||5;
         const title="Break time! ☕",body=`Take a ${breakMins}-min break — you've earned it.`;
         notifyPhase("break-start",title,body);
