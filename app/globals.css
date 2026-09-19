@@ -116,23 +116,39 @@
        above and gets the same fix: a comfortable fixed width instead of width:100%. */
     .input-num-sm{width:auto; min-width:78px; max-width:100px;}
 
-    /* Label + field on one line, every field in a section aligned to the SAME left edge — the
-       label column is sized to the widest label in that .field-grid instance via CSS Grid's
-       max-content track, so alignment is always correct with no manual width guessing, and stays
-       correct if a label's text ever changes. Real requested fix: labels used to sit stacked
-       above their field everywhere. Children are consumed two at a time in DOM order (label,
-       then its field) — a field that needs extra content below it (a hint line, a multi-part
-       control) wraps that content in one div so it still counts as a single grid child.
-       Falls back to the SAME stacked layout as .g2/.g3 below 480px (identical breakpoint) rather
-       than force one line at any cost — a wide label column plus a real field genuinely doesn't
-       fit a phone width for some sections, so mobile keeps the proven no-overflow stacked layout
-       instead of risking fields pushed off the page. */
-    .field-grid{display:grid; grid-template-columns:max-content 1fr; align-items:center; column-gap:14px; row-gap:12px;}
+    /* Label + field on one line, the pair centered as a unit in the card, label right-aligned
+       immediately against its field — real requested design. The field column is a fixed
+       min/max width (not 1fr — 1fr would stretch to the card's full width, pushing the pair
+       against the left edge instead of centering it), and the whole grid is sized to its own
+       content (width:max-content) then centered via margin:auto.
+       --label-col (set via JS — see useLabelColWidth in components/Sett.jsx) lets several
+       SEPARATE .field-grid instances (one per card) share one aligned label column even though
+       CSS Grid's max-content sizing is otherwise per-instance: it's measured once from every
+       .align-col-label element across the whole aligned group of cards and inherited down as a
+       custom property, so every field-grid in that group resolves to the same pixel width — all
+       of them centering around that same shared column, not just their own card's longest label.
+       Falls back to plain per-instance max-content (still reasonable, just not cross-card-aligned)
+       until that measurement lands or wherever it's never set.
+       minmax(0,...) on BOTH columns — not a bare max-content/px value — is the actual overflow
+       guard: it lets a track shrink (and its label text wrap) instead of forcing the grid wider
+       than its container on a tablet-ish width the breakpoint below doesn't catch, so a field can
+       never "pop out" the side of the page even between breakpoints. */
+    .field-grid{display:grid; grid-template-columns:minmax(0,var(--label-col,max-content)) minmax(0,240px);
+      align-items:center; column-gap:14px; row-gap:12px; width:max-content; max-width:100%; margin:0 auto;}
     .field-grid>label{text-align:right; margin:0;}
+    /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
+       can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
+       uses this class instead — same right-alignment as a real label, and the same mobile flip. */
+    .field-grid .align-col-flex{display:flex; align-items:center; justify-content:flex-end; gap:8px;}
     .field-grid .field-hint{font-size:11px; color:var(--t3); margin-top:3px;}
-    @media (max-width:480px){
-      .field-grid{grid-template-columns:1fr; row-gap:16px;}
+    /* Wider than .g2/.g3's 480px breakpoint on purpose: this section's longest label ("Focus
+       length (study time before a break)") plus even a shrunk field column is real content that
+       still needs more room than a phone gets below ~600px — verified against a real viewport,
+       see the CHANGELOG entry for this change. */
+    @media (max-width:640px){
+      .field-grid{grid-template-columns:1fr; width:100%; margin:0; row-gap:16px;}
       .field-grid>label{text-align:left; margin-bottom:6px;}
+      .field-grid .align-col-flex{justify-content:flex-start;}
     }
     /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
        weights, hours) benefit from stepper buttons; typing is the expected interaction. */

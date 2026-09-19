@@ -1,5 +1,42 @@
 # StudyOS Changelog
 
+## v2.80.2 — 2026-09-18
+
+**Sleep & Wake, Study preferences, and Meal times now share one aligned, centered field column**
+
+Two follow-up refinements to v2.80.1's per-card field alignment: "align all the fields in the 3
+sections to the SAME right/left distance," then "a better UI design: center the field at the mid
+page, align all field name text to the right."
+
+CSS Grid's `max-content` label-column sizing is per grid instance — three separate `.card`s each
+aligning to only their OWN longest label doesn't produce one shared column. Fixed with a small
+`useLayoutEffect` (`components/Sett.jsx`) that measures every label (marked `.align-col-label`)
+across all three cards once, and sets the max as a `--label-col` CSS custom property on their
+shared wrapper — inherited down through all three `.field-grid` instances, so every field's left
+edge lands at the same X position across cards, not just within one. Re-measures on resize;
+skipped above the mobile breakpoint since it stacks there regardless.
+
+Each label+field pair is now also centered as a unit in its card (field column is a fixed
+`minmax(0,240px)` track, not `1fr` — `1fr` would stretch it to the card's full width and pin the
+pair to the left edge instead of centering it), with the label right-aligned immediately against
+its field.
+
+Meal times' rows (icon + meal name standing in for a plain label) now use the same `.field-grid` so
+they participate in the shared column too — Breakfast/Lunch/Dinner's time+duration fields align
+with Wake time/Focus length exactly. Caught in review before shipping: the icon+name pair was
+right-aligned via an inline style, which doesn't respond to the mobile media query the way a real
+`<label>` does — moved to a class (`.align-col-flex`) with its own mobile override so it correctly
+flips to left-aligned when stacked, matching every other label in these three cards.
+
+Mobile safety (explicitly requested): the stacking breakpoint is 640px here, not `.g2`/`.g3`'s
+480px — this section's longest label plus even a shrunk field genuinely needs more room than a
+phone gets below ~600px. Both grid columns use `minmax(0,...)`, not a bare value, so a track can
+shrink (and label text wrap) instead of forcing the page wider on a width the breakpoint doesn't
+catch. Verified with a real mobile viewport — an iframe with its own CSS media context (a
+fixed-width div does NOT trigger a `@media` breakpoint, confirmed the hard way earlier this
+session) — checked `document.documentElement.scrollWidth <= clientWidth` (no overflow) on all
+three cards, then visually confirmed clean stacking with no clipping.
+
 ## v2.80.1 — 2026-09-18
 
 **Preferences fields: label + field on one line, aligned to the longest label per section**

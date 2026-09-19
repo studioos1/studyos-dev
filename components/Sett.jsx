@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { t2m, m2t, f12, iso } from "@/lib/time";
 import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
@@ -11,6 +11,34 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   const [sec,setSec]=useState("schedule");
   const [nc,setNc]=useState({n:"",e:"📋",days:[],time:"",dur:30});
   const p=data.profile;
+
+  // Sleep & Wake / Study preferences / Meal times each hold their own .field-grid (they're
+  // separate .card boxes) — CSS Grid's own max-content column sizing is per-instance, so left to
+  // itself each card would align its fields to only ITS OWN longest label, not the other two
+  // cards'. Real requested fix: all three should share one column. Measured (not hardcoded) so it
+  // stays correct if any label's text ever changes, and only every .align-col-label element
+  // within this tab counts — not fields elsewhere in Preferences that were never asked to align
+  // with these three. Skipped below the .field-grid mobile breakpoint (globals.css) since it
+  // stacks to one column there regardless of this value — measuring would just waste a layout
+  // pass for a number the stacked CSS ignores anyway.
+  const scheduleRef=useRef(null);
+  const [labelColPx,setLabelColPx]=useState(null);
+  useLayoutEffect(()=>{
+    if(sec!=="schedule")return;
+    function measure(){
+      if(!scheduleRef.current)return;
+      if(window.innerWidth<=640){setLabelColPx(null);return;}
+      let max=0;
+      scheduleRef.current.querySelectorAll(".align-col-label").forEach(el=>{
+        const w=el.getBoundingClientRect().width;
+        if(w>max)max=w;
+      });
+      if(max>0)setLabelColPx(Math.ceil(max));
+    }
+    measure();
+    window.addEventListener("resize",measure);
+    return()=>window.removeEventListener("resize",measure);
+  },[sec]);
 
   // Fields that actually feed the scheduler — a change to any of these means the existing plan is
   // now stale and worth refreshing. Changing anything ELSE (reminders...) doesn't affect
@@ -160,15 +188,15 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       </div>
 
       {sec==="schedule"&&(
-        <div>
+        <div ref={scheduleRef} style={labelColPx?{"--label-col":`${labelColPx}px`}:undefined}>
           <div className="card">
             <SecHead icon="ti-clock" title="Sleep & Wake"/>
             <div className="field-grid">
-              <label>Wake time</label>
+              <label className="align-col-label">Wake time</label>
               <input type="time" className="input-time" value={p.wakeTime} onChange={e=>mk(()=>updP({wakeTime:e.target.value}))}/>
-              <label>Sleep time</label>
+              <label className="align-col-label">Sleep time</label>
               <input type="time" className="input-time" value={p.sleepTime} onChange={e=>mk(()=>updP({sleepTime:e.target.value}))}/>
-              <label>Commute (min)</label>
+              <label className="align-col-label">Commute (min)</label>
               <input type="number" className="input-num-sm" min="5" max="120" value={p.commuteMins} onChange={e=>mk(()=>updP({commuteMins:+e.target.value}))}/>
             </div>
           </div>
@@ -181,22 +209,23 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 it once here is enough. Dropdowns instead of button rows for real resolution
                 (FOCUS_MIN_OPTIONS/BREAK_MIN_OPTIONS, lib/constants.js) — a button row of every
                 5-minute increment from 15–90 would be an unreadable wall of buttons. */}
-            {/* Label + field on one line, all three aligned to the same left edge — see
-                .field-grid in globals.css. Energy peak used to sit in its own separate row below
+            {/* Label + field centered as a pair, all three rows sharing one label column with
+                Sleep & Wake and Meal times below (see scheduleRef/labelColPx above, and
+                .field-grid in globals.css). Energy peak used to sit in its own separate row below
                 Focus/Break, the odd one out; now all three are equal rows in the same grid. */}
             <div className="field-grid">
-              <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
+              <label className="align-col-label">Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
               <select className="select-compact" value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))}>
                 {FOCUS_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
               </select>
-              <label>Break length</label>
+              <label className="align-col-label">Break length</label>
               <select className="select-compact" value={p.breakMins} onChange={e=>mk(()=>updP({breakMins:+e.target.value}))}>
                 {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
               </select>
               {/* A specific time, not a morning/afternoon/evening bucket — classified into the
                   same three broad windows internally (see windowOrderFor, schedule.js), but this
                   is real precision instead of a coarse guess at which third of the day "counts". */}
-              <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
+              <label className="align-col-label">Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
               <input type="time" className="input-time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))}/>
             </div>
           </div>
@@ -224,13 +253,22 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               const hasConflict=conflictDays.length>0;
               return(
                 <div key={tk} style={{padding:"12px 0",borderBottom:tk!=="dinnerTime"?"1px solid var(--b1)":"none"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:hasConflict?10:0}}>
-                    <div style={{fontSize:18,width:30}}>{l==="Breakfast"?"🍳":l==="Lunch"?"🥗":"🍽"}</div>
-                    <div style={{flex:1,fontSize:15,color:"var(--t1)"}}>{l}</div>
-                    <input type="time" className="input-time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))}/>
-                    <select className="select-compact" value={p[dk]} onChange={e=>mk(()=>updP({[dk]:+e.target.value}))}>
-                      {[15,20,30,45,60].map(n=><option key={n} value={n}>{n} min</option>)}
-                    </select>
+                  {/* Same field-grid as Sleep & Wake / Study preferences above (shares their
+                      measured label column via scheduleRef/labelColPx) — icon+name together stand
+                      in for the label here, right-aligned as a pair via justifyContent:"flex-end"
+                      so the icon still reads immediately before its meal name rather than pinned
+                      to the column's far edge on its own. */}
+                  <div className="field-grid" style={{marginBottom:hasConflict?10:0}}>
+                    <div className="align-col-label align-col-flex">
+                      <span style={{fontSize:18}}>{l==="Breakfast"?"🍳":l==="Lunch"?"🥗":"🍽"}</span>
+                      <span style={{fontSize:15,color:"var(--t1)"}}>{l}</span>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <input type="time" className="input-time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))}/>
+                      <select className="select-compact" value={p[dk]} onChange={e=>mk(()=>updP({[dk]:+e.target.value}))}>
+                        {[15,20,30,45,60].map(n=><option key={n} value={n}>{n} min</option>)}
+                      </select>
+                    </div>
                   </div>
                   {hasConflict&&(
                     <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"var(--amber-bg)",borderRadius:8,fontSize:13,color:"#fff"}}>
