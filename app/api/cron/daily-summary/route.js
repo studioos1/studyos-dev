@@ -2,10 +2,12 @@ import { serviceClient, verifyCronAuth, sendSms, eligibleUsers, todayInTZ, CRON_
 import { buildDailySummaryMessage } from "@/lib/sms/dailySummary";
 import { runNotifyUrgentItems } from "@/lib/data/notifications";
 
-// Fires once a day (see vercel.json's crons entry) — the "Daily summary" SMS reminder
+// Fires once a day (see .github/workflows/scheduled-reminders.yml — Vercel Cron Jobs turned out
+// to be silently unavailable on the Hobby plan, so a GitHub Actions schedule calls this route's
+// URL directly instead, same CRON_SECRET auth) — the "Daily summary" SMS reminder
 // (Preferences → Notifications → notifyDailySummary, "8:30am — today's plan"), THEN the bell-log
 // write (runNotifyUrgentItems — see that file's own comment for why it rides on this same trigger
-// instead of being its own vercel.json cron entry). Every user's whole data blob lives in one
+// instead of its own separate schedule). Every user's whole data blob lives in one
 // user_data.data jsonb column (supabase/schema.sql) — service-role reads every row once (this is
 // the one place in the app that legitimately needs to see across users) and both jobs share it.
 export async function GET(req) {

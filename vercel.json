@@ -1,6 +1,0 @@
-{
-  "crons": [
-    { "path": "/api/cron/daily-summary", "schedule": "30 15 * * *" },
-    { "path": "/api/cron/evening-checkin", "schedule": "0 3 * * *" }
-  ]
-}

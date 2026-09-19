@@ -1,0 +1,57 @@
+name: Scheduled reminders
+
+# Vercel Cron Jobs (vercel.json) turned out to be silently unavailable on the Hobby plan — the
+# deploy log had zero mention of "cron" anywhere, no error, no warning, just never registered.
+# This workflow replaces that trigger mechanism entirely: same two routes, same CRON_SECRET
+# bearer-token auth already built for Vercel Cron, just called by GitHub Actions' own scheduler
+# instead. Free, no third-party service, and — like Vercel Cron — only runs from whatever version
+# of this file lives on the default branch (main), not from a feature branch, so this schedule
+# doesn't actually start firing until the PR carrying it is merged.
+#
+# Needs two values set in GitHub → repo Settings → Secrets and variables → Actions:
+#   - Variables tab → PRODUCTION_URL (e.g. https://studyos.io) — not sensitive, so a variable,
+#     not a secret; avoids hardcoding the domain into this file.
+#   - Secrets tab → CRON_SECRET — the SAME value already set in Vercel's env vars.
+#
+# Known limitation, stated plainly: GitHub Actions' `schedule` trigger is documented by GitHub as
+# best-effort, not guaranteed-on-time — it can be delayed (sometimes by many minutes) during
+# periods of high platform load. Same honest caveat as Vercel Cron would have had.
+
+on:
+  schedule:
+    # 8:30am Pacific (15:30 UTC, current daylight-saving offset) — the daily summary SMS. This
+    # same call also runs the bell-log job server-side (app/api/cron/daily-summary calls
+    # runNotifyUrgentItems internally) — one trigger covers both.
+    - cron: "30 15 * * *"
+    # 8:00pm Pacific (03:00 UTC the next day) — the evening check-in nudge.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {} # manual "Run workflow" button in GitHub's Actions tab, for testing
+
+jobs:
+  daily-summary:
+    if: github.event.schedule == '30 15 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/daily-summary
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X GET "${{ vars.PRODUCTION_URL }}/api/cron/daily-summary" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | sed '$d')
+          echo "Response: $body"
+          echo "HTTP status: $http_code"
+          if [ "$http_code" -ge 400 ]; then exit 1; fi
+
+  evening-checkin:
+    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/evening-checkin
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X GET "${{ vars.PRODUCTION_URL }}/api/cron/evening-checkin" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | sed '$d')
+          echo "Response: $body"
+          echo "HTTP status: $http_code"
+          if [ "$http_code" -ge 400 ]; then exit 1; fi
