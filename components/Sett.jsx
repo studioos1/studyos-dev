@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState } from "react";
 import { t2m, m2t, f12, iso } from "@/lib/time";
 import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
@@ -11,34 +11,6 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   const [sec,setSec]=useState("schedule");
   const [nc,setNc]=useState({n:"",e:"📋",days:[],time:"",dur:30});
   const p=data.profile;
-
-  // Sleep & Wake / Study preferences / Meal times each hold their own .field-grid (they're
-  // separate .card boxes) — CSS Grid's own max-content column sizing is per-instance, so left to
-  // itself each card would align its fields to only ITS OWN longest label, not the other two
-  // cards'. Real requested fix: all three should share one column. Measured (not hardcoded) so it
-  // stays correct if any label's text ever changes, and only every .align-col-label element
-  // within this tab counts — not fields elsewhere in Preferences that were never asked to align
-  // with these three. Skipped below the .field-grid mobile breakpoint (globals.css) since it
-  // stacks to one column there regardless of this value — measuring would just waste a layout
-  // pass for a number the stacked CSS ignores anyway.
-  const scheduleRef=useRef(null);
-  const [labelColPx,setLabelColPx]=useState(null);
-  useLayoutEffect(()=>{
-    if(sec!=="schedule")return;
-    function measure(){
-      if(!scheduleRef.current)return;
-      if(window.innerWidth<=640){setLabelColPx(null);return;}
-      let max=0;
-      scheduleRef.current.querySelectorAll(".align-col-label").forEach(el=>{
-        const w=el.getBoundingClientRect().width;
-        if(w>max)max=w;
-      });
-      if(max>0)setLabelColPx(Math.ceil(max));
-    }
-    measure();
-    window.addEventListener("resize",measure);
-    return()=>window.removeEventListener("resize",measure);
-  },[sec]);
 
   // Fields that actually feed the scheduler — a change to any of these means the existing plan is
   // now stale and worth refreshing. Changing anything ELSE (reminders...) doesn't affect
@@ -188,7 +160,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       </div>
 
       {sec==="schedule"&&(
-        <div ref={scheduleRef} className="aligned-fields" style={labelColPx?{"--label-col":`${labelColPx}px`}:undefined}>
+        <div className="aligned-fields">
           <div className="card">
             <SecHead icon="ti-clock" title="Sleep & Wake"/>
             <div className="field-grid">

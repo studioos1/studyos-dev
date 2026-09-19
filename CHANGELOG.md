@@ -1,5 +1,36 @@
 # StudyOS Changelog
 
+## v2.80.4 — 2026-09-18
+
+**Field alignment moved to ~40% from the left; mobile label-to-field spacing tightened**
+
+Two requests: "move the alignment line ... around 40% of the screen width from the left," and on
+mobile, "the space between the field name above it too much ... make sure the field name will sit
+much closer above the fields."
+
+**Alignment line.** Switched `.aligned-fields .field-grid` from equal (50/50) content-sized columns
+to a straight 2fr:3fr (40:60) percentage split spanning the card's full width. This is actually
+*simpler* than the previous content-measured version — a fixed ratio doesn't need any label's width
+measured at all, so the line can't drift depending on which label happens to be longest. Removed
+the `useLayoutEffect`/label-measuring code from `components/Sett.jsx` entirely now that it's
+unused. Verified live: fields land at 41.4% from each card's left edge, identical across all 3
+cards (the fixed 240px field column used by Gym/Chores/Notifications sections is untouched — those
+still need real typing room a percentage split would cramp).
+
+**Mobile spacing.** Real bug, not just "too much space": the stacked mobile layout's `row-gap` is
+uniform between every row, and the label's own `margin-bottom` was stacking ON TOP of it — so a
+label actually sat *farther* from its own field (22px) than from the next field-group's label
+(16px), backwards from how a form should read. Fixed by dropping `row-gap` to 6px (tight,
+label-to-its-own-field) and moving the real separation onto `margin-top` on every label except the
+first (`label:not(:first-child)`, plus the same treatment for Meal times' icon+name rows via
+`.align-col-label`). Verified live via `getBoundingClientRect()`: label-to-own-field is now 6px,
+field-to-next-label is 22px — correctly the other way around from before, and the ratio a form
+should have.
+
+Re-verified against a real mobile viewport (iframe, not a fixed-width div) on Sleep & Wake and Meal
+times: no overflow, clean left-aligned stacking, correct tight/loose spacing rhythm. Build clean,
+184/184 tests pass.
+
 ## v2.80.3 — 2026-09-18
 
 **Fields now genuinely start at the card's center line, not just "the block is centered"**
