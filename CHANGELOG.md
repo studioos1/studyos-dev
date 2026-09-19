@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.80.6 — 2026-09-19
+
+**Field widths now consistent with Meal times; removed the duplicate Evening check-in icon**
+
+**1. Field/select widths.** Reported: "the [meal times] section used just the right size of field
+... the other two sections ... wider field than needed, text inside it is centered and large space
+from right and left." Measured before diagnosing: Study preferences' duration selects rendered at
+150px, Meal times' identical `.select-compact` selects at 110px — same class, visibly different
+box. Root cause: v2.80.4's 40:60 percentage field column is wide (60% of the card), and a bare
+field element sitting directly in it stretches to fill the column by default, up to its own
+max-width — `.select-compact`'s max-width (150px) is well past what "45 min" needs. Meal times
+happened to look right only because its fields sit inside a flex wrapper, which doesn't stretch its
+children the same way. Fixed by giving every bare field element in this group (`.input-time`,
+`.input-date`, `.input-num-sm`, `.select-compact`) `justify-self:start`, so it sizes to its own
+content instead of stretching — deliberately not a blanket `justify-items` on the whole grid, which
+would have also un-stretched the LABEL column and broken its right-alignment against the true
+boundary. Verified live: every select now measures 110px, identical to Meal times'. Bonus find:
+this was also stretching fields to the full card width on mobile (not just desktop) — same fix
+resolved both.
+
+**2. Duplicate check-in icon.** Reported: a checkbox icon appeared both in the main header (every
+tab) and on the Today tab itself. The header one (`components/App.jsx`) was pure redundancy —
+always present regardless of whether there was anything to check in on, while Today's own icon
+(`components/Today.jsx`) already covers the same action and only shows when there's actually
+unchecked-off work for today. Removed the header instance; Today's stays, and the header's
+separate "Click to report complete" text nudge (a different element) is untouched. Verified live:
+0 checkbox icons on Preferences (or any non-Today tab), exactly 1 on Today.
+
+Build clean, 184/184 tests pass.
+
 ## v2.80.5 — 2026-09-18
 
 **Focus Time: the last study session of the day skips the break — nothing to return to after it**
