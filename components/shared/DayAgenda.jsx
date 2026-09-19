@@ -15,8 +15,8 @@ export function DayAgenda({data,dateStr}){
     <>
       {!weekHasBeenPlanned(data,dateStr)&&(
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",marginBottom:10,
-          background:"var(--amber-bg)",color:"var(--amber)",borderRadius:10,fontSize:12.5}}>
-          <i className="ti ti-sparkles" style={{fontSize:14,flexShrink:0}}/>
+          background:"var(--amber-bg)",color:"#fff",borderRadius:10,fontSize:12.5}}>
+          <i className="ti ti-sparkles" style={{fontSize:14,flexShrink:0,color:"var(--amber)"}}/>
           <span>Study time isn't planned for this week yet.</span>
         </div>
       )}

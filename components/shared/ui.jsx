@@ -175,14 +175,14 @@ export function PdfDrop({label,hint,onFiles,files=[],multi=false}){
         <div style={{fontSize:11,color:"var(--t3)",marginTop:4}}>Drag &amp; drop or click to browse</div>
         <input ref={ref} type="file" accept=".pdf,application/pdf" {...(multi?{multiple:true}:{})} style={{display:"none"}} onChange={e=>{handle(Array.from(e.target.files));e.target.value="";}}/>
       </div>
-      <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"7px 11px",background:"var(--amber-bg)",borderRadius:7,marginBottom:8,fontSize:12,color:"var(--amber)",lineHeight:1.5}}>
-        <i className="ti ti-robot" style={{fontSize:14,flexShrink:0,marginTop:1}}/>
+      <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"7px 11px",background:"var(--amber-bg)",borderRadius:7,marginBottom:8,fontSize:12,color:"#fff",lineHeight:1.5}}>
+        <i className="ti ti-robot" style={{fontSize:14,flexShrink:0,marginTop:1,color:"var(--amber)"}}/>
         <span>We read this with AI, which can misread a PDF. Check the extracted results on the next screen — if something's off, re-upload to run it again.</span>
       </div>
       {rejected>0&&(
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 11px",background:"var(--red-bg)",borderRadius:7,marginBottom:5}}>
           <i className="ti ti-alert-triangle" style={{color:"var(--red)",fontSize:14}}/>
-          <span style={{fontSize:13,color:"var(--red)"}}>{rejected} file{rejected>1?"s":""} skipped — not a PDF</span>
+          <span style={{fontSize:13,color:"#fff"}}>{rejected} file{rejected>1?"s":""} skipped — not a PDF</span>
         </div>
       )}
       {files.map((f,i)=>(

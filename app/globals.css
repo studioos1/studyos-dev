@@ -99,6 +99,64 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a8aaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
       background-repeat:no-repeat; background-position:right 10px center;
     }
+    /* Compact fixed-format inputs (time/date) — same rationale as .select-compact just above: a
+       HH:MM or MM/DD/YYYY value never benefits from width:100%. Sub-project: Web-Mobile
+       Enablement item #7. Real reported bug: Preferences' Wake/Sleep/meal/gym time fields all
+       inherited the app-wide default width:100%, stretching to fill whatever grid column or flex
+       row they sat in — "away too long" on desktop (a .g3 column alone runs 200-300px, several
+       times what "07:00" needs), and on the already-cramped gym per-day row it was masked by
+       shrinking to fontSize:12 instead, which is its OWN real bug: the comment above
+       input,select,textarea documents that any input under 16px triggers iOS Safari's
+       auto-zoom-on-focus and explicitly calls out "a few compact ... inputs" as a follow-up sweep
+       — this is that sweep. Width is the dimension that should flex to fit content here; font-size
+       stays at the app-wide 16px baseline everywhere, no exceptions. */
+    .input-time{width:auto; min-width:128px; max-width:142px; flex-shrink:0;}
+    .input-date{width:auto; min-width:148px; max-width:165px; flex-shrink:0;}
+    /* Short numeric fields (minutes, counts, hours) — a 1-3 digit number has the same problem as
+       above and gets the same fix: a comfortable fixed width instead of width:100%. */
+    .input-num-sm{width:auto; min-width:78px; max-width:100px;}
+
+    /* Label + field on one line, label right-aligned immediately against its field. Base rule
+       (Gym/Chores/Notifications — anywhere NOT wrapped in .aligned-fields below): label column
+       sized to its own content, field column a fixed comfortable width for typing, the whole grid
+       sized to its content and centered via margin:auto. minmax(0,...) — not a bare max-content
+       value — lets a track shrink (and label text wrap) instead of forcing the grid wider than its
+       container on some in-between width, so a field can never "pop out" the side of the page. */
+    .field-grid{display:grid; grid-template-columns:minmax(0,max-content) minmax(0,240px);
+      align-items:center; column-gap:14px; row-gap:12px; width:max-content; max-width:100%; margin:0 auto;}
+    .field-grid>label{text-align:right; margin:0;}
+    /* Daily Schedule's 3 cards (Sleep & Wake / Study preferences / Meal times) — real requested
+       design: the label/field boundary sits at a fixed 40% of the card's width from the left, the
+       same line on every field in all three cards, not wherever a "size to content" calculation
+       happens to land. A straight percentage split (2fr:3fr = 40:60) is actually SIMPLER than
+       sizing to content — it doesn't need any label measured at all, so it can't drift out of
+       alignment the way an earlier content-sized version briefly did. */
+    .aligned-fields .field-grid{grid-template-columns:minmax(0,2fr) minmax(0,3fr); width:100%; max-width:none; margin:0;}
+    /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
+       can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
+       uses this class instead — same right-alignment as a real label, and the same mobile flip. */
+    .field-grid .align-col-flex{display:flex; align-items:center; justify-content:flex-end; gap:8px;}
+    .field-grid .field-hint{font-size:11px; color:var(--t3); margin-top:3px;}
+    /* Wider than .g2/.g3's 480px breakpoint on purpose: this section's longest label ("Focus
+       length (study time before a break)") plus even a shrunk field column is real content that
+       still needs more room than a phone gets below ~600px — verified against a real viewport,
+       see the CHANGELOG entry for this change. */
+    @media (max-width:640px){
+      /* .aligned-fields .field-grid must be listed too, not just .field-grid — it's a more
+         specific selector (2 classes vs 1), so without repeating it here it would keep winning
+         over this stacked layout even below the breakpoint, real risk of exactly the kind of
+         mobile overflow this rule exists to prevent.
+         row-gap is intentionally SMALL here (a label should sit close to ITS OWN field) — real
+         reported bug: the label's own margin-bottom used to stack ON TOP of a large row-gap,
+         which is uniform between every row regardless of what it separates, so a label actually
+         sat FARTHER from its own field than from the next field-group's label — backwards from how
+         a form should read. margin-top on every label except the first is what creates real
+         separation between one field-group and the next, instead. */
+      .field-grid, .aligned-fields .field-grid{grid-template-columns:1fr; width:100%; max-width:none; margin:0; row-gap:6px;}
+      .field-grid>label{text-align:left; margin-bottom:0;}
+      .field-grid>label:not(:first-child),.field-grid>.align-col-label:not(:first-child){margin-top:16px;}
+      .field-grid .align-col-flex{justify-content:flex-start;}
+    }
     /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
        weights, hours) benefit from stepper buttons; typing is the expected interaction. */
     input[type="number"]::-webkit-outer-spin-button,

@@ -1,5 +1,240 @@
 # StudyOS Changelog
 
+## v2.80.5 — 2026-09-18
+
+**Focus Time: the last study session of the day skips the break — nothing to return to after it**
+
+Asked: "the last study session on any day - does not need to have a break. Is that big effort to
+fix?" Small — the Focus Time timer (`components/Today.jsx`) runs study and break as one continuous
+countdown per session (Play commits to both phases at once, no second click for the break), always
+transitioning study→break→complete regardless of whether anything else is scheduled after. A break
+after the actual last session just sat there counting down with no next session to return to.
+
+Fixed by checking, at the moment a session's study phase ends, whether it's the one with the
+LATEST end time among everything scheduled today (`todayRealBlocks`) — not array order, not
+completion state, so an earlier block finished out of order or already marked done doesn't change
+which one is chronologically last. If it is, the session completes immediately (same as a manual
+Complete click) with no break countdown and no "Break time! ☕" notification; every other session
+keeps the existing study→break→next behavior unchanged.
+
+Caught in review before shipping: my first pass at this edit introduced a brace-matching bug that
+would have made the "break's over" fallthrough code run in the wrong branch — found by re-reading
+the diff, not by a test catching it. Verified the actual `isLastToday` logic against realistic
+sample data (first/middle/last block, a single-block day, two blocks tied at the same end time, an
+unknown id) — all correct. Couldn't run a full live end-to-end timer test (today has no study
+blocks scheduled — exam day — and even on a day that did, the real fix only proves itself after a
+real 15–45 minute countdown, not a good use of anyone's time to sit through). Build clean, 184/184
+existing tests pass, page renders with no runtime error.
+
+## v2.80.4 — 2026-09-18
+
+**Field alignment moved to ~40% from the left; mobile label-to-field spacing tightened**
+
+Two requests: "move the alignment line ... around 40% of the screen width from the left," and on
+mobile, "the space between the field name above it too much ... make sure the field name will sit
+much closer above the fields."
+
+**Alignment line.** Switched `.aligned-fields .field-grid` from equal (50/50) content-sized columns
+to a straight 2fr:3fr (40:60) percentage split spanning the card's full width. This is actually
+*simpler* than the previous content-measured version — a fixed ratio doesn't need any label's width
+measured at all, so the line can't drift depending on which label happens to be longest. Removed
+the `useLayoutEffect`/label-measuring code from `components/Sett.jsx` entirely now that it's
+unused. Verified live: fields land at 41.4% from each card's left edge, identical across all 3
+cards (the fixed 240px field column used by Gym/Chores/Notifications sections is untouched — those
+still need real typing room a percentage split would cramp).
+
+**Mobile spacing.** Real bug, not just "too much space": the stacked mobile layout's `row-gap` is
+uniform between every row, and the label's own `margin-bottom` was stacking ON TOP of it — so a
+label actually sat *farther* from its own field (22px) than from the next field-group's label
+(16px), backwards from how a form should read. Fixed by dropping `row-gap` to 6px (tight,
+label-to-its-own-field) and moving the real separation onto `margin-top` on every label except the
+first (`label:not(:first-child)`, plus the same treatment for Meal times' icon+name rows via
+`.align-col-label`). Verified live via `getBoundingClientRect()`: label-to-own-field is now 6px,
+field-to-next-label is 22px — correctly the other way around from before, and the ratio a form
+should have.
+
+Re-verified against a real mobile viewport (iframe, not a fixed-width div) on Sleep & Wake and Meal
+times: no overflow, clean left-aligned stacking, correct tight/loose spacing rhythm. Build clean,
+184/184 tests pass.
+
+## v2.80.3 — 2026-09-18
+
+**Fields now genuinely start at the card's center line, not just "the block is centered"**
+
+Real bug in v2.80.2's centering: `width:max-content; margin:0 auto` centers the whole label+field
+BLOCK as a unit, which is not the same as the FIELD starting at the true center — a wide measured
+label column next to a fixed 240px field column makes the block lopsided, so its own midpoint (the
+point `margin:auto` actually centers around) sits well left of where the field begins. Confirmed
+live before the fix: fields started ~62px left of the card's true center.
+
+Fixed with a new `.aligned-fields` wrapper class (the Daily Schedule tab's root div) that makes
+both grid columns the SAME width — the same `--label-col` already measured for cross-card
+alignment — so the two halves are symmetric and the label/field boundary genuinely lands on the
+center line. Deliberately scoped to just this wrapper, not the default for every `.field-grid`: a
+free-text field (Chores' "Or custom name", Custom reminders' "Remind me about...") needs real
+typing room a label-width-only column would cramp, so those keep their existing fixed 240px field
+column.
+
+Caught in review before shipping: the new `.aligned-fields .field-grid` selector is more specific
+(2 classes) than the plain `.field-grid` mobile rule (1 class) — without also listing it inside the
+`@media(max-width:640px)` block, it would have kept winning over the stacked mobile layout even
+below the breakpoint, silently reintroducing overflow risk on exactly the phones this was built to
+protect. Fixed by listing both selectors together in the media query.
+
+Verified live: measured `getBoundingClientRect()` on all 3 cards — fields now start 7px right of
+the card's true center (half the column gap, effectively exact) and identically so across Sleep &
+Wake, Study preferences, and Meal times. Re-ran the real-viewport mobile check (iframe, not a
+fixed-width div) — still clean, no overflow, no clipping. Build clean, 184/184 tests pass.
+
+## v2.80.2 — 2026-09-18
+
+**Sleep & Wake, Study preferences, and Meal times now share one aligned, centered field column**
+
+Two follow-up refinements to v2.80.1's per-card field alignment: "align all the fields in the 3
+sections to the SAME right/left distance," then "a better UI design: center the field at the mid
+page, align all field name text to the right."
+
+CSS Grid's `max-content` label-column sizing is per grid instance — three separate `.card`s each
+aligning to only their OWN longest label doesn't produce one shared column. Fixed with a small
+`useLayoutEffect` (`components/Sett.jsx`) that measures every label (marked `.align-col-label`)
+across all three cards once, and sets the max as a `--label-col` CSS custom property on their
+shared wrapper — inherited down through all three `.field-grid` instances, so every field's left
+edge lands at the same X position across cards, not just within one. Re-measures on resize;
+skipped above the mobile breakpoint since it stacks there regardless.
+
+Each label+field pair is now also centered as a unit in its card (field column is a fixed
+`minmax(0,240px)` track, not `1fr` — `1fr` would stretch it to the card's full width and pin the
+pair to the left edge instead of centering it), with the label right-aligned immediately against
+its field.
+
+Meal times' rows (icon + meal name standing in for a plain label) now use the same `.field-grid` so
+they participate in the shared column too — Breakfast/Lunch/Dinner's time+duration fields align
+with Wake time/Focus length exactly. Caught in review before shipping: the icon+name pair was
+right-aligned via an inline style, which doesn't respond to the mobile media query the way a real
+`<label>` does — moved to a class (`.align-col-flex`) with its own mobile override so it correctly
+flips to left-aligned when stacked, matching every other label in these three cards.
+
+Mobile safety (explicitly requested): the stacking breakpoint is 640px here, not `.g2`/`.g3`'s
+480px — this section's longest label plus even a shrunk field genuinely needs more room than a
+phone gets below ~600px. Both grid columns use `minmax(0,...)`, not a bare value, so a track can
+shrink (and label text wrap) instead of forcing the page wider on a width the breakpoint doesn't
+catch. Verified with a real mobile viewport — an iframe with its own CSS media context (a
+fixed-width div does NOT trigger a `@media` breakpoint, confirmed the hard way earlier this
+session) — checked `document.documentElement.scrollWidth <= clientWidth` (no overflow) on all
+three cards, then visually confirmed clean stacking with no clipping.
+
+## v2.80.1 — 2026-09-18
+
+**Preferences fields: label + field on one line, aligned to the longest label per section**
+
+Requested: "1) Field name and field at the same line. 2) all the fields to be aligned (right-to
+left) at the same line based on the space the longest field name need." New `.field-grid` CSS
+class (`app/globals.css`) — a 2-column grid (`max-content 1fr`) so the label column is
+automatically sized to whichever label is longest *in that section*, right-aligned, with every
+field's left edge landing in the same place. No manual pixel-width guessing, and it stays correct
+if a label's text ever changes.
+
+Applied across every plain label+field group in Preferences: Sleep & Wake, Study preferences
+(Focus/Break/Energy peak — now genuinely one aligned block, not just one row), Gym's Stretch
+prep/Drive to gym, Fun time targets (with each field's "Xh total" hint riding along inside its own
+cell), the whole "Add Chore" card (Quick select's button row and Which days?'s day-picker now
+align with the plain text fields too, not just inputs), and Custom reminders (Remind me
+about.../Date/Time). Left unchanged: the SMS phone number field (its own recent bespoke +1-prefix
+design), and the meal-time/gym-day/toggle rows, which already read as one line via their own
+icon/checkbox-led layout — a different, already-working pattern, not the stacked-label one being
+fixed here.
+
+Mobile: falls back to the same stacked (label-above-field) layout as `.g2`/`.g3` already use below
+480px, rather than force one line at any cost — a section whose longest label is genuinely long
+(e.g. "Focus length (study time before a break)") would otherwise leave no room for the field
+itself on a phone width. Verified against a REAL 375px viewport (an iframe with its own CSS media
+context, not just a fixed-width div — the earlier technique doesn't actually trigger a
+viewport-based media query): confirmed on Study preferences (longest-label case) and the full Add
+Chore card (most rows, mixed widget types — buttons, day-picker, inputs) — clean stack, full
+readable text, nothing clipped or overflowing.
+
+## v2.80.0 — 2026-09-18
+
+**Preferences UI consistency + mobile pass — compact fields everywhere, Study preferences on one row, gym schedule redesigned, and an app-wide color-readability sweep**
+
+Requested: "go over ALL Tab under preferences and the UI assets we used there and make sure we are
+consistant neatly with the design language... implement it on all fields and don't leave anymore
+inconsistancy in the app." Four separate changes, all part of the same pass:
+
+**1. Compact time/date/number fields (`.input-time`/`.input-date`/`.input-num-sm` in globals.css,
+same idea as the existing `.select-compact`).** Every time/date/number field across all 4
+Preferences tabs (Wake/Sleep, Energy peak, meal times, gym per-day times, stretch/drive minutes,
+fun-time hours, chore time/duration, custom reminder date/time) inherited the app-wide
+`width:100%` default, stretching to fill whatever grid column or row it sat in — "away too long"
+on desktop (a `.g3` column alone runs 200-300px, many times what "07:00 AM" needs). Now a fixed,
+comfortable width instead, applied identically everywhere. First pass tightened these more than it
+should have and clipped the AM/PM text ("09:00 A" instead of "09:00 AM") — caught live and widened
+back out; verified full "09:00 AM"/"12:00 AM"/"01:00 PM" display afterward.
+
+**2. Gym per-day row — a real, separate mobile bug closed out.** The row's time fields were
+shrunk to `fontSize:12` to make them fit — which is itself a documented bug: the comment above
+`input,select,textarea` in globals.css already flagged that any input under the 16px baseline
+triggers iOS Safari's auto-zoom-on-focus, and explicitly called out "a few compact... inputs" as a
+follow-up sweep. This is that sweep. Full-size 16px `.input-time` fields now wrap onto their own
+line under the day checkbox on narrow screens (verified against a real 375px viewport — iPhone SE
+width) instead of shrinking to fit. Same fix applied to the identical gym widget duplicated in the
+onboarding wizard (`components/Onboard.jsx`).
+
+**3. Two follow-up requests mid-pass:**
+- Study preferences: Focus length, Break length, and Energy peak now share one row (`.g3`, same
+  as Sleep & Wake above it) instead of Energy peak sitting alone on its own row below.
+- Gym schedule: each day is now Start time + a duration select ("60 min", same idiom as meal
+  duration) instead of Start + End time with an arrow between them — the arrow is gone, and the
+  student no longer has to subtract two clocks to know a session's length. The underlying data
+  shape is unchanged (`gd.e` is still stored, now always derived as start+duration) so
+  conflict-checking and the planner elsewhere keep working exactly as before — no migration. A
+  legacy/custom duration that doesn't match a preset is added to that row's own option list rather
+  than silently snapping to a different value on load. New `GYM_DUR_OPTIONS` constant in
+  `lib/constants.js`; mirrored into the onboarding wizard's gym step too.
+
+**4. App-wide color-readability sweep — 11 more instances of an already-known bug pattern.**
+Same fix as this session's earlier "red text over brown background" fixes: a sentence/paragraph of
+body text set directly in an accent color (amber/blue/green/red) reads poorly on that color's own
+tinted background, even though a short pill/badge in the same combo is fine. Swept every
+`background:"var(--*-bg)"` banner across the app and fixed the ones that were actual sentences, not
+badges: Sett.jsx (meal-times info banner, "SMS reminders are on" status row), Onboard.jsx (PDF
+privacy note, both "imported!" confirmations), Today.jsx (missing-due-dates banner), Acad.jsx
+("Last synced" banner), shared/ui.jsx (AI-read notice, "files skipped" line), shared/DayAgenda.jsx
+("not planned yet" banner), shared/modals.jsx ("looks like duplicates" banner) — body text switched
+to white, icon/accent kept as the color cue. Left untouched: `.badge-*` pills, stat-tile numbers,
+and icon-only buttons on tinted backgrounds — those are a different, intentional, already-working
+pattern (short label/number, not a sentence).
+
+Verified live throughout: all 4 Preferences tabs screenshotted at full width (all fields compact,
+no clipping); gym row cloned into a real 375px-wide sandbox (iPhone SE width) — clean wrap, no
+overflow, full 16px legible text; gym duration select changed live and confirmed it correctly
+derives/persists the new end time across a full page reload, then reverted back to the real
+account's original values; "Last synced" and "AI read this" banners confirmed white-on-tint live.
+Build clean, 184/184 tests pass.
+
+## v2.79.6 — 2026-09-18
+
+**Phone field: +1 moved outside the input, blur is the explicit "Confirm Number" moment — plus a real validity-check bug caught live**
+
+This is a US-only product, so there's no reason to make the student type or edit a country code:
+"+1" is now a fixed, non-editable box to the left of the input, and the input itself holds only
+the 10 raw digits. Typing shows no error yet (mid-entry isn't a mistake); clicking outside the
+field — the natural "I'm done" moment — is what triggers validation: a green "Number confirmed."
+message for a complete 10-digit number, or a red "Enter a full 10-digit number." error otherwise.
+An incomplete number is never silently accepted.
+
+Caught during live verification of this change: the old `isValidUsPhone` counted digits across
+the *entire* `+1`-prefixed string. Since the field always stores `+1` + whatever was typed, a
+number that was missing its last digit (9 real digits) plus the "1" from "+1" totaled exactly 10
+digits — so it was misread as a valid 10-digit number and silently accepted. Fixed by stripping
+exactly the literal `+1` prefix before counting, so validity is always checked against the real
+digits the student typed.
+
+Verified live: typed a 9-digit number and blurred — before the fix this showed a false green
+"Number confirmed."; after the fix it correctly shows the red 10-digit error. Restored the real
+number, blurred, confirmed the green message, then reloaded the page fully and confirmed the
+number persisted correctly (`4084764297`).
+
 ## v2.79.5 — 2026-09-18
 
 **Phone number field now masks to digits-only, hard-capped at 10 — illegal input can't be typed in**
