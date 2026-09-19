@@ -1,5 +1,28 @@
 # StudyOS Changelog
 
+## v2.79.6 — 2026-09-18
+
+**Phone field: +1 moved outside the input, blur is the explicit "Confirm Number" moment — plus a real validity-check bug caught live**
+
+This is a US-only product, so there's no reason to make the student type or edit a country code:
+"+1" is now a fixed, non-editable box to the left of the input, and the input itself holds only
+the 10 raw digits. Typing shows no error yet (mid-entry isn't a mistake); clicking outside the
+field — the natural "I'm done" moment — is what triggers validation: a green "Number confirmed."
+message for a complete 10-digit number, or a red "Enter a full 10-digit number." error otherwise.
+An incomplete number is never silently accepted.
+
+Caught during live verification of this change: the old `isValidUsPhone` counted digits across
+the *entire* `+1`-prefixed string. Since the field always stores `+1` + whatever was typed, a
+number that was missing its last digit (9 real digits) plus the "1" from "+1" totaled exactly 10
+digits — so it was misread as a valid 10-digit number and silently accepted. Fixed by stripping
+exactly the literal `+1` prefix before counting, so validity is always checked against the real
+digits the student typed.
+
+Verified live: typed a 9-digit number and blurred — before the fix this showed a false green
+"Number confirmed."; after the fix it correctly shows the red 10-digit error. Restored the real
+number, blurred, confirmed the green message, then reloaded the page fully and confirmed the
+number persisted correctly (`4084764297`).
+
 ## v2.79.5 — 2026-09-18
 
 **Phone number field now masks to digits-only, hard-capped at 10 — illegal input can't be typed in**

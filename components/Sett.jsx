@@ -61,23 +61,20 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
   // scheduled 8:30/12:00/18:00 sends are a separate server-side cron job (Phase 2), not this route.
   const [smsBusy,setSmsBusy]=useState(false);
   const [smsConsent,setSmsConsent]=useState(false); // the opt-in checkbox — always starts unchecked, never persisted
+  // Blur is the explicit "Confirm Number" moment — nothing shown (no error, no confirmation)
+  // until the user actually leaves the field, so an error doesn't flash while they're still
+  // mid-typing the first few digits.
+  const [phoneTouched,setPhoneTouched]=useState(false);
   // Real reported bug: a 9-digit number was silently accepted and only failed at Twilio, deep
   // into a confusing error. Client-side length check first, so a typo never even reaches the API.
+  // p.phone is always stored as a literal "+1" prefix + whatever raw digits the user typed (see
+  // the phone <input>'s onChange below) — strip exactly that prefix, not just any leading "1",
+  // before counting. Counting digits on the *whole* string instead (the original version of this
+  // function) had a live bug: a 9-digit entry plus the "1" from "+1" totals 10 digits too, so a
+  // number missing its last digit was misread as a valid 10-digit number and silently accepted.
   function isValidUsPhone(v){
-    const digits=String(v||"").replace(/\D/g,"");
-    const d10=digits.length===11&&digits[0]==="1"?digits.slice(1):digits;
-    return d10.length===10;
-  }
-  // The actual fix for "still accepts illegal entry": maxLength alone only caps character COUNT
-  // (letters, symbols, and extra digits all still typed fine, up to that many characters). This
-  // strips every non-digit as it's typed and hard-caps at 10 significant digits (a leading 1 is
-  // treated as the country code, not an 11th digit), always re-rendering as a clean +1XXXXXXXXXX
-  // — once 10 real digits are in, nothing further can be typed into the field at all.
-  function maskUsPhone(raw){
-    let digits=String(raw||"").replace(/\D/g,"");
-    if(digits[0]==="1")digits=digits.slice(1);
-    digits=digits.slice(0,10);
-    return digits?`+1${digits}`:"";
+    const raw=String(v||"").replace(/^\+1/,"").replace(/\D/g,"");
+    return raw.length===10;
   }
   // Raw send — no toasts of its own, just ok/error, so both the pre-enable verify flow and the
   // always-available "Send me a test text" button (once already on) can each react their own way.
@@ -398,21 +395,39 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             </p>
             <div style={{marginBottom:14}}>
               <label>Phone number</label>
-              <div style={{position:"relative",maxWidth:220}}>
-                {/* Real reported gap: maxLength alone only capped character COUNT — letters,
-                    symbols, and extra/missing digits still typed in fine. maskUsPhone strips
-                    every keystroke down to digits and hard-caps at 10, so the field can only ever
-                    hold a clean +1XXXXXXXXXX (or a valid prefix of one) — nothing illegal can be
-                    typed in at all, not just flagged after the fact. maxWidth on the wrapper
-                    matches how short the actual content is. The checkmark is live positive
-                    feedback the instant all 10 digits are in. */}
-                <input type="tel" value={p.phone} maxLength={12}
-                  onChange={e=>mk(()=>{setAwaitingConfirm(false);updP({phone:maskUsPhone(e.target.value)});})}
-                  placeholder="+1 555 123 4567" style={{paddingRight:34}}/>
-                {isValidUsPhone(p.phone)&&(
-                  <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
-                )}
+              {/* US-only, so +1 is fixed/shown outside the field rather than something the user
+                  has to type themselves — the input only ever holds the 10 digits. Blur is the
+                  explicit "Confirm Number" moment: nothing is flagged while still mid-typing, but
+                  leaving the field with anything other than a complete 10-digit number shows a
+                  real error rather than silently accepting it. */}
+              <div style={{display:"flex",maxWidth:220}}>
+                <div style={{display:"flex",alignItems:"center",padding:"0 10px",background:"var(--card2)",
+                  border:"1.5px solid var(--b1)",borderRight:"none",borderRadius:"8px 0 0 8px",
+                  color:"var(--t2)",fontSize:16,flexShrink:0}}>+1</div>
+                <div style={{position:"relative",flex:1,minWidth:0}}>
+                  <input type="tel" inputMode="numeric" value={p.phone?p.phone.replace(/^\+1/,""):""} maxLength={10}
+                    onChange={e=>{
+                      const digits=e.target.value.replace(/\D/g,"").slice(0,10);
+                      setPhoneTouched(false);
+                      mk(()=>{setAwaitingConfirm(false);updP({phone:digits?`+1${digits}`:""});});
+                    }}
+                    onBlur={()=>setPhoneTouched(true)}
+                    placeholder="5551234567" style={{borderRadius:"0 8px 8px 0",paddingRight:30}}/>
+                  {isValidUsPhone(p.phone)&&(
+                    <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
+                  )}
+                </div>
               </div>
+              {phoneTouched&&p.phone&&!isValidUsPhone(p.phone)&&(
+                <div style={{fontSize:12,color:"var(--red)",marginTop:5}}>
+                  <i className="ti ti-alert-circle" style={{marginRight:4}}/>Enter a full 10-digit number.
+                </div>
+              )}
+              {phoneTouched&&isValidUsPhone(p.phone)&&(
+                <div style={{fontSize:12,color:"var(--green)",marginTop:5}}>
+                  <i className="ti ti-check" style={{marginRight:4}}/>Number confirmed.
+                </div>
+              )}
             </div>
 
             {/* A test text just went out — nothing is actually saved as "on" until the user
