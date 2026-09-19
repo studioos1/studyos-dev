@@ -1,12 +1,13 @@
 import { serviceClient, verifyCronAuth, sendSms, eligibleUsers, todayInTZ, CRON_TZ } from "@/lib/sms/cronSend";
 import { buildDailySummaryMessage } from "@/lib/sms/dailySummary";
+import { runNotifyUrgentItems } from "@/lib/data/notifications";
 
-// Fires once a day (see vercel.json's crons entry) — the "Daily summary" reminder
-// (Preferences → Notifications → notifyDailySummary, "8:30am — today's plan"). Every user's whole
-// data blob lives in one user_data.data jsonb column (supabase/schema.sql) — service-role reads
-// every row (this is the one place in the app that legitimately needs to see across users), then
-// builds + sends per user with the exact same deterministic message logic already covered by
-// lib/sms/dailySummary.test.js.
+// Fires once a day (see vercel.json's crons entry) — the "Daily summary" SMS reminder
+// (Preferences → Notifications → notifyDailySummary, "8:30am — today's plan"), THEN the bell-log
+// write (runNotifyUrgentItems — see that file's own comment for why it rides on this same trigger
+// instead of being its own vercel.json cron entry). Every user's whole data blob lives in one
+// user_data.data jsonb column (supabase/schema.sql) — service-role reads every row once (this is
+// the one place in the app that legitimately needs to see across users) and both jobs share it.
 export async function GET(req) {
   if (!verifyCronAuth(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -32,16 +33,20 @@ export async function GET(req) {
       try {
         const message = buildDailySummaryMessage(row.data, today);
         const sid = (await sendSms({ to: p.phone, message })).sid;
-        await supabase.from("user_data")
-          .update({ data: { ...row.data, profile: { ...p, lastDailySummarySentDate: today } } })
-          .eq("user_id", row.user_id);
+        // Update the in-memory row, not just the DB — runNotifyUrgentItems below reuses this same
+        // `rows` array for the SAME users; without this, its own write would read the pre-SMS-loop
+        // snapshot and silently overwrite lastDailySummarySentDate back to its old value.
+        row.data = { ...row.data, profile: { ...p, lastDailySummarySentDate: today } };
+        await supabase.from("user_data").update({ data: row.data }).eq("user_id", row.user_id);
         results.push({ user: row.user_id, sent: true, sid });
       } catch (err) {
         // One user's failure (bad number, Twilio hiccup) never stops the rest of the batch.
         results.push({ user: row.user_id, error: err.message });
       }
     }
-    return Response.json({ ok: true, date: today, results });
+
+    const urgentItemsResults = await runNotifyUrgentItems(supabase, rows, today);
+    return Response.json({ ok: true, date: today, results, urgentItemsResults });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }

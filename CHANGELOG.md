@@ -1,5 +1,44 @@
 # StudyOS Changelog
 
+## v2.81.2 — 2026-09-19
+
+**Bell log now also populated server-side — accurate even after the computer was asleep/closed**
+
+Discussed and scoped precisely before building: real desktop OS notifications are inherently
+client-only (need the Web Push API + a browser vendor's own relay to reach a fully closed browser
+or sleeping computer — not something any server can do alone, and out of scope here). What *is*
+fully server-owned, no third party involved: the in-app bell log itself. Confirmed a backgrounded
+StudyOS tab (open, just not the focused one) already fires real desktop notifications with no code
+changes needed — checked the actual code for any `document.hidden`/visibility gating near the two
+`new Notification()` call sites and found none.
+
+`urgentItems()` and the notification-entry shape moved out of `components/App.jsx` into
+`lib/data/notifications.js` — shared by the client effect and its new server-side equivalent, one
+definition instead of two that could drift. `runNotifyUrgentItems()` there writes the same
+"today's priorities" entry straight into a user's `data.notifications` via the service-role
+client, gated on `onboarded && remindersOn !== false` (not SMS opt-in — this has nothing to do
+with SMS). New `lastUrgentItemsNotifiedDate` idempotency marker, same pattern as the SMS crons.
+
+Deliberately **not** its own `vercel.json` cron entry — this is the first real deploy of any cron
+here, and adding a third before confirming even two work on the current Vercel plan wasn't worth
+the risk. `app/api/cron/daily-summary` calls the shared function directly on its existing 8:30am
+trigger instead, reusing the one Supabase read both jobs need. Caught in review before shipping: a
+real bug where reusing the same in-memory `rows` for both jobs sequentially would have made the
+second job's write silently revert the first job's `lastDailySummarySentDate` update, since the
+in-memory copy doesn't reflect a DB write that already happened — fixed by updating `row.data` in
+memory right after each successful SMS send, not just the database. A separate `route.js` under
+`app/api/cron/notify-urgent-items` still exists for manually triggering the job on its own.
+
+Also caught in review: `runNotifyUrgentItems` was briefly exported from a `route.js` file — Next.js
+route files are only allowed to export HTTP method handlers and a handful of special config
+values, not arbitrary shared functions. Moved into `lib/data/notifications.js` before it ever
+reached a build.
+
+Verified: 401 on missing/wrong secret, clean JSON error with no service-role key configured, on
+all 3 routes now. 19 new/updated tests (urgentItems' 5-day/2-day windows, a fake-Supabase
+`runNotifyUrgentItems` covering the eligible/ineligible/idempotent/nothing-urgent cases). Build
+clean, 227/227 tests pass.
+
 ## v2.81.1 — 2026-09-19
 
 **Notification bell: high-priority entries (exam ≤5 days, assignment due ≤2 days) get an amber background**
