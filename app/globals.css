@@ -136,6 +136,17 @@
     .field-grid{display:grid; grid-template-columns:minmax(0,var(--label-col,max-content)) minmax(0,240px);
       align-items:center; column-gap:14px; row-gap:12px; width:max-content; max-width:100%; margin:0 auto;}
     .field-grid>label{text-align:right; margin:0;}
+    /* Real reported bug: centering the LABEL+FIELD BLOCK as a unit isn't the same as the FIELD
+       actually starting at the true center line — a 240px field column next to a much wider
+       measured label column makes the whole block lopsided, so its midpoint (and margin:auto's
+       centering point) sits well left of where the field begins. .aligned-fields (the Daily
+       Schedule tab's wrapper, components/Sett.jsx) makes both columns the SAME width — the same
+       --label-col already computed for cross-card alignment — so the two halves are symmetric and
+       the label/field boundary genuinely lands on the block's center, not just the block itself.
+       Deliberately NOT the default for every .field-grid: a free-text field (Chores' "Or custom
+       name", Custom reminders' "Remind me about...") needs real typing room a label-width column
+       would cramp — those keep the fixed 240px field column above. */
+    .aligned-fields .field-grid{grid-template-columns:minmax(0,var(--label-col,max-content)) minmax(0,var(--label-col,max-content));}
     /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
        can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
        uses this class instead — same right-alignment as a real label, and the same mobile flip. */
@@ -146,7 +157,11 @@
        still needs more room than a phone gets below ~600px — verified against a real viewport,
        see the CHANGELOG entry for this change. */
     @media (max-width:640px){
-      .field-grid{grid-template-columns:1fr; width:100%; margin:0; row-gap:16px;}
+      /* .aligned-fields .field-grid must be listed too, not just .field-grid — it's a more
+         specific selector (2 classes vs 1), so without repeating it here it would keep winning
+         over this stacked layout even below the breakpoint, real risk of exactly the kind of
+         mobile overflow this rule exists to prevent. */
+      .field-grid, .aligned-fields .field-grid{grid-template-columns:1fr; width:100%; margin:0; row-gap:16px;}
       .field-grid>label{text-align:left; margin-bottom:6px;}
       .field-grid .align-col-flex{justify-content:flex-start;}
     }

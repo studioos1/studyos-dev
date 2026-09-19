@@ -188,7 +188,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       </div>
 
       {sec==="schedule"&&(
-        <div ref={scheduleRef} style={labelColPx?{"--label-col":`${labelColPx}px`}:undefined}>
+        <div ref={scheduleRef} className="aligned-fields" style={labelColPx?{"--label-col":`${labelColPx}px`}:undefined}>
           <div className="card">
             <SecHead icon="ti-clock" title="Sleep & Wake"/>
             <div className="field-grid">

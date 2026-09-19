@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.80.3 — 2026-09-18
+
+**Fields now genuinely start at the card's center line, not just "the block is centered"**
+
+Real bug in v2.80.2's centering: `width:max-content; margin:0 auto` centers the whole label+field
+BLOCK as a unit, which is not the same as the FIELD starting at the true center — a wide measured
+label column next to a fixed 240px field column makes the block lopsided, so its own midpoint (the
+point `margin:auto` actually centers around) sits well left of where the field begins. Confirmed
+live before the fix: fields started ~62px left of the card's true center.
+
+Fixed with a new `.aligned-fields` wrapper class (the Daily Schedule tab's root div) that makes
+both grid columns the SAME width — the same `--label-col` already measured for cross-card
+alignment — so the two halves are symmetric and the label/field boundary genuinely lands on the
+center line. Deliberately scoped to just this wrapper, not the default for every `.field-grid`: a
+free-text field (Chores' "Or custom name", Custom reminders' "Remind me about...") needs real
+typing room a label-width-only column would cramp, so those keep their existing fixed 240px field
+column.
+
+Caught in review before shipping: the new `.aligned-fields .field-grid` selector is more specific
+(2 classes) than the plain `.field-grid` mobile rule (1 class) — without also listing it inside the
+`@media(max-width:640px)` block, it would have kept winning over the stacked mobile layout even
+below the breakpoint, silently reintroducing overflow risk on exactly the phones this was built to
+protect. Fixed by listing both selectors together in the media query.
+
+Verified live: measured `getBoundingClientRect()` on all 3 cards — fields now start 7px right of
+the card's true center (half the column gap, effectively exact) and identically so across Sleep &
+Wake, Study preferences, and Meal times. Re-ran the real-viewport mobile check (iframe, not a
+fixed-width div) — still clean, no overflow, no clipping. Build clean, 184/184 tests pass.
+
 ## v2.80.2 — 2026-09-18
 
 **Sleep & Wake, Study preferences, and Meal times now share one aligned, centered field column**
