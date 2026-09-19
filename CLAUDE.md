@@ -159,12 +159,19 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   (`components/Sett.jsx`), `/api/sms/send` built and working, A2P 10DLC campaign **approved** (as
   of 2026-09-18). Two real scheduled sends now exist: `app/api/cron/daily-summary` (8:30am, a
   deterministic message built by `lib/sms/dailySummary.js` — no AI call) and
-  `app/api/cron/evening-checkin` (8:00pm, a fixed check-in nudge), both fired by `vercel.json`'s
-  `crons` entries and gated by `CRON_SECRET` + a `SUPABASE_SERVICE_ROLE_KEY`-backed client
-  (`lib/sms/cronSend.js` — the one deliberate place this app uses a service-role key, never
-  imported from client code). The exam/project-countdown reminder toggle in Preferences is still
-  UI-only, no cron built for it yet — labeled honestly as "coming soon" rather than implying it
-  already runs. The "Morning Message" daily-briefing card (the feature formerly labeled WhatsApp)
+  `app/api/cron/evening-checkin` (8:00pm, a fixed check-in nudge), both fired by
+  `.github/workflows/scheduled-reminders.yml` — Vercel Cron Jobs (originally `vercel.json`'s
+  `crons` entries) turned out to be silently unavailable on the Hobby plan (deploy log had zero
+  mention of "cron", no error, nothing registered), so a GitHub Actions schedule calls the routes'
+  URLs directly instead, same `CRON_SECRET` bearer-token auth either way. A third route,
+  `app/api/cron/notify-urgent-items`, writes the same "today's priorities" content straight into
+  each user's in-app bell log (`data.notifications`) — not its own schedule, called from inside
+  `daily-summary` on that same 8:30am trigger. All three are gated by `CRON_SECRET` + a
+  `SUPABASE_SERVICE_ROLE_KEY`-backed client (`lib/sms/cronSend.js` — the one deliberate place this
+  app uses a service-role key, never imported from client code). The exam/project-countdown
+  reminder toggle in Preferences is still UI-only, no cron built for it yet — labeled honestly as
+  "coming soon" rather than implying it already runs. The "Morning Message" daily-briefing card
+  (the feature formerly labeled WhatsApp)
   is still preview-only, not auto-sent — separate from the scheduled SMS reminders above.
   Email/username/password fields on the Account modal / onboarding Welcome step remain
   placeholders only, no real auth tied to them.

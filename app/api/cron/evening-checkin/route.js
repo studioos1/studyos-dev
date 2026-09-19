@@ -1,7 +1,8 @@
 import { serviceClient, verifyCronAuth, sendSms, eligibleUsers, todayInTZ, CRON_TZ } from "@/lib/sms/cronSend";
 
-// Fires once a day at 8:00pm (see vercel.json) — a flat, fixed-text evening nudge to check in and
-// report what got done. Deliberately NOT built from real data the way the morning summary is —
+// Fires once a day at 8:00pm (see .github/workflows/scheduled-reminders.yml — Vercel Cron Jobs
+// turned out to be silently unavailable on the Hobby plan) — a flat, fixed-text evening nudge to
+// check in and report what got done. Deliberately NOT built from real data the way the morning summary is —
 // the whole point of this one is just "go do the check-in," not a report of what's pending (the
 // morning message's own "Pending Report Items" line already covers that). Gated on the same
 // notifyPastDueNudge toggle Preferences already exposes for an evening-timed reminder — see the

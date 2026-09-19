@@ -1,5 +1,36 @@
 # StudyOS Changelog
 
+## v2.81.3 — 2026-09-19
+
+**Scheduled reminders moved from Vercel Cron Jobs to GitHub Actions — Hobby plan silently dropped them**
+
+Real deploy issue found while actually going live: the first production deploy carrying
+`vercel.json`'s `crons` entries showed zero mention of "cron" anywhere in the build/deploy log —
+no confirmation, no error, no warning, just nothing. Confirmed the account is on Vercel's Hobby
+plan, which doesn't support Cron Jobs; Vercel just silently drops the config rather than surfacing
+that at build or deploy time.
+
+Rather than working around Hobby's limits or upgrading, moved the trigger mechanism to
+`.github/workflows/scheduled-reminders.yml` — GitHub Actions' own `schedule` trigger, free, no
+plan restriction, and this repo already had `.github/workflows/ci.yml` so this is a natural
+extension of existing infra rather than new territory. Same two schedules (15:30 UTC / 03:00 UTC
+= 8:30am / 8:00pm Pacific), same `CRON_SECRET` bearer-token auth already built for Vercel Cron —
+the routes themselves (`app/api/cron/*`) didn't need to change at all, only *what calls them* did.
+A `workflow_dispatch` trigger is also included, for manually running either job from GitHub's
+Actions tab without waiting on the schedule.
+
+The production URL is a GitHub Actions **variable** (`vars.PRODUCTION_URL`), not hardcoded into the
+workflow file and not a secret (a URL isn't sensitive) — set once in the repo's own Settings, so a
+domain change never needs a code change. `vercel.json` removed entirely now that it serves no
+purpose; every code comment that referenced it updated to point at the new workflow file instead.
+
+Verified: parsed the new workflow file's real structure (schedule entries, job `if` conditions,
+step contents) with a YAML parser rather than eyeballing indentation — confirmed correct.
+Deliberately matched the bare (unquoted) `on:` key style already used in `ci.yml`, after
+confirming via that same parse that GitHub's workflow parser resolves it correctly regardless of
+the well-known generic-YAML "on → boolean" ambiguity. Build clean, 227/227 tests pass (no
+application code changed, only the trigger mechanism and its documentation).
+
 ## v2.81.2 — 2026-09-19
 
 **Bell log now also populated server-side — accurate even after the computer was asleep/closed**
