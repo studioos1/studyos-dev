@@ -57,8 +57,10 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     else{toast2("Permission denied — enable it in your browser's site settings",true);}
   }
 
-  // SMS reminders (B-11 Phase 1) — this "send now" call proves the pipe works end-to-end; the
-  // scheduled 8:30/12:00/18:00 sends are a separate server-side cron job (Phase 2), not this route.
+  // SMS reminders (B-11) — this "send now" call proves the pipe works end-to-end; the scheduled
+  // 8:30am/8:00pm sends are separate server-side cron routes (app/api/cron/*, lib/sms/cronSend.js),
+  // not this one — those use the service-role key to reach every opted-in user, not just whoever's
+  // currently signed in here.
   const [smsBusy,setSmsBusy]=useState(false);
   const [smsConsent,setSmsConsent]=useState(false); // the opt-in checkbox — always starts unchecked, never persisted
   // Blur is the explicit "Confirm Number" moment — nothing shown (no error, no confirmation)
@@ -537,10 +539,16 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <button className="btn btn-ghost btn-sm" onClick={disableSms}>Turn off</button>
                 </div>
                 <div style={{marginBottom:14}}>
+                  {/* "Daily summary" and "Past-due nudge" are real, automatic scheduled sends now
+                      (app/api/cron/daily-summary, app/api/cron/evening-checkin — see vercel.json).
+                      "Exam / project countdown" is NOT yet built — its own cron route doesn't
+                      exist — labeled honestly below rather than implying it already runs, per this
+                      codebase's own "UI copy must never describe behavior the code doesn't have
+                      yet" rule (CLAUDE.md). */}
                   {[
                     ["notifyDailySummary","Daily summary","8:30am — today's plan"],
-                    ["notifyPastDueNudge","Past-due nudge","6:00pm — anything overdue, not marked done"],
-                    ["notifyExamCountdown","Exam / project countdown","12:00pm — starting 7 days out"],
+                    ["notifyPastDueNudge","Evening check-in","8:00pm — reminder to report completion"],
+                    ["notifyExamCountdown","Exam / project countdown","Not yet automatic — coming soon"],
                   ].map(([key,label,sub])=>(
                     <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
                       <div>
@@ -558,7 +566,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
                 </button>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
-                  The 8:30/12:00/6:00 sends are scheduled server-side and go out automatically — this button just proves the connection works right now. Reply STOP to any text, or turn off above, any time.
+                  The 8:30am and 8:00pm sends are scheduled server-side and go out automatically — this button just proves the connection works right now. The exam/project countdown above isn't wired up to an automatic send yet. Reply STOP to any text, or turn off above, any time.
                 </div>
               </>
             )}

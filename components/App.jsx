@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { iso, du } from "@/lib/time";
-import { courseNameFor } from "@/lib/courses";
+import { iso } from "@/lib/time";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
 import { freeSlots, weekStartOf, hasCheckInWork, scheduleReminders } from "@/lib/calendar";
@@ -24,6 +23,7 @@ import {
   syncActiveTermToProfilePatch,
   pushNotification,
   markAllNotificationsRead,
+  urgentItems,
 } from "@/lib/data";
 import { planningRange } from "@/lib/planningRange";
 import { supabase } from "@/lib/supabase";
@@ -51,20 +51,9 @@ function timeAgo(iso){
   return new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric"});
 }
 // ── Reminders ─────────────────────────────────────────────────────────────
-function urgentItems(data){
-  const items=[];
-  (data.assignments||[]).filter(a=>a.status!=="done"&&a.dueDate).forEach(a=>{
-    const d=du(a.dueDate);
-    if(d>=0&&d<=2)items.push(`${a.title} (${courseNameFor(data.courses,a.courseId)}) — due ${d===0?"today":`in ${d}d`}`);
-  });
-  (data.exams||[]).forEach(e=>{
-    const d=du(e.date);
-    const cn=courseNameFor(data.courses,e.courseId);
-    if(d>=0&&d<=2)items.push(`${cn} exam — ${d===0?"today":`in ${d}d`}`);
-    else if(d===e.prepDays)items.push(`Start prep for ${cn} exam`);
-  });
-  return items;
-}
+// urgentItems() now lives in lib/data/notifications.js — shared with the server-side cron
+// (app/api/cron/notify-urgent-items) that populates the bell log even when the computer itself
+// was asleep/closed at the time, so the two never define "urgent" two different ways.
 
 function applyDefaultWeights(courseAssignments,courseExams,defaults){
   const d=defaults||{examsTotal:60,hwTotal:40,finalShare:35};
@@ -457,7 +446,7 @@ function App(){
         new Notification(title,{body});
         localStorage.setItem(key,"1");
       }catch{}
-      pushNotification(data,upd,{title,body}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
+      pushNotification(data,upd,{title,body,priority:"high"}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
     }
   },[data?.onboarded]);
 
@@ -627,9 +616,14 @@ function App(){
                       {notifLog.length===0?(
                         <div style={{padding:"20px 14px",textAlign:"center",fontSize:13,color:"var(--t3)"}}>No notifications yet</div>
                       ):notifLog.map(n=>(
-                        <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--b1)"}}>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{n.title}</div>
-                          <div style={{fontSize:12,color:"var(--t2)",whiteSpace:"pre-wrap",marginBottom:4}}>{n.body}</div>
+                        // High-priority = an upcoming exam (≤5 days) or assignment due (≤2 days) —
+                        // see urgentItems()/priority:"high" above. Amber background, white body
+                        // text (not amber-on-amber — same tinted-bg readability fix used
+                        // everywhere else in this app), amber only on the title as the color cue.
+                        <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--b1)",
+                          background:n.priority==="high"?"var(--amber-bg)":undefined}}>
+                          <div style={{fontSize:13,fontWeight:600,color:n.priority==="high"?"var(--amber)":"var(--t1)",marginBottom:2}}>{n.title}</div>
+                          <div style={{fontSize:12,color:n.priority==="high"?"#fff":"var(--t2)",whiteSpace:"pre-wrap",marginBottom:4}}>{n.body}</div>
                           <div style={{fontSize:11,color:"var(--t3)"}}>{timeAgo(n.createdAt)}</div>
                         </div>
                       ))}

@@ -1,5 +1,125 @@
 # StudyOS Changelog
 
+## v2.81.2 — 2026-09-19
+
+**Bell log now also populated server-side — accurate even after the computer was asleep/closed**
+
+Discussed and scoped precisely before building: real desktop OS notifications are inherently
+client-only (need the Web Push API + a browser vendor's own relay to reach a fully closed browser
+or sleeping computer — not something any server can do alone, and out of scope here). What *is*
+fully server-owned, no third party involved: the in-app bell log itself. Confirmed a backgrounded
+StudyOS tab (open, just not the focused one) already fires real desktop notifications with no code
+changes needed — checked the actual code for any `document.hidden`/visibility gating near the two
+`new Notification()` call sites and found none.
+
+`urgentItems()` and the notification-entry shape moved out of `components/App.jsx` into
+`lib/data/notifications.js` — shared by the client effect and its new server-side equivalent, one
+definition instead of two that could drift. `runNotifyUrgentItems()` there writes the same
+"today's priorities" entry straight into a user's `data.notifications` via the service-role
+client, gated on `onboarded && remindersOn !== false` (not SMS opt-in — this has nothing to do
+with SMS). New `lastUrgentItemsNotifiedDate` idempotency marker, same pattern as the SMS crons.
+
+Deliberately **not** its own `vercel.json` cron entry — this is the first real deploy of any cron
+here, and adding a third before confirming even two work on the current Vercel plan wasn't worth
+the risk. `app/api/cron/daily-summary` calls the shared function directly on its existing 8:30am
+trigger instead, reusing the one Supabase read both jobs need. Caught in review before shipping: a
+real bug where reusing the same in-memory `rows` for both jobs sequentially would have made the
+second job's write silently revert the first job's `lastDailySummarySentDate` update, since the
+in-memory copy doesn't reflect a DB write that already happened — fixed by updating `row.data` in
+memory right after each successful SMS send, not just the database. A separate `route.js` under
+`app/api/cron/notify-urgent-items` still exists for manually triggering the job on its own.
+
+Also caught in review: `runNotifyUrgentItems` was briefly exported from a `route.js` file — Next.js
+route files are only allowed to export HTTP method handlers and a handful of special config
+values, not arbitrary shared functions. Moved into `lib/data/notifications.js` before it ever
+reached a build.
+
+Verified: 401 on missing/wrong secret, clean JSON error with no service-role key configured, on
+all 3 routes now. 19 new/updated tests (urgentItems' 5-day/2-day windows, a fake-Supabase
+`runNotifyUrgentItems` covering the eligible/ineligible/idempotent/nothing-urgent cases). Build
+clean, 227/227 tests pass.
+
+## v2.81.1 — 2026-09-19
+
+**Notification bell: high-priority entries (exam ≤5 days, assignment due ≤2 days) get an amber background**
+
+`urgentItems()` (`components/App.jsx`) — the function behind the daily "today's priorities"
+in-app notification — widened its exam window from ≤2 days to ≤5 (assignments stay at ≤2, already
+matching what was asked). Every item it can produce is now, by construction, high-priority (a
+near exam, a due date, or a prep-start day), so the notification built from it tags itself
+`priority:"high"` once, rather than needing to re-classify individual lines inside one bundled
+notification body after the fact.
+
+`pushNotification()` (`lib/data/notifications.js`) now stores that optional `priority` field.
+Every other call site (Focus Time's break/study signals, scheduled session reminders) omits it and
+renders as a normal entry — this isn't a blanket restyle of the whole notification log, only the
+one category that's actually urgency-driven.
+
+The bell panel (`components/App.jsx`) applies the same tinted-bg convention already used
+everywhere else this session: amber background, amber title as the color cue, white body text —
+not amber-on-amber, which reads poorly as a real sentence on its own matching-tint background.
+
+Verified: new automated coverage for the stored `priority` field (present when passed, undefined
+when not); live visual check of the exact amber/white/amber styling on a real notification row
+(no data touched — pre-existing log entries predate this field, so a fresh one couldn't be
+triggered without waiting out the once-a-day dedup; the CSS values themselves were confirmed
+directly instead). Build clean, 216/216 tests pass.
+
+## v2.81.0 — 2026-09-19
+
+**Real scheduled SMS reminders — 8:30am daily summary + 8:00pm evening check-in**
+
+The actual feature behind a UI toggle that never did anything: "Daily summary" and "Past-due
+nudge" (renamed "Evening check-in" to match reality) previously described automatic scheduled
+sends that no code anywhere actually performed — confirmed by searching the whole repo for any
+cron/scheduler config and finding none. Both are now real.
+
+**`lib/sms/dailySummary.js`** — the 8:30am message content, fully deterministic (no AI call —
+every piece of it is already real structured data, matching the standing "prefer deterministic
+over AI" preference). Built and tuned directly against a real SMS the student wrote out by hand:
+a greeting + a situation-aware encouragement line, breakfast, today's classes, today's study
+sessions (grouped by task, numbered), gym, an exam countdown (starting 7 days out), a one-line
+"Pending Report Items" nudge (only when something's actually overdue or unmarked from a previous
+day — reuses `catchUpDays()`, not a second definition of "pending"), and dinner. The encouragement
+line picks from a small pool per real situation (yesterday's sessions all done / yesterday had
+something unmarked / no signal but an exam is 1-2 days out / neither) via a stable hash of the
+date — same line if regenerated same-day, different days vary. 21 tests.
+
+**`app/api/cron/daily-summary` and `app/api/cron/evening-checkin`** — the actual scheduled sends,
+fired by two new `vercel.json` cron entries (15:30 UTC / 03:00 UTC = 8:30am / 8:00pm Pacific,
+current DST offset). Evening check-in is fixed text: "Reminder to check in and report completion
+of Study and assignment. Keep the Pace!!" — deliberately not data-driven, since the morning
+message's own "Pending Report Items" line already covers the factual catch-up ask.
+
+**`lib/sms/cronSend.js`** — shared server-only helpers: a `CRON_SECRET`-gated auth check (Vercel
+sends this automatically as a Bearer token on every Cron Job invocation), a service-role Supabase
+client (the one deliberate place this app uses one — bypasses RLS to read every user's row, never
+imported from client code), the same Twilio call `/api/sms/send` already uses, and an eligibility
+filter matching the same trust bar the manual "Send test text" button already enforces (SMS
+enabled, this specific reminder not individually off, and the number actually test-verified — not
+just typed in). Per-user errors don't stop the rest of the batch; a `lastDailySummarySentDate` /
+`lastEveningCheckinSentDate` marker on each profile (new schema fields) makes a re-trigger on the
+same real-world day a no-op rather than a duplicate text.
+
+Caught and fixed during local testing before this ever touched a real schedule: both routes let
+`serviceClient()`'s synchronous throw (missing service-role key) escape uncaught, crashing to an
+empty-body 500 instead of a diagnosable error — wrapped the whole handler in try/catch. Verified
+live: unauthenticated and wrong-secret requests correctly get 401; a correctly-authenticated
+request with no service-role key configured now returns a clean `{"error": "..."}` instead of
+crashing.
+
+Known limitations, stated plainly rather than left implicit: single fixed timezone
+(`America/Los_Angeles`, `lib/sms/cronSend.js`'s `CRON_TZ`) since no per-user timezone is stored
+yet — the cron's own fire time is a static UTC value that drifts an hour for a few weeks around
+each DST transition (the message's own date content stays correct via `Intl` regardless). The
+exam/project-countdown reminder toggle still has no cron behind it — its Preferences label now
+honestly says "coming soon" instead of implying it already runs.
+
+New required env vars (documented in `.env.template`): `SUPABASE_SERVICE_ROLE_KEY` and
+`CRON_SECRET` — both must also be set in Vercel for the scheduled sends to work in production.
+
+Build clean, 214/214 tests pass.
+
 ## v2.80.6 — 2026-09-19
 
 **Field widths now consistent with Meal times; removed the duplicate Evening check-in icon**
