@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { t2m, f12, iso } from "@/lib/time";
-import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS } from "@/lib/constants";
+import { t2m, m2t, f12, iso } from "@/lib/time";
+import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
@@ -164,9 +164,9 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           <div className="card">
             <SecHead icon="ti-clock" title="Sleep & Wake"/>
             <div className="g3">
-              <div><label>Wake time</label><input type="time" value={p.wakeTime} onChange={e=>mk(()=>updP({wakeTime:e.target.value}))}/></div>
-              <div><label>Sleep time</label><input type="time" value={p.sleepTime} onChange={e=>mk(()=>updP({sleepTime:e.target.value}))}/></div>
-              <div><label>Commute (min)</label><input type="number" min="5" max="120" value={p.commuteMins} onChange={e=>mk(()=>updP({commuteMins:+e.target.value}))}/></div>
+              <div><label>Wake time</label><input type="time" className="input-time" value={p.wakeTime} onChange={e=>mk(()=>updP({wakeTime:e.target.value}))}/></div>
+              <div><label>Sleep time</label><input type="time" className="input-time" value={p.sleepTime} onChange={e=>mk(()=>updP({sleepTime:e.target.value}))}/></div>
+              <div><label>Commute (min)</label><input type="number" className="input-num-sm" min="5" max="120" value={p.commuteMins} onChange={e=>mk(()=>updP({commuteMins:+e.target.value}))}/></div>
             </div>
           </div>
           <div className="card">
@@ -178,7 +178,12 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 it once here is enough. Dropdowns instead of button rows for real resolution
                 (FOCUS_MIN_OPTIONS/BREAK_MIN_OPTIONS, lib/constants.js) — a button row of every
                 5-minute increment from 15–90 would be an unreadable wall of buttons. */}
-            <div className="g2" style={{marginBottom:16}}>
+            {/* All three fields share one row, same as the Sleep & Wake card above — real
+                requested consistency fix: Energy peak used to sit in its own separate row below,
+                the odd one out. .g3 already collapses to one stacked column below 480px (see
+                globals.css), so mobile gets a clean single-column layout automatically, same as
+                every other .g3 in this file. */}
+            <div className="g3">
               <div>
                 <label>Focus length <span style={{color:"var(--t3)",fontWeight:400}}>(study time before a break)</span></label>
                 <select className="select-compact" value={p.focusMins} onChange={e=>mk(()=>updP({focusMins:+e.target.value}))} style={{marginTop:6}}>
@@ -191,21 +196,25 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {BREAK_MIN_OPTIONS.map(n=><option key={n} value={n}>{n} min</option>)}
                 </select>
               </div>
-            </div>
-            <div>
-              {/* A specific time, not a morning/afternoon/evening bucket — classified into the
-                  same three broad windows internally (see windowOrderFor, schedule.js), but this
-                  is real precision instead of a coarse guess at which third of the day "counts". */}
-              <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
-              <input type="time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))} style={{marginTop:6,maxWidth:150}}/>
+              <div>
+                {/* A specific time, not a morning/afternoon/evening bucket — classified into the
+                    same three broad windows internally (see windowOrderFor, schedule.js), but this
+                    is real precision instead of a coarse guess at which third of the day "counts". */}
+                <label>Energy peak <span style={{color:"var(--t3)",fontWeight:400}}>(when you think clearest)</span></label>
+                <input type="time" className="input-time" value={p.energyPeakTime} onChange={e=>mk(()=>updP({energyPeakTime:e.target.value}))} style={{marginTop:6}}/>
+              </div>
             </div>
           </div>
 
           {/* Meal times with conflict detection */}
           <div className="card">
             <SecHead icon="ti-bowl-spoon" title="Meal times"/>
-            <div style={{background:"var(--blue-bg)",borderRadius:8,padding:"9px 12px",marginBottom:14,fontSize:13,color:"var(--blue)",display:"flex",gap:8}}>
-              <i className="ti ti-info-circle" style={{fontSize:14,flexShrink:0,marginTop:1}}/>
+            {/* Body text is white, not blue-on-blue — same fix as the meal/gym conflict banners
+                below: a matching accent color directly on its own tinted background reads poorly
+                as a full sentence (real reported bug, "red text over brown background"), even
+                though a short badge/pill in the same combo is fine. Icon stays blue as the cue. */}
+            <div style={{background:"var(--blue-bg)",borderRadius:8,padding:"9px 12px",marginBottom:14,fontSize:13,color:"#fff",display:"flex",gap:8}}>
+              <i className="ti ti-info-circle" style={{fontSize:14,flexShrink:0,marginTop:1,color:"var(--blue)"}}/>
               These are your preferred times. On days they'd overlap a class or exam, StudyOS automatically pushes the meal later (with a short walking buffer) — flagged below with ↻ on the calendar.
             </div>
             {[["Breakfast","breakfastTime","breakfastDur"],["Lunch","lunchTime","lunchDur"],["Dinner","dinnerTime","dinnerDur"]].map(([l,tk,dk])=>{
@@ -223,8 +232,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:hasConflict?10:0}}>
                     <div style={{fontSize:18,width:30}}>{l==="Breakfast"?"🍳":l==="Lunch"?"🥗":"🍽"}</div>
                     <div style={{flex:1,fontSize:15,color:"var(--t1)"}}>{l}</div>
-                    <input type="time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))} style={{width:150}}/>
-                    <select value={p[dk]} onChange={e=>mk(()=>updP({[dk]:+e.target.value}))} style={{width:120}}>
+                    <input type="time" className="input-time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))}/>
+                    <select className="select-compact" value={p[dk]} onChange={e=>mk(()=>updP({[dk]:+e.target.value}))}>
                       {[15,20,30,45,60].map(n=><option key={n} value={n}>{n} min</option>)}
                     </select>
                   </div>
@@ -262,19 +271,43 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 const cEnd=t2m(c.endTime)+p.commuteMins;
                 return stretchStart<cEnd&&driveEnd>cStart;
               });
+              // Start time + duration (a select, same idiom as meal duration), not start+end —
+              // real requested UX fix: two separate time pickers made the student subtract them
+              // just to know a session's length. gd.e is still what conflict-checking above and
+              // the planner read, so it's always DERIVED (start + duration) rather than removed
+              // from the data shape — no schema change, no migration needed. If a legacy/custom
+              // duration doesn't match one of the presets, it's added to this row's own option
+              // list rather than silently snapping to a different value the moment the page loads.
+              const curDur=Math.max(0,Math.round(gymEnd-gymStart));
+              const durOpts=GYM_DUR_OPTIONS.includes(curDur)?GYM_DUR_OPTIONS:[...GYM_DUR_OPTIONS,curDur].sort((a,b)=>a-b);
               return(
                 <div key={gd.day} style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--b1)":"none"}}>
-                  <div className="list-item" style={{padding:0,gap:10,borderBottom:"none"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,width:78}}>
+                  {/* flexWrap:"wrap" (not the old fontSize:12/width:85 squeeze) is what actually
+                      makes this row mobile-friendly — real reported bug: the tiny font shrank
+                      below the app-wide 16px baseline, which triggers iOS Safari's
+                      auto-zoom-on-focus (see the note above input,select,textarea in globals.css),
+                      and even then the row didn't reliably fit a phone width. Full-size,
+                      full-width-but-capped .input-time fields now wrap onto their own line under
+                      the day checkbox on narrow screens instead of shrinking to fit. */}
+                  <div className="list-item" style={{padding:0,gap:10,borderBottom:"none",flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,width:78,flexShrink:0}}>
                       <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};mk(()=>updP({gymDays:d}));}} style={{width:14,height:14}}/>
                       <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
                     </div>
                     {gd.on?(
-                      <div className="row" style={{flex:1,gap:5}}>
-                        <input type="time" value={gd.s} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],s:e.target.value};mk(()=>updP({gymDays:d}));}} style={{width:85,fontSize:12,padding:"4px 7px"}}/>
-                        <span style={{fontSize:11,color:"var(--t3)"}}>→</span>
-                        <input type="time" value={gd.e} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],e:e.target.value};mk(()=>updP({gymDays:d}));}} style={{width:85,fontSize:12,padding:"4px 7px"}}/>
-                        <span style={{fontSize:11,color:"var(--t3)"}}>{Math.round((t2m(gd.e)-t2m(gd.s)))}m</span>
+                      <div className="row" style={{gap:6}}>
+                        <input type="time" className="input-time" value={gd.s} onChange={e=>{
+                          const d=[...(p.gymDays||GYM0)];
+                          d[i]={...d[i],s:e.target.value,e:m2t(t2m(e.target.value)+curDur)};
+                          mk(()=>updP({gymDays:d}));
+                        }}/>
+                        <select className="select-compact" value={curDur} onChange={e=>{
+                          const d=[...(p.gymDays||GYM0)];
+                          d[i]={...d[i],e:m2t(t2m(gd.s)+ +e.target.value)};
+                          mk(()=>updP({gymDays:d}));
+                        }}>
+                          {durOpts.map(n=><option key={n} value={n}>{n} min</option>)}
+                        </select>
                       </div>
                     ):<span style={{fontSize:12,color:"var(--t3)"}}>rest day</span>}
                   </div>
@@ -288,15 +321,15 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               );
             })}
             <div className="g2" style={{marginTop:12}}>
-              <div><label>Stretch prep (min)</label><input type="number" min="10" max="60" value={p.gymStretch||30} onChange={e=>mk(()=>updP({gymStretch:+e.target.value}))}/></div>
-              <div><label>Drive to gym (min)</label><input type="number" min="5" max="30" value={p.gymDrive||10} onChange={e=>mk(()=>updP({gymDrive:+e.target.value}))}/></div>
+              <div><label>Stretch prep (min)</label><input type="number" className="input-num-sm" min="10" max="60" value={p.gymStretch||30} onChange={e=>mk(()=>updP({gymStretch:+e.target.value}))}/></div>
+              <div><label>Drive to gym (min)</label><input type="number" className="input-num-sm" min="5" max="30" value={p.gymDrive||10} onChange={e=>mk(()=>updP({gymDrive:+e.target.value}))}/></div>
             </div>
           </div>
           <div className="card">
             <SecHead icon="ti-mood-smile" title="Fun time targets"/>
             <div className="g2">
-              <div><label>Weekday (hrs/day)</label><input type="number" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>mk(()=>updP({funWD:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Mon–Fri · {(p.funWD*5).toFixed(1)}h total</div></div>
-              <div><label>Weekend (hrs/day)</label><input type="number" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>mk(()=>updP({funWE:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Sat+Sun · {(p.funWE*2).toFixed(1)}h total</div></div>
+              <div><label>Weekday (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>mk(()=>updP({funWD:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Mon–Fri · {(p.funWD*5).toFixed(1)}h total</div></div>
+              <div><label>Weekend (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>mk(()=>updP({funWE:+e.target.value}))}/><div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>Sat+Sun · {(p.funWE*2).toFixed(1)}h total</div></div>
             </div>
           </div>
         </div>
@@ -340,8 +373,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             </div>
             <div style={{marginBottom:10}}><label>Which days?</label><DayPick val={nc.days} onChange={days=>setNc(c=>({...c,days}))} col="var(--teal)"/></div>
             <div className="g3" style={{marginBottom:12}}>
-              <div><label>Time (optional)</label><input type="time" value={nc.time} onChange={e=>setNc(c=>({...c,time:e.target.value}))}/></div>
-              <div><label>Duration (min)</label><input type="number" min="10" max="180" value={nc.dur} onChange={e=>setNc(c=>({...c,dur:+e.target.value}))}/></div>
+              <div><label>Time (optional)</label><input type="time" className="input-time" value={nc.time} onChange={e=>setNc(c=>({...c,time:e.target.value}))}/></div>
+              <div><label>Duration (min)</label><input type="number" className="input-num-sm" min="10" max="180" value={nc.dur} onChange={e=>setNc(c=>({...c,dur:+e.target.value}))}/></div>
             </div>
             <button className="btn btn-action" onClick={()=>{if(!nc.n||!nc.days.length)return;mk(()=>updP({chores:[...(p.chores||[]),{...nc,id:Date.now()}]}));setNc({n:"",e:"📋",days:[],time:"",dur:30});toast2("Chore added");}} disabled={!nc.n||!nc.days.length}>
               <i className="ti ti-plus"/> Add Chore
@@ -476,8 +509,11 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             ):(
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--green-bg)",borderRadius:9,marginBottom:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:"var(--green)"}}>
-                    <i className="ti ti-circle-check"/> SMS reminders are on
+                  {/* Text white, icon green — same tinted-bg fix as the banners above, applied
+                      consistently here too rather than leaving this one status row as the odd
+                      one out. */}
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:"#fff"}}>
+                    <i className="ti ti-circle-check" style={{color:"var(--green)"}}/> SMS reminders are on
                   </div>
                   <button className="btn btn-ghost btn-sm" onClick={disableSms}>Turn off</button>
                 </div>
@@ -532,8 +568,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               <input value={ncReminder.text} onChange={e=>setNcReminder(r=>({...r,text:e.target.value}))} placeholder="e.g. Bring lab notebook to discussion section"/>
             </div>
             <div className="g2" style={{marginBottom:12}}>
-              <div><label>Date</label><input type="date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/></div>
-              <div><label>Time</label><input type="time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/></div>
+              <div><label>Date</label><input type="date" className="input-date" min={iso()} value={ncReminder.date} onChange={e=>setNcReminder(r=>({...r,date:e.target.value}))}/></div>
+              <div><label>Time</label><input type="time" className="input-time" value={ncReminder.time} onChange={e=>setNcReminder(r=>({...r,time:e.target.value}))}/></div>
             </div>
             <button className="btn btn-action" onClick={addCustomReminder} disabled={!ncReminder.text||!ncReminder.date}>
               <i className="ti ti-plus"/> Add reminder

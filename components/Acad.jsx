@@ -1637,7 +1637,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 padding:"10px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:14
               }}>
                 <i className="ti ti-circle-check" style={{color:"var(--green)",fontSize:16,flexShrink:0,marginTop:1}}/>
-                <div style={{fontSize:13,color:"var(--green)",lineHeight:1.6}}>
+                <div style={{fontSize:13,color:"#fff",lineHeight:1.6}}>
                   <div>Last synced: <strong>{new Date(data.lastSyllabusSync.at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</strong></div>
                   <div style={{color:"var(--t2)",marginTop:2}}>
                     {data.lastSyllabusSync.files?.join(", ")||"unknown file"} — {data.lastSyllabusSync.added} new item{data.lastSyllabusSync.added===1?"":"s"} added

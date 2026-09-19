@@ -545,8 +545,11 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
       {missing.length>0&&(
         <div style={{...BOX,background:"var(--amber-bg)",borderLeft:"3px solid var(--amber)"}}>
           <div style={INNER}>
-            <div style={{fontSize:15,color:"var(--amber)",marginBottom:8}}>
-              ⚠ {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Academics to fix
+            {/* White body text, amber only on the ⚠ mark — same tinted-bg-readability fix applied
+                everywhere else (a full sentence directly in the accent color reads poorly on its
+                own matching-tint background). */}
+            <div style={{fontSize:15,color:"#fff",marginBottom:8}}>
+              <span style={{color:"var(--amber)"}}>⚠</span> {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Academics to fix
             </div>
             {missing.slice(0,3).map((a,i)=>(
               <div key={i} style={{fontSize:14,color:"var(--t3)",marginBottom:3}}>· {a.title} ({courseNameFor(data.courses,a.courseId)})</div>

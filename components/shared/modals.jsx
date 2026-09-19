@@ -100,8 +100,8 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
           )}
           {dupCount>0&&(
             <div style={{marginTop:16,padding:"10px 14px",background:"var(--amber-bg)",borderRadius:9,
-              display:"flex",alignItems:"center",gap:10,fontSize:13,color:"var(--amber)"}}>
-              <i className="ti ti-copy" style={{fontSize:16,flexShrink:0}}/>
+              display:"flex",alignItems:"center",gap:10,fontSize:13,color:"#fff"}}>
+              <i className="ti ti-copy" style={{fontSize:16,flexShrink:0,color:"var(--amber)"}}/>
               {dupCount} item{dupCount!==1?"s look":" looks"} like {dupCount!==1?"duplicates":"a duplicate"} of something already saved — marked below, each with its own choice.
             </div>
           )}

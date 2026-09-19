@@ -1,5 +1,64 @@
 # StudyOS Changelog
 
+## v2.80.0 — 2026-09-18
+
+**Preferences UI consistency + mobile pass — compact fields everywhere, Study preferences on one row, gym schedule redesigned, and an app-wide color-readability sweep**
+
+Requested: "go over ALL Tab under preferences and the UI assets we used there and make sure we are
+consistant neatly with the design language... implement it on all fields and don't leave anymore
+inconsistancy in the app." Four separate changes, all part of the same pass:
+
+**1. Compact time/date/number fields (`.input-time`/`.input-date`/`.input-num-sm` in globals.css,
+same idea as the existing `.select-compact`).** Every time/date/number field across all 4
+Preferences tabs (Wake/Sleep, Energy peak, meal times, gym per-day times, stretch/drive minutes,
+fun-time hours, chore time/duration, custom reminder date/time) inherited the app-wide
+`width:100%` default, stretching to fill whatever grid column or row it sat in — "away too long"
+on desktop (a `.g3` column alone runs 200-300px, many times what "07:00 AM" needs). Now a fixed,
+comfortable width instead, applied identically everywhere. First pass tightened these more than it
+should have and clipped the AM/PM text ("09:00 A" instead of "09:00 AM") — caught live and widened
+back out; verified full "09:00 AM"/"12:00 AM"/"01:00 PM" display afterward.
+
+**2. Gym per-day row — a real, separate mobile bug closed out.** The row's time fields were
+shrunk to `fontSize:12` to make them fit — which is itself a documented bug: the comment above
+`input,select,textarea` in globals.css already flagged that any input under the 16px baseline
+triggers iOS Safari's auto-zoom-on-focus, and explicitly called out "a few compact... inputs" as a
+follow-up sweep. This is that sweep. Full-size 16px `.input-time` fields now wrap onto their own
+line under the day checkbox on narrow screens (verified against a real 375px viewport — iPhone SE
+width) instead of shrinking to fit. Same fix applied to the identical gym widget duplicated in the
+onboarding wizard (`components/Onboard.jsx`).
+
+**3. Two follow-up requests mid-pass:**
+- Study preferences: Focus length, Break length, and Energy peak now share one row (`.g3`, same
+  as Sleep & Wake above it) instead of Energy peak sitting alone on its own row below.
+- Gym schedule: each day is now Start time + a duration select ("60 min", same idiom as meal
+  duration) instead of Start + End time with an arrow between them — the arrow is gone, and the
+  student no longer has to subtract two clocks to know a session's length. The underlying data
+  shape is unchanged (`gd.e` is still stored, now always derived as start+duration) so
+  conflict-checking and the planner elsewhere keep working exactly as before — no migration. A
+  legacy/custom duration that doesn't match a preset is added to that row's own option list rather
+  than silently snapping to a different value on load. New `GYM_DUR_OPTIONS` constant in
+  `lib/constants.js`; mirrored into the onboarding wizard's gym step too.
+
+**4. App-wide color-readability sweep — 11 more instances of an already-known bug pattern.**
+Same fix as this session's earlier "red text over brown background" fixes: a sentence/paragraph of
+body text set directly in an accent color (amber/blue/green/red) reads poorly on that color's own
+tinted background, even though a short pill/badge in the same combo is fine. Swept every
+`background:"var(--*-bg)"` banner across the app and fixed the ones that were actual sentences, not
+badges: Sett.jsx (meal-times info banner, "SMS reminders are on" status row), Onboard.jsx (PDF
+privacy note, both "imported!" confirmations), Today.jsx (missing-due-dates banner), Acad.jsx
+("Last synced" banner), shared/ui.jsx (AI-read notice, "files skipped" line), shared/DayAgenda.jsx
+("not planned yet" banner), shared/modals.jsx ("looks like duplicates" banner) — body text switched
+to white, icon/accent kept as the color cue. Left untouched: `.badge-*` pills, stat-tile numbers,
+and icon-only buttons on tinted backgrounds — those are a different, intentional, already-working
+pattern (short label/number, not a sentence).
+
+Verified live throughout: all 4 Preferences tabs screenshotted at full width (all fields compact,
+no clipping); gym row cloned into a real 375px-wide sandbox (iPhone SE width) — clean wrap, no
+overflow, full 16px legible text; gym duration select changed live and confirmed it correctly
+derives/persists the new end time across a full page reload, then reverted back to the real
+account's original values; "Last synced" and "AI read this" banners confirmed white-on-tint live.
+Build clean, 184/184 tests pass.
+
 ## v2.79.6 — 2026-09-18
 
 **Phone field: +1 moved outside the input, blur is the explicit "Confirm Number" moment — plus a real validity-check bug caught live**

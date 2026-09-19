@@ -2,8 +2,8 @@ import { useState } from "react";
 import { PDF } from "@/lib/pdf";
 import { CI } from "@/lib/api";
 import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
-import { iso, f12 } from "@/lib/time";
-import { DS, DF, CC, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS } from "@/lib/constants";
+import { iso, f12, t2m, m2t } from "@/lib/time";
+import { DS, DF, CC, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
 import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges";
 import { checkScheduleExtraction, checkSyllabusExtraction } from "@/lib/syllabus";
@@ -219,8 +219,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
             </div>
             <div><label>Home address</label><input value={p.homeAddress} onChange={e=>updP({homeAddress:e.target.value})} placeholder="Los Gatos, CA"/></div>
           </div>
-          <div style={{background:"var(--blue-bg)",borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:13,color:"var(--blue)",display:"flex",gap:8}}>
-            <i className="ti ti-shield-check" style={{fontSize:14,flexShrink:0}}/>PDFs read locally — only extracted text goes to AI
+          <div style={{background:"var(--blue-bg)",borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:13,color:"#fff",display:"flex",gap:8}}>
+            <i className="ti ti-shield-check" style={{fontSize:14,flexShrink:0,color:"var(--blue)"}}/>PDFs read locally — only extracted text goes to AI
           </div>
           <button className="btn btn-action" onClick={()=>go(IDX.school)} disabled={!p.name} style={{width:"100%"}}>Continue <i className="ti ti-arrow-right"/></button>
         </div>
@@ -306,7 +306,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             </div>
           )}
-          {sImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"var(--green)"}}><i className="ti ti-circle-check"/> {data.courses.length} classes imported!</div>}
+          {sImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"#fff"}}><i className="ti ti-circle-check" style={{color:"var(--green)"}}/> {data.courses.length} classes imported!</div>}
           <details style={{marginTop:10}}>
             <summary style={{padding:"8px 13px",background:"var(--card2)",borderRadius:9,fontSize:13,color:"var(--t2)",marginBottom:8}}>
               <i className="ti ti-pencil" style={{marginRight:7}}/>Add class manually
@@ -394,7 +394,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             </div>
           )}
-          {sylImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"var(--green)"}}><i className="ti ti-circle-check"/> Deadlines imported!</div>}
+          {sylImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"#fff"}}><i className="ti ti-circle-check" style={{color:"var(--green)"}}/> Deadlines imported!</div>}
           <div className="row" style={{marginTop:14}}>
             <button className="btn btn-ghost" onClick={()=>go(IDX.schedule)}><i className="ti ti-arrow-left"/></button>
             <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.lifestyle)}>Continue <i className="ti ti-arrow-right"/></button>
@@ -417,27 +417,45 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           </div>
           <div className="card">
             <SecHead icon="ti-barbell" title="Gym — select days & times"/>
-            {(p.gymDays||GYM0).map((gd,i)=>(
-              <div key={gd.day} className="list-item" style={{gap:9}}>
-                <div style={{display:"flex",alignItems:"center",gap:7,width:80}}>
-                  <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};updP({gymDays:d});}} style={{width:14,height:14}}/>
-                  <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
-                </div>
-                {gd.on?(
-                  <div className="row" style={{flex:1,gap:6}}>
-                    <input type="time" value={gd.s} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],s:e.target.value};updP({gymDays:d});}} style={{width:85,fontSize:12,padding:"4px 7px"}}/>
-                    <span style={{fontSize:11,color:"var(--t3)"}}>→</span>
-                    <input type="time" value={gd.e} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],e:e.target.value};updP({gymDays:d});}} style={{width:85,fontSize:12,padding:"4px 7px"}}/>
+            {(p.gymDays||GYM0).map((gd,i)=>{
+              // Same widget as Preferences → Gym & Fun (components/Sett.jsx) — kept visually and
+              // behaviorally identical in every respect, including this one: start time + a
+              // duration select (not start+end — the student had to subtract two time pickers
+              // just to know a session's length), with gd.e always DERIVED as start+duration so
+              // conflict-checking and the planner elsewhere keep reading the same shape.
+              const curDur=Math.max(0,Math.round(t2m(gd.e)-t2m(gd.s)));
+              const durOpts=GYM_DUR_OPTIONS.includes(curDur)?GYM_DUR_OPTIONS:[...GYM_DUR_OPTIONS,curDur].sort((a,b)=>a-b);
+              return(
+                <div key={gd.day} className="list-item" style={{gap:9,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,width:80,flexShrink:0}}>
+                    <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};updP({gymDays:d});}} style={{width:14,height:14}}/>
+                    <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
                   </div>
-                ):<span style={{fontSize:12,color:"var(--t3)"}}>rest day</span>}
-              </div>
-            ))}
+                  {gd.on?(
+                    <div className="row" style={{gap:6}}>
+                      <input type="time" className="input-time" value={gd.s} onChange={e=>{
+                        const d=[...(p.gymDays||GYM0)];
+                        d[i]={...d[i],s:e.target.value,e:m2t(t2m(e.target.value)+curDur)};
+                        updP({gymDays:d});
+                      }}/>
+                      <select className="select-compact" value={curDur} onChange={e=>{
+                        const d=[...(p.gymDays||GYM0)];
+                        d[i]={...d[i],e:m2t(t2m(gd.s)+ +e.target.value)};
+                        updP({gymDays:d});
+                      }}>
+                        {durOpts.map(n=><option key={n} value={n}>{n} min</option>)}
+                      </select>
+                    </div>
+                  ):<span style={{fontSize:12,color:"var(--t3)"}}>rest day</span>}
+                </div>
+              );
+            })}
           </div>
           <div className="card">
             <SecHead icon="ti-mood-smile" title="Fun time targets"/>
             <div className="g2">
-              <div><label>Weekday (hrs/day)</label><input type="number" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>updP({funWD:+e.target.value})}/></div>
-              <div><label>Weekend (hrs/day)</label><input type="number" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>updP({funWE:+e.target.value})}/></div>
+              <div><label>Weekday (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="8" step="0.5" value={p.funWD} onChange={e=>updP({funWD:+e.target.value})}/></div>
+              <div><label>Weekend (hrs/day)</label><input type="number" className="input-num-sm" min="0" max="12" step="0.5" value={p.funWE} onChange={e=>updP({funWE:+e.target.value})}/></div>
             </div>
           </div>
           <div className="row" style={{marginTop:8}}>

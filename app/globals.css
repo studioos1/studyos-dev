@@ -99,6 +99,22 @@
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a8aaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
       background-repeat:no-repeat; background-position:right 10px center;
     }
+    /* Compact fixed-format inputs (time/date) — same rationale as .select-compact just above: a
+       HH:MM or MM/DD/YYYY value never benefits from width:100%. Sub-project: Web-Mobile
+       Enablement item #7. Real reported bug: Preferences' Wake/Sleep/meal/gym time fields all
+       inherited the app-wide default width:100%, stretching to fill whatever grid column or flex
+       row they sat in — "away too long" on desktop (a .g3 column alone runs 200-300px, several
+       times what "07:00" needs), and on the already-cramped gym per-day row it was masked by
+       shrinking to fontSize:12 instead, which is its OWN real bug: the comment above
+       input,select,textarea documents that any input under 16px triggers iOS Safari's
+       auto-zoom-on-focus and explicitly calls out "a few compact ... inputs" as a follow-up sweep
+       — this is that sweep. Width is the dimension that should flex to fit content here; font-size
+       stays at the app-wide 16px baseline everywhere, no exceptions. */
+    .input-time{width:auto; min-width:128px; max-width:142px; flex-shrink:0;}
+    .input-date{width:auto; min-width:148px; max-width:165px; flex-shrink:0;}
+    /* Short numeric fields (minutes, counts, hours) — a 1-3 digit number has the same problem as
+       above and gets the same fix: a comfortable fixed width instead of width:100%. */
+    .input-num-sm{width:auto; min-width:78px; max-width:100px;}
     /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
        weights, hours) benefit from stepper buttons; typing is the expected interaction. */
     input[type="number"]::-webkit-outer-spin-button,
