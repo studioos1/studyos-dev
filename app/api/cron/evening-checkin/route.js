@@ -7,7 +7,11 @@ import { serviceClient, verifyCronAuth, sendSms, eligibleUsers, todayInTZ, CRON_
 // morning message's own "Pending Report Items" line already covers that). Gated on the same
 // notifyPastDueNudge toggle Preferences already exposes for an evening-timed reminder — see the
 // note in components/Sett.jsx about that toggle's label needing a matching update (was "6:00pm").
-const MESSAGE = "Reminder to check in and report completion of Study and assignment. Keep the Pace!!";
+// "StudyOS 🎓" as the opening line stands in for a title/sender name — SMS has no separate title
+// field, and with MessagingServiceSid sends the "From" is just a phone number, not a friendly
+// name, so this is the one place the text itself identifies who it's from. 🎓 matches the same
+// graduation-cap icon already used for classes elsewhere (lib/sms/dailySummary.js).
+const MESSAGE = "StudyOS 🎓\nGreat work today — time to report completion. Open Check-in and keep the pace. You're doing awesome! 🎉";
 
 export async function GET(req) {
   if (!verifyCronAuth(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });

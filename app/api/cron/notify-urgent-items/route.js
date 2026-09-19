@@ -7,6 +7,9 @@ import { runNotifyUrgentItems } from "@/lib/data/notifications";
 // same shared function directly, on that same 8:30am trigger, reusing the one Supabase read both
 // jobs need rather than fetching every row twice. This route stays here so the job can still be
 // triggered on its own (same CRON_SECRET auth) independent of the SMS send, e.g. for testing.
+// Same maxDuration reasoning as daily-summary/route.js — this loops every user's row too.
+export const maxDuration = 60;
+
 export async function GET(req) {
   if (!verifyCronAuth(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {

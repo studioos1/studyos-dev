@@ -1,5 +1,42 @@
 # StudyOS Changelog
 
+## v2.81.4 — 2026-09-19
+
+**Fixed daily-summary failing in production; redesigned the evening check-in text; closed two real null-safety gaps**
+
+**The production failure.** After the GitHub Actions fix (v2.81.3), a manual run showed
+`evening-checkin` succeeding but `daily-summary` failing with a generic HTTP error — no detailed
+log text was available to pin down the exact cause. Rather than keep guessing blindly, identified
+the one concrete, verifiable structural difference between the two routes: `daily-summary` does an
+SMS send **and** a DB write per eligible user, then a full second pass over every user for the
+bell-log job (`runNotifyUrgentItems`) — meaningfully more work than `evening-checkin`'s single
+pass. Vercel's *default* serverless function timeout on the Hobby plan is 10 seconds unless raised
+explicitly. Added `export const maxDuration = 60` (the Hobby-plan ceiling) to both
+`app/api/cron/daily-summary` and `app/api/cron/notify-urgent-items`. Stated plainly, not
+overclaimed: this wasn't confirmed against the actual error text (never obtained), but a
+subsequent manual run succeeded — both messages arrived — which is consistent with the timeout
+theory without being definitive proof.
+
+**Evening check-in message redesigned.** Was a single flat sentence with no sender identification.
+Now:
+```
+StudyOS 🎓
+Great work today — time to report completion. Open Check-in and keep the pace. You're doing awesome! 🎉
+```
+"StudyOS 🎓" as an opening line stands in for a title — SMS has no separate title field, and with
+`MessagingServiceSid` sends the "From" is just a phone number, not a friendly name, so the message
+text itself is the only place that identifies who it's from. 🎓 matches the same graduation-cap
+icon already used for classes in the morning message (`lib/sms/dailySummary.js`).
+
+**Two real null-safety gaps closed**, found during this review (not the original bug, but genuine
+latent crash risks): `courseNameFor()`'s own implementation does `courses.find(...)` with no
+internal guard against a missing array. Two call sites — one in `lib/sms/dailySummary.js`'s exam
+countdown, one in `lib/data/notifications.js`'s `urgentItems()` — passed `data.courses` directly
+instead of `data.courses || []` like every other access in those files. Fixed both for consistency
+with the rest of each file's own established pattern.
+
+Build clean, 227/227 tests pass.
+
 ## v2.81.3 — 2026-09-19
 
 **Scheduled reminders moved from Vercel Cron Jobs to GitHub Actions — Hobby plan silently dropped them**
