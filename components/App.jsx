@@ -51,6 +51,11 @@ function timeAgo(iso){
   return new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric"});
 }
 // ── Reminders ─────────────────────────────────────────────────────────────
+// Real requested change: exams should surface here starting 5 days out, not just 2 — assignments
+// stay at 2 (both explicit thresholds, not derived from each other). Every item this function can
+// ever produce is by construction high-priority (an exam ≤5d, a due date ≤2d, or a prep-start
+// day), which is what lets the notification this feeds tag itself priority:"high" wholesale rather
+// than needing to classify individual lines within one bundled notification body.
 function urgentItems(data){
   const items=[];
   (data.assignments||[]).filter(a=>a.status!=="done"&&a.dueDate).forEach(a=>{
@@ -60,8 +65,8 @@ function urgentItems(data){
   (data.exams||[]).forEach(e=>{
     const d=du(e.date);
     const cn=courseNameFor(data.courses,e.courseId);
-    if(d>=0&&d<=2)items.push(`${cn} exam — ${d===0?"today":`in ${d}d`}`);
-    else if(d===e.prepDays)items.push(`Start prep for ${cn} exam`);
+    if(d>=0&&d<=5)items.push(`${cn} exam — ${d===0?"today":`in ${d}d`}`);
+    if(d===e.prepDays)items.push(`Start prep for ${cn} exam`);
   });
   return items;
 }
@@ -457,7 +462,7 @@ function App(){
         new Notification(title,{body});
         localStorage.setItem(key,"1");
       }catch{}
-      pushNotification(data,upd,{title,body}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
+      pushNotification(data,upd,{title,body,priority:"high"}); // logged regardless of whether the OS Notification itself succeeded — the in-app bell is the reliable fallback
     }
   },[data?.onboarded]);
 
@@ -627,9 +632,14 @@ function App(){
                       {notifLog.length===0?(
                         <div style={{padding:"20px 14px",textAlign:"center",fontSize:13,color:"var(--t3)"}}>No notifications yet</div>
                       ):notifLog.map(n=>(
-                        <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--b1)"}}>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{n.title}</div>
-                          <div style={{fontSize:12,color:"var(--t2)",whiteSpace:"pre-wrap",marginBottom:4}}>{n.body}</div>
+                        // High-priority = an upcoming exam (≤5 days) or assignment due (≤2 days) —
+                        // see urgentItems()/priority:"high" above. Amber background, white body
+                        // text (not amber-on-amber — same tinted-bg readability fix used
+                        // everywhere else in this app), amber only on the title as the color cue.
+                        <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--b1)",
+                          background:n.priority==="high"?"var(--amber-bg)":undefined}}>
+                          <div style={{fontSize:13,fontWeight:600,color:n.priority==="high"?"var(--amber)":"var(--t1)",marginBottom:2}}>{n.title}</div>
+                          <div style={{fontSize:12,color:n.priority==="high"?"#fff":"var(--t2)",whiteSpace:"pre-wrap",marginBottom:4}}>{n.body}</div>
                           <div style={{fontSize:11,color:"var(--t3)"}}>{timeAgo(n.createdAt)}</div>
                         </div>
                       ))}

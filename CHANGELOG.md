@@ -1,5 +1,31 @@
 # StudyOS Changelog
 
+## v2.81.1 — 2026-09-19
+
+**Notification bell: high-priority entries (exam ≤5 days, assignment due ≤2 days) get an amber background**
+
+`urgentItems()` (`components/App.jsx`) — the function behind the daily "today's priorities"
+in-app notification — widened its exam window from ≤2 days to ≤5 (assignments stay at ≤2, already
+matching what was asked). Every item it can produce is now, by construction, high-priority (a
+near exam, a due date, or a prep-start day), so the notification built from it tags itself
+`priority:"high"` once, rather than needing to re-classify individual lines inside one bundled
+notification body after the fact.
+
+`pushNotification()` (`lib/data/notifications.js`) now stores that optional `priority` field.
+Every other call site (Focus Time's break/study signals, scheduled session reminders) omits it and
+renders as a normal entry — this isn't a blanket restyle of the whole notification log, only the
+one category that's actually urgency-driven.
+
+The bell panel (`components/App.jsx`) applies the same tinted-bg convention already used
+everywhere else this session: amber background, amber title as the color cue, white body text —
+not amber-on-amber, which reads poorly as a real sentence on its own matching-tint background.
+
+Verified: new automated coverage for the stored `priority` field (present when passed, undefined
+when not); live visual check of the exact amber/white/amber styling on a real notification row
+(no data touched — pre-existing log entries predate this field, so a fresh one couldn't be
+triggered without waiting out the once-a-day dedup; the CSS values themselves were confirmed
+directly instead). Build clean, 216/216 tests pass.
+
 ## v2.81.0 — 2026-09-19
 
 **Real scheduled SMS reminders — 8:30am daily summary + 8:00pm evening check-in**
