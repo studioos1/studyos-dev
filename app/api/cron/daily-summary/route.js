@@ -10,6 +10,13 @@ import { runNotifyUrgentItems } from "@/lib/data/notifications";
 // instead of its own separate schedule). Every user's whole data blob lives in one
 // user_data.data jsonb column (supabase/schema.sql) — service-role reads every row once (this is
 // the one place in the app that legitimately needs to see across users) and both jobs share it.
+// Real suspected cause of a production failure this route hit that app/api/cron/evening-checkin
+// (a much lighter single pass) didn't: Vercel's DEFAULT serverless function timeout on the Hobby
+// plan is 10 seconds unless raised explicitly — this route does an SMS send + a DB write PER
+// eligible user, then a full second pass over every user for runNotifyUrgentItems, which adds up
+// fast against a 10s ceiling. Hobby allows raising this up to 60s.
+export const maxDuration = 60;
+
 export async function GET(req) {
   if (!verifyCronAuth(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
