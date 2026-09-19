@@ -1,5 +1,60 @@
 # StudyOS Changelog
 
+## v2.81.0 — 2026-09-19
+
+**Real scheduled SMS reminders — 8:30am daily summary + 8:00pm evening check-in**
+
+The actual feature behind a UI toggle that never did anything: "Daily summary" and "Past-due
+nudge" (renamed "Evening check-in" to match reality) previously described automatic scheduled
+sends that no code anywhere actually performed — confirmed by searching the whole repo for any
+cron/scheduler config and finding none. Both are now real.
+
+**`lib/sms/dailySummary.js`** — the 8:30am message content, fully deterministic (no AI call —
+every piece of it is already real structured data, matching the standing "prefer deterministic
+over AI" preference). Built and tuned directly against a real SMS the student wrote out by hand:
+a greeting + a situation-aware encouragement line, breakfast, today's classes, today's study
+sessions (grouped by task, numbered), gym, an exam countdown (starting 7 days out), a one-line
+"Pending Report Items" nudge (only when something's actually overdue or unmarked from a previous
+day — reuses `catchUpDays()`, not a second definition of "pending"), and dinner. The encouragement
+line picks from a small pool per real situation (yesterday's sessions all done / yesterday had
+something unmarked / no signal but an exam is 1-2 days out / neither) via a stable hash of the
+date — same line if regenerated same-day, different days vary. 21 tests.
+
+**`app/api/cron/daily-summary` and `app/api/cron/evening-checkin`** — the actual scheduled sends,
+fired by two new `vercel.json` cron entries (15:30 UTC / 03:00 UTC = 8:30am / 8:00pm Pacific,
+current DST offset). Evening check-in is fixed text: "Reminder to check in and report completion
+of Study and assignment. Keep the Pace!!" — deliberately not data-driven, since the morning
+message's own "Pending Report Items" line already covers the factual catch-up ask.
+
+**`lib/sms/cronSend.js`** — shared server-only helpers: a `CRON_SECRET`-gated auth check (Vercel
+sends this automatically as a Bearer token on every Cron Job invocation), a service-role Supabase
+client (the one deliberate place this app uses one — bypasses RLS to read every user's row, never
+imported from client code), the same Twilio call `/api/sms/send` already uses, and an eligibility
+filter matching the same trust bar the manual "Send test text" button already enforces (SMS
+enabled, this specific reminder not individually off, and the number actually test-verified — not
+just typed in). Per-user errors don't stop the rest of the batch; a `lastDailySummarySentDate` /
+`lastEveningCheckinSentDate` marker on each profile (new schema fields) makes a re-trigger on the
+same real-world day a no-op rather than a duplicate text.
+
+Caught and fixed during local testing before this ever touched a real schedule: both routes let
+`serviceClient()`'s synchronous throw (missing service-role key) escape uncaught, crashing to an
+empty-body 500 instead of a diagnosable error — wrapped the whole handler in try/catch. Verified
+live: unauthenticated and wrong-secret requests correctly get 401; a correctly-authenticated
+request with no service-role key configured now returns a clean `{"error": "..."}` instead of
+crashing.
+
+Known limitations, stated plainly rather than left implicit: single fixed timezone
+(`America/Los_Angeles`, `lib/sms/cronSend.js`'s `CRON_TZ`) since no per-user timezone is stored
+yet — the cron's own fire time is a static UTC value that drifts an hour for a few weeks around
+each DST transition (the message's own date content stays correct via `Intl` regardless). The
+exam/project-countdown reminder toggle still has no cron behind it — its Preferences label now
+honestly says "coming soon" instead of implying it already runs.
+
+New required env vars (documented in `.env.template`): `SUPABASE_SERVICE_ROLE_KEY` and
+`CRON_SECRET` — both must also be set in Vercel for the scheduled sends to work in production.
+
+Build clean, 214/214 tests pass.
+
 ## v2.80.6 — 2026-09-19
 
 **Field widths now consistent with Meal times; removed the duplicate Evening check-in icon**

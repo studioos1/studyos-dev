@@ -156,10 +156,17 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 - WhatsApp — deliberately deferred, not being pursued. Renamed out of the UI entirely back in
   v2.51.1 once it turned out nothing ever actually sent via WhatsApp — see that CHANGELOG entry.
   The real outbound channel is **SMS via Twilio**: opt-in flow with an explicit consent checkbox
-  (`components/Sett.jsx`), `/api/sms/send` built and working, A2P 10DLC campaign registration in
-  progress (as of 2026-09-15). The "Morning Message" daily-briefing card (the feature formerly
-  labeled WhatsApp) is still preview-only, not auto-sent — separate from the scheduled SMS
-  reminders. Email/username/password fields on the Account modal / onboarding Welcome step remain
+  (`components/Sett.jsx`), `/api/sms/send` built and working, A2P 10DLC campaign **approved** (as
+  of 2026-09-18). Two real scheduled sends now exist: `app/api/cron/daily-summary` (8:30am, a
+  deterministic message built by `lib/sms/dailySummary.js` — no AI call) and
+  `app/api/cron/evening-checkin` (8:00pm, a fixed check-in nudge), both fired by `vercel.json`'s
+  `crons` entries and gated by `CRON_SECRET` + a `SUPABASE_SERVICE_ROLE_KEY`-backed client
+  (`lib/sms/cronSend.js` — the one deliberate place this app uses a service-role key, never
+  imported from client code). The exam/project-countdown reminder toggle in Preferences is still
+  UI-only, no cron built for it yet — labeled honestly as "coming soon" rather than implying it
+  already runs. The "Morning Message" daily-briefing card (the feature formerly labeled WhatsApp)
+  is still preview-only, not auto-sent — separate from the scheduled SMS reminders above.
+  Email/username/password fields on the Account modal / onboarding Welcome step remain
   placeholders only, no real auth tied to them.
 - Mode 1 vs Mode 2 semester planning — original design had two distinct modes (a one-time coarse
   semester-level budget allocation vs. the rolling detailed plan). Worth reconsidering whether this
