@@ -435,7 +435,7 @@ function App(){
   // Daily browser-notification reminder for due dates / exam prep — fires at most once per day
   useEffect(()=>{
     if(!data||!data.onboarded)return;
-    if(data.profile.remindersOn===false)return;
+    if(data.profile.browserNotifsEnabled===false||data.profile.notifyBrowserPriorities===false)return;
     if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
     const key="studyos_notified_"+iso();
     if(localStorage.getItem(key))return;
@@ -466,9 +466,17 @@ function App(){
     if(!data?.onboarded)return;
     function check(){
       const d=dataRef.current,u=updRef.current;
-      if(!d||d.profile?.remindersOn===false)return;
+      if(!d)return;
       const today=iso();
+      // scheduleReminders' key is "<blockId>|start"/"|break"/"|done" (lib/calendar/weeks.js) —
+      // "start" is the session-start nudge, "break"/"done" are both break start/end, so they share
+      // notifyBrowserBreaks (the same toggle Today.jsx's own Focus Timer break chime now checks,
+      // so "turn off break reminders" covers both mechanisms that can produce one).
+      if(d.profile?.browserNotifsEnabled===false)return;
       scheduleReminders(d).forEach(({key,title,body})=>{
+        const kind=key.split("|")[1];
+        const enabled=kind==="start"?d.profile?.notifyBrowserSessions!==false:d.profile?.notifyBrowserBreaks!==false;
+        if(!enabled)return;
         const fullKey=`${today}|${key}`;
         if(notifiedRef.current.has(fullKey))return;
         notifiedRef.current.add(fullKey);

@@ -1,5 +1,243 @@
 # StudyOS Changelog
 
+## v2.82.3 — 2026-09-20
+
+**Project deadlines get their own countdown, same as exams**
+
+Requested: build the Exam/project countdown SMS — then, once the timing trade-off was discussed
+("shall we add a preferred time field, or keep it simple") the direction settled on: "let's avoid
+extra infra work... include project reminders in the daily morning notifications and ensure it also
+appears in the daily summary" — fold it into the two channels that already exist instead of a third
+scheduled send.
+
+Real gap found along the way: the "Exam / project countdown" toggle's own name promised project
+countdowns, but the underlying content (`urgentItems()` in `lib/data/notifications.js`, and
+`lib/sms/dailySummary.js`'s SMS message) only ever surfaced exams — a `type:"project"` assignment
+fell into the same 2-day-out bucket as any regular homework, no earlier heads-up at all.
+
+- `urgentItems()` — a project assignment now gets the same 5-day window an exam gets (a new
+  `PROJECT_COUNTDOWN_DAYS` constant, exported for reuse), tagged `[Project]` in the bell log/
+  browser-notification text so it reads distinctly from a same-window exam entry. Both channels
+  this feeds — the bell log and the once-a-day browser notification — are gated by the existing
+  `notifyBrowserPriorities` toggle, no new toggle needed.
+- `buildDailySummaryMessage()` — a new `Reminder ⚠️: PROJECT due in N Days (Weekday) Course — Title`
+  line, same shape as the existing exam line, using the same `PROJECT_COUNTDOWN_DAYS` window so the
+  two channels never quietly drift apart on "how far ahead does this get mentioned." Gated by the
+  existing `notifyDailySummary` toggle.
+- Removed the now-permanently-stale "Exam / project countdown" toggle from SMS Reminders — keeping
+  a "coming soon" stub around indefinitely for a feature deliberately *not* being built as its own
+  send would violate this codebase's own "UI copy must never describe behavior the code doesn't
+  have yet" rule (CLAUDE.md), same as `notifyExamCountdown`'s schema field.
+- Documented the decision (fold into existing channels vs. a third scheduled send + timing
+  trade-offs) in CLAUDE.md's backlog section for future reference.
+
+Verified live: SMS Reminders now shows only Daily summary/Evening check-in; Browser Notifications'
+Daily priorities toggle unchanged (project reminders ride the same toggle). Build clean, 237/237
+tests pass (6 new, covering the widened project window, the `[Project]` tag, exclusion outside the
+window/already-done, and the daily summary's new line alongside an exam line in the same message).
+
+## v2.82.2 — 2026-09-20
+
+**Browser Notifications gets a real Turn off/Turn on master switch**
+
+Requested: "dont we miss similar button as in SMS reminders for the Browser notification - ON/OFF?"
+— right: the v2.82.1 banner showed live permission status but had no way to pause everything short
+of hunting down three switches individually, unlike SMS's own master "SMS reminders are on / Turn
+off." Added `browserNotifsEnabled` (`lib/data/schema.js`) — a new, separate flag rather than
+reusing the three per-type toggles, so pausing doesn't erase which types were individually on/off;
+flipping it back on resumes exactly where it left off. The banner's button now tracks this real
+switch: "Turn off"/"Turn on", same style as SMS's; the per-type toggle list only shows while the
+master is on, same as SMS's toggle list only showing while `smsEnabled` is true. Every notification
+call site (the daily-priorities effect, the schedule-driven session/break effect, Today's Focus
+Timer chime, and the server-side `notify-urgent-items` cron) now checks the master switch in
+addition to its own specific per-type toggle.
+
+The old `remindersOn` migration (added in v2.82.0, before this master switch existed) now carries
+an explicit past "off" forward onto `browserNotifsEnabled` instead of onto all three per-type
+toggles — more faithful to what `remindersOn` actually was: a blunt all-or-nothing pause, not three
+separate choices.
+
+Verified live: Turn off hides the toggle list and shows a neutral "off" banner with Turn on;
+toggling back on restores every per-type toggle's previous state untouched. Checked on mobile too.
+Build clean, 231/231 tests pass (1 new, covering the master switch overriding an enabled per-type
+toggle in the server-side cron path).
+
+## v2.82.1 — 2026-09-20
+
+**Browser permission is now a standout master-switch banner**
+
+Requested: "don't forget the main toggle to allow browser permission, its has to stand out vs. the
+list of notifications" — caught mid-build of v2.82.0's 3-toggle split. The permission row had
+shrunk down to a plain field (matching the per-type toggle rows below it) across the last few
+iterations, so it no longer read as the master gate that makes those three toggles meaningful in
+the first place. Replaced with the same tinted full-width banner treatment SMS Reminders already
+uses for its own master switch ("SMS reminders are on / Turn off") — green once granted, red if
+blocked, neutral with an "Enable" button before it's ever been requested — so it now reads a level
+above the plain toggle list underneath it, not as one more row in it.
+
+Verified live (including the "not yet requested" and "blocked" states, previewed via a direct React
+state override rather than actually revoking real browser permission) and on mobile. Build clean,
+230/230 tests pass.
+
+## v2.82.0 — 2026-09-20
+
+**Browser Notifications split into 3 individually-toggled types, matching SMS Reminders**
+
+Requested: "similar the breakdown of SMS message-type with individual toggle, let's build
+similarly on the first section the list of notification-types for Browser with individual
+toggle." Investigating "how many types of notifications do we have" (previous message) surfaced
+that the single `remindersOn` switch this section used to expose was actually gating 3 different
+behaviors at once — and one of them (the Focus Timer's own break chime) wasn't gated by it at all,
+a real inconsistency. Split into three independent toggles, same row pattern as SMS's Daily
+summary/Evening check-in/Exam countdown:
+
+- **Daily priorities** (`notifyBrowserPriorities`) — the once-a-day "today's priorities"
+  notification (due dates within 2 days, exams within 5). Also gates its server-side counterpart
+  (`app/api/cron/notify-urgent-items`), which writes the same content into the bell log even when
+  the browser was never open — previously read `remindersOn` there too.
+- **Session start reminders** (`notifyBrowserSessions`) — "time to start studying" nudges at a
+  planned session's actual clock time.
+- **Break reminders** (`notifyBrowserBreaks`) — break start/end nudges. Now covers BOTH the
+  passive schedule-driven check AND Today's own Focus Timer chime (`lib/notify.js`'s `notifyPhase`
+  gained a `notify` flag for this) — the chime tone itself still always plays, only the desktop
+  popup + bell-log entry are gated, so "turn off break reminders" now actually turns off every
+  break reminder instead of just half of them.
+
+`remindersOn` itself is no longer read anywhere except a one-time migration (`lib/data/store.js`):
+an account that had explicitly turned it off gets that off-state carried forward to all three new
+toggles once; an account that never touched it (or had it on) needs nothing written, since unset
+already reads as "on" everywhere, the same convention every other toggle in this app already uses.
+
+Verified live: toggles operate independently, persist across reload, align with the SMS section's
+column on desktop, and stack cleanly on mobile (iframe technique). Build clean, 230/230 tests pass
+(3 new covering the migration's carry-forward, off-preservation, and already-migrated passthrough
+cases).
+
+## v2.81.11 — 2026-09-20
+
+**Browser permission marker moved to the column start line, small badge restored**
+
+Requested: "the marker 'On' is placed in the very right, please move it to the center line as the
+buttons. Please add a small background to keep is highlighted." v2.81.10 centered the marker across
+the whole wide field column — too far right. It now sits at the exact same start position as the
+Due-date reminders toggle buttons below it (the field column's left edge, the "center line" of the
+tab), and keeps a small badge background (reusing `.badge`/`.badge-green`/`.badge-red`/`.badge-amber`,
+the same pill style used before v2.81.10 simplified it away) so it still reads as a highlighted
+status rather than plain text — just small and positioned like a field value now, not a full-width
+bar.
+
+Verified live via `getBoundingClientRect()`: badge and toggle-group both start at the identical
+x-position (677px). Mobile re-checked via the iframe technique — stacks cleanly. Build clean,
+227/227 tests pass.
+
+## v2.81.10 — 2026-09-20
+
+**Browser permission row simplified: plain label/description, centered On/Off marker**
+
+Requested: "Split the long bar showing Browser Permission to be a standard display/description, and
+at the right to center, please just the marker 'On' or 'Off'." The highlighted card2 background bar
+from v2.81.9 is gone — "Browser permission" now reads as a plain label + status description like
+every other field on this tab, and the colored pill badge (with its "✓"/"✗" icons and "Blocked"
+wording baked in) is now just a plain "On"/"Off" (or "Blocked" when denied) marker, color-coded but
+unboxed, centered in the field column both horizontally and vertically against the label's full
+height.
+
+Verified live on desktop and mobile (real-viewport iframe technique). Build clean, 227/227 tests
+pass.
+
+## v2.81.9 — 2026-09-20
+
+**"Due-date reminders" renamed to "Browser Notifications"; whole section aligned**
+
+Requested: "the first section 'Due-date reminders' is not the proper title. Shall be 'Brower
+Notifications'. Please revise the UI of the entire section to align with the center alignment
+concept." Section title renamed. Both rows inside it moved onto `.field-grid` so they land on the
+same ~40% column as every other field on this tab: "Browser permission" (title + status stacked as
+one right-aligned label, matching the SMS toggle rows' pattern, with its badge on the field side —
+`.badge` needed adding to globals.css's `justify-self:start` list, same reason `.toggle-group`
+needed it in v2.81.8) keeps its highlighted card2 background, now on the grid row itself; the
+On/Off toggle below it — previously unlabeled — now reads "Due-date reminders" as its own field
+label instead of floating with no caption.
+
+Verified live: both rows visually align with Phone number/the SMS toggle rows on desktop; mobile
+re-checked via the real-viewport iframe technique — status box and toggle both stack cleanly,
+flush left. Build clean, 227/227 tests pass.
+
+## v2.81.8 — 2026-09-20
+
+**SMS Reminders toggle rows now align with the rest of the Notifications tab**
+
+Requested: "Daily Summary, Evening checin, Exam count down - these 3 fields need UI adjusment ot to
+unifiy with the rest of the section." v2.81.7's Phone number fix was real, but it wasn't the whole
+gap — confirmed by measuring exact pixel positions rather than trusting a visual glance: Phone
+number landed right at the card's ~40% column line (767.5px vs. the card's 768.7px mark), but the
+3 toggle rows below it (Daily summary / Evening check-in / Exam & project countdown) were still on
+their old flush-left-title/flush-right-toggle layout, nowhere near that line. Converted each row to
+`.field-grid`, with the title+sub-caption pair as the "label" cell — right-aligned as one stacked
+block via a new `.align-col-stacked` class (`flex-direction:column; align-items:flex-end`) layered
+onto the existing `.align-col-label .align-col-flex` pattern already used for Meal times' icon+name
+pairs, rather than an inline style — an inline `flexDirection` override would have silently
+defeated the tab's existing mobile breakpoint (media queries can't reach into inline styles), so
+`.align-col-stacked` carries its own mobile override (`align-items:flex-start`) right alongside the
+existing one for `.align-col-flex`, keeping both classes flippable at 640px like everything else on
+this tab.
+
+Verified live via `getBoundingClientRect()`: all 3 rows now measure identically to Phone number
+(label edge 767.5px, field edge 781.5px) — pixel-exact, not just visually close. Mobile re-checked
+via the same real-viewport iframe technique used earlier this session: all 3 rows stack cleanly,
+titles flush left like every other label at that width. Build clean, 227/227 tests pass.
+
+## v2.81.7 — 2026-09-19
+
+**Notifications tab: Phone number and Custom reminders now use the same centered/aligned layout**
+
+Requested: "SMS reminder alignment - same style." Phone number was the last field in Preferences
+still on the old label-above-field layout — deliberately left alone in an earlier pass since it's
+a multi-part control (a fixed +1 box, the input, a validation message below), but per the standing
+consistency priority it's now converted too: label + field on one line, the field cell holding the
++1/input row and its validation message together (the same "field-hint" pattern already used for
+Fun time targets' caption text). The whole Notifications tab is now wrapped in `.aligned-fields`,
+same as Daily Schedule and Gym & Fun, so Custom reminders' fields (already `.field-grid`, just not
+previously wrapped) automatically picked up the same aligned position.
+
+Caught and resolved during verification, not a real app bug: the phone field's live blur-validation
+(red/green message) appeared not to fire when tested via synthetic DOM events (dispatched `blur`,
+`.focus()`+`.blur()`, even a real automated click+Tab) — traced to a limitation of the browser
+automation tooling's synthetic blur delivery in this environment, confirmed by calling the
+React-bound `onBlur` handler directly, which worked immediately. A real user's actual click/Tab
+away from the field fires a genuine browser blur event and is unaffected. No code changed to
+"fix" this since there was nothing to fix — the underlying validation logic was untouched by this
+layout change and confirmed working. Verified live: red/green validation messages render
+correctly with the new layout; the real phone number round-tripped through a full page reload
+successfully.
+
+## v2.81.6 — 2026-09-19
+
+**Gym & Fun's fields now use the same centered/aligned layout as Daily Schedule's cards**
+
+Requested: "align the field near the center as we did in all other tabs, as well as in the same
+tab below section: fun time targets." Gym schedule's Stretch prep/Drive to gym and Fun time
+targets' Weekday/Weekend fields were still on the older per-instance "size to content, center the
+block" layout — Daily Schedule's 3 cards had already moved to the shared 40:60 aligned-and-centered
+`.aligned-fields` layout, so this was a real leftover inconsistency, not a new pattern to invent.
+Wrapped the whole Gym & Fun tab's content in `.aligned-fields`, same as Daily Schedule's wrapper —
+the per-day gym rows (checkbox/time/duration, a different widget entirely) are unaffected since
+they don't use `.field-grid` at all. Verified live: all 4 fields land at the identical aligned
+position as Daily Schedule's fields; re-checked mobile safety (no overflow, clean stacking) since
+this changes the field-column formula for a section not previously covered by that check.
+
+## v2.81.5 — 2026-09-19
+
+**Meal times' field labels now match every other label's color/style in Preferences**
+
+Reported: Sleep & Wake and Study preferences' field labels ("WAKE TIME", "FOCUS LENGTH", etc.) are
+a muted light-blue-gray; Meal times' "Breakfast"/"Lunch"/"Dinner" were plain white — an
+inconsistency. Root cause: those three are a `<span>` standing in for a `<label>` (Meal times'
+icon+name pair can't literally be a `<label>` element), and it had never been given the same
+styling as the real `<label>` elements beside it — it used `var(--t1)` (white, 15px) instead of
+the global `label{}` rule's `var(--t3)`, 12px, uppercase, letter-spaced. Matched exactly, not just
+the color, so it genuinely reads as the same label style. Verified live.
+
 ## v2.81.4 — 2026-09-19
 
 **Fixed daily-summary failing in production; redesigned the evening check-in text; closed two real null-safety gaps**

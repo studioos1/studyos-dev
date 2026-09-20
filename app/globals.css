@@ -144,11 +144,18 @@
     .aligned-fields .field-grid>.input-time,
     .aligned-fields .field-grid>.input-date,
     .aligned-fields .field-grid>.input-num-sm,
-    .aligned-fields .field-grid>.select-compact{justify-self:start;}
+    .aligned-fields .field-grid>.select-compact,
+    .aligned-fields .field-grid>.toggle-group{justify-self:start;}
     /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
        can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
        uses this class instead — same right-alignment as a real label, and the same mobile flip. */
     .field-grid .align-col-flex{display:flex; align-items:center; justify-content:flex-end; gap:8px;}
+    /* A "label" that's a title + sub-caption stacked (the SMS toggle rows' "Daily summary" /
+       "8:30am — today's plan") — same right-alignment idea as .align-col-flex, but vertically
+       stacked, not icon-then-text horizontally. Combine with .align-col-flex on the same element
+       (justify-content there is inert once flex-direction is column, only align-items here
+       matters) rather than duplicating display:flex/gap. */
+    .field-grid .align-col-stacked{flex-direction:column; align-items:flex-end; gap:2px;}
     .field-grid .field-hint{font-size:11px; color:var(--t3); margin-top:3px;}
     /* Wider than .g2/.g3's 480px breakpoint on purpose: this section's longest label ("Focus
        length (study time before a break)") plus even a shrunk field column is real content that
@@ -169,6 +176,10 @@
       .field-grid>label{text-align:left; margin-bottom:0;}
       .field-grid>label:not(:first-child),.field-grid>.align-col-label:not(:first-child){margin-top:16px;}
       .field-grid .align-col-flex{justify-content:flex-start;}
+      /* .align-col-stacked is column-direction, so justify-content (main axis = vertical) does
+         nothing for it — align-items (cross axis = horizontal) is the one that needs flipping to
+         match every other mobile label going flush-left. */
+      .field-grid .align-col-stacked{align-items:flex-start;}
     }
     /* Hide number input spinner arrows app-wide — none of the numeric fields here (grades,
        weights, hours) benefit from stepper buttons; typing is the expected interaction. */

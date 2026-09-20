@@ -53,9 +53,14 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     if(typeof Notification==="undefined"){toast2("Notifications aren't supported in this browser",true);return;}
     const perm=await Notification.requestPermission();
     setNotifPerm(perm);
-    if(perm==="granted"){updP({remindersOn:true});toast2("Notifications enabled! 🔔");}
+    if(perm==="granted"){toast2("Notifications enabled! 🔔");}
     else{toast2("Permission denied — enable it in your browser's site settings",true);}
   }
+  // Master pause/resume — same idea as disableSms below, its own flag rather than the three
+  // per-type toggles so each keeps its own remembered choice while paused (turning the master back
+  // on shouldn't silently re-enable a type the student had deliberately turned off separately).
+  function disableBrowserNotifs(){updP({browserNotifsEnabled:false});toast2("Browser notifications off");}
+  function enableBrowserNotifs(){updP({browserNotifsEnabled:true});toast2("Browser notifications on");}
 
   // SMS reminders (B-11) — this "send now" call proves the pipe works end-to-end; the scheduled
   // 8:30am/8:00pm sends are separate server-side cron routes (app/api/cron/*, lib/sms/cronSend.js),
@@ -235,7 +240,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <div className="field-grid" style={{marginBottom:hasConflict?10:0}}>
                     <div className="align-col-label align-col-flex">
                       <span style={{fontSize:18}}>{l==="Breakfast"?"🍳":l==="Lunch"?"🥗":"🍽"}</span>
-                      <span style={{fontSize:15,color:"var(--t1)"}}>{l}</span>
+                      {/* Real reported inconsistency: this rendered var(--t1) (white, 15px) while
+                          every other field's label in this same aligned group — Wake time, Sleep
+                          time, Focus length, etc. — uses the global label{} styling (var(--t3),
+                          12px, uppercase, letter-spaced). Matched exactly rather than just the
+                          color alone, so this genuinely reads as the same label style, not merely
+                          the same hue. */}
+                      <span style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:400}}>{l}</span>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <input type="time" className="input-time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))}/>
@@ -259,7 +270,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       )}
 
       {sec==="life"&&(
-        <div>
+        <div className="aligned-fields">
           <div className="card">
             <SecHead icon="ti-barbell" title="Gym schedule"/>
             <div style={{background:"var(--amber-bg)",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#fff",display:"flex",gap:8}}>
@@ -408,36 +419,71 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       )}
 
       {sec==="notifs"&&(
-        <div>
+        <div className="aligned-fields">
           <div className="card" style={{marginBottom:12}}>
-            <SecHead icon="ti-bell" title="Due-date reminders"/>
+            <SecHead icon="ti-bell" title="Browser Notifications"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
               Get a browser notification for anything due today or in the next 2 days, and when it's time to start exam prep. Sent at most once per day, only while StudyOS is open in a tab.
             </p>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:12}}>
-              <div>
-                <div style={{fontSize:14,color:"var(--t1)"}}>Browser permission</div>
-                <div style={{fontSize:12,color:"var(--t3)",marginTop:2}}>
-                  {notifPerm==="granted"?"Granted":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Not yet requested"}
-                </div>
+            {/* The master switch — same tinted-banner treatment as SMS Reminders' "SMS reminders
+                are on / Turn off" row below, deliberately NOT the same plain field-grid style as
+                the per-type toggle list underneath it: this is the gate that makes every one of
+                those toggles meaningless if it's off, so it needs to read as a level above them,
+                not just one more row in the list. Two independent things can make this "off":
+                browser PERMISSION not granted (can't be toggled by us at all — only Notification
+                .requestPermission()/the browser's own site settings can change it) or the app-level
+                browserNotifsEnabled pause (a real Turn off/Turn on, exactly like SMS's smsEnabled,
+                for a student who's already granted permission but wants one quick pause instead of
+                hunting down three switches). Once granted, color+button track the pause state, not
+                permission (which is now fixed); before that, they track permission itself. */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",
+              background:notifPerm==="denied"?"var(--red-bg)":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"var(--green-bg)":"var(--card2)",
+              borderRadius:9,marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:notifPerm==="denied"||(notifPerm==="granted"&&p.browserNotifsEnabled!==false)?"#fff":"var(--t1)"}}>
+                <i className={`ti ${notifPerm==="denied"?"ti-circle-x":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"ti-circle-check":"ti-bell"}`}
+                  style={{color:notifPerm==="denied"?"var(--red)":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"var(--green)":"var(--t3)"}}/>
+                {notifPerm==="denied"?"Blocked — check your browser's site settings"
+                  :notifPerm==="unsupported"?"Not supported in this browser"
+                  :notifPerm!=="granted"?"Turn on browser notifications to get the reminders below"
+                  :p.browserNotifsEnabled!==false?"Browser notifications are on"
+                  :"Browser notifications are off"}
               </div>
-              <span className={`badge ${notifPerm==="granted"?"badge-green":notifPerm==="denied"?"badge-red":"badge-amber"}`}>
-                {notifPerm==="granted"?"✓ On":notifPerm==="denied"?"✗ Blocked":"Off"}
-              </span>
+              {notifPerm!=="granted"&&notifPerm!=="unsupported"&&notifPerm!=="denied"&&(
+                <button className="btn btn-action btn-sm" onClick={enableNotifs}>
+                  <i className="ti ti-bell"/> Enable
+                </button>
+              )}
+              {notifPerm==="granted"&&(p.browserNotifsEnabled!==false?(
+                <button className="btn btn-ghost btn-sm" onClick={disableBrowserNotifs}>Turn off</button>
+              ):(
+                <button className="btn btn-action btn-sm" onClick={enableBrowserNotifs}>Turn on</button>
+              ))}
             </div>
-            {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
-              <button className="btn btn-action" onClick={enableNotifs}>
-                <i className="ti ti-bell"/> Enable notifications
-              </button>
-            )}
-            {notifPerm==="granted"&&(
-              // Real reported bug: bare .toggle-group has no width of its own, so with nothing
-              // else in this row it stretched to the full card width — "super large" on/off
-              // buttons. display:"inline-flex" hugs its own content instead, same as every other
-              // toggle-group in this file already does by virtue of sitting in a row with a label.
-              <div className="toggle-group" style={{display:"inline-flex"}}>
-                <button className={`toggle-opt${p.remindersOn!==false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:true}));toast2("Reminders on");}}>On</button>
-                <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
+            {notifPerm==="granted"&&p.browserNotifsEnabled!==false&&(
+              // Same per-type toggle-row pattern as SMS Reminders below (title+sub-caption as one
+              // right-aligned .align-col-stacked "label", a toggle-group as the field) — replaces
+              // the single "Due-date reminders" switch, which actually gated 3 different behaviors
+              // at once (daily priorities, session-start nudges, and break reminders — the last of
+              // those from two separate code paths, one of which used to ignore it entirely). Real
+              // requested split: each gets its own toggle now, same as SMS's Daily summary/Evening
+              // check-in/Exam countdown rows.
+              <div style={{marginBottom:14}}>
+                {[
+                  ["notifyBrowserPriorities","Daily priorities","Once a day — due dates & exam prep"],
+                  ["notifyBrowserSessions","Session start reminders","When it's time to start a planned session"],
+                  ["notifyBrowserBreaks","Break reminders","At break start & end, incl. the Focus Timer"],
+                ].map(([key,label,sub],i,arr)=>(
+                  <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
+                    <div className="align-col-label align-col-flex align-col-stacked">
+                      <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
+                      <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
+                    </div>
+                    <div className="toggle-group">
+                      <button className={`toggle-opt${p[key]!==false?" on":""}`} onClick={()=>mk(()=>updP({[key]:true}))}>On</button>
+                      <button className={`toggle-opt${p[key]===false?" on":""}`} onClick={()=>mk(()=>updP({[key]:false}))}>Off</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -445,43 +491,50 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           <div className="card" style={{marginBottom:12}}>
             <SecHead icon="ti-message-2" title="SMS Reminders"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
-              Text reminders to your phone: a daily summary, a nudge for anything overdue, an exam/project countdown, and any custom reminders you add below.
+              Text reminders to your phone: a daily summary (with any exam or project deadlines coming up built right in), an evening nudge for anything overdue, and any custom reminders you add below.
             </p>
-            <div style={{marginBottom:14}}>
-              <label>Phone number</label>
-              {/* US-only, so +1 is fixed/shown outside the field rather than something the user
-                  has to type themselves — the input only ever holds the 10 digits. Blur is the
-                  explicit "Confirm Number" moment: nothing is flagged while still mid-typing, but
-                  leaving the field with anything other than a complete 10-digit number shows a
-                  real error rather than silently accepting it. */}
-              <div style={{display:"flex",maxWidth:220}}>
-                <div style={{display:"flex",alignItems:"center",padding:"0 10px",background:"var(--card2)",
-                  border:"1.5px solid var(--b1)",borderRight:"none",borderRadius:"8px 0 0 8px",
-                  color:"var(--t2)",fontSize:16,flexShrink:0}}>+1</div>
-                <div style={{position:"relative",flex:1,minWidth:0}}>
-                  <input type="tel" inputMode="numeric" value={p.phone?p.phone.replace(/^\+1/,""):""} maxLength={10}
-                    onChange={e=>{
-                      const digits=e.target.value.replace(/\D/g,"").slice(0,10);
-                      setPhoneTouched(false);
-                      mk(()=>{setAwaitingConfirm(false);updP({phone:digits?`+1${digits}`:""});});
-                    }}
-                    onBlur={()=>setPhoneTouched(true)}
-                    placeholder="5551234567" style={{borderRadius:"0 8px 8px 0",paddingRight:30}}/>
-                  {isValidUsPhone(p.phone)&&(
-                    <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
-                  )}
+            {/* Label + field on one line, same .aligned-fields treatment as every other
+                Preferences tab now — this one field was the last holdout on the old
+                label-above-field layout. The field cell holds the +1/input row AND the
+                validation message together (a field-hint-style line), same pattern already used
+                for Fun time targets' "Xh total" caption. */}
+            <div className="field-grid" style={{marginBottom:14}}>
+              <label className="align-col-label">Phone number</label>
+              <div>
+                {/* US-only, so +1 is fixed/shown outside the field rather than something the user
+                    has to type themselves — the input only ever holds the 10 digits. Blur is the
+                    explicit "Confirm Number" moment: nothing is flagged while still mid-typing,
+                    but leaving the field with anything other than a complete 10-digit number
+                    shows a real error rather than silently accepting it. */}
+                <div style={{display:"flex",maxWidth:220}}>
+                  <div style={{display:"flex",alignItems:"center",padding:"0 10px",background:"var(--card2)",
+                    border:"1.5px solid var(--b1)",borderRight:"none",borderRadius:"8px 0 0 8px",
+                    color:"var(--t2)",fontSize:16,flexShrink:0}}>+1</div>
+                  <div style={{position:"relative",flex:1,minWidth:0}}>
+                    <input type="tel" inputMode="numeric" value={p.phone?p.phone.replace(/^\+1/,""):""} maxLength={10}
+                      onChange={e=>{
+                        const digits=e.target.value.replace(/\D/g,"").slice(0,10);
+                        setPhoneTouched(false);
+                        mk(()=>{setAwaitingConfirm(false);updP({phone:digits?`+1${digits}`:""});});
+                      }}
+                      onBlur={()=>setPhoneTouched(true)}
+                      placeholder="5551234567" style={{borderRadius:"0 8px 8px 0",paddingRight:30}}/>
+                    {isValidUsPhone(p.phone)&&(
+                      <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
+                    )}
+                  </div>
                 </div>
+                {phoneTouched&&p.phone&&!isValidUsPhone(p.phone)&&(
+                  <div className="field-hint" style={{color:"var(--red)"}}>
+                    <i className="ti ti-alert-circle" style={{marginRight:4}}/>Enter a full 10-digit number.
+                  </div>
+                )}
+                {phoneTouched&&isValidUsPhone(p.phone)&&(
+                  <div className="field-hint" style={{color:"var(--green)"}}>
+                    <i className="ti ti-check" style={{marginRight:4}}/>Number confirmed.
+                  </div>
+                )}
               </div>
-              {phoneTouched&&p.phone&&!isValidUsPhone(p.phone)&&(
-                <div style={{fontSize:12,color:"var(--red)",marginTop:5}}>
-                  <i className="ti ti-alert-circle" style={{marginRight:4}}/>Enter a full 10-digit number.
-                </div>
-              )}
-              {phoneTouched&&isValidUsPhone(p.phone)&&(
-                <div style={{fontSize:12,color:"var(--green)",marginTop:5}}>
-                  <i className="ti ti-check" style={{marginRight:4}}/>Number confirmed.
-                </div>
-              )}
             </div>
 
             {/* A test text just went out — nothing is actually saved as "on" until the user
@@ -539,19 +592,26 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <button className="btn btn-ghost btn-sm" onClick={disableSms}>Turn off</button>
                 </div>
                 <div style={{marginBottom:14}}>
-                  {/* "Daily summary" and "Past-due nudge" are real, automatic scheduled sends now
-                      (app/api/cron/daily-summary, app/api/cron/evening-checkin — see vercel.json).
-                      "Exam / project countdown" is NOT yet built — its own cron route doesn't
-                      exist — labeled honestly below rather than implying it already runs, per this
-                      codebase's own "UI copy must never describe behavior the code doesn't have
-                      yet" rule (CLAUDE.md). */}
+                  {/* Both real, automatic scheduled sends (app/api/cron/daily-summary,
+                      app/api/cron/evening-checkin — see .github/workflows/scheduled-reminders.yml).
+                      There used to be a third row here, Exam / project countdown, for a standalone
+                      send that never got built — removed once the decision was made to fold that
+                      content into Daily summary's own message instead (lib/sms/dailySummary.js),
+                      rather than leave a "coming soon" toggle around indefinitely for a feature not
+                      actually being built as its own send. */}
+                  {/* Real reported gap: these rows used to use a full-width flush-left/flush-right
+                      layout, completely ignoring the aligned-fields column every other field on
+                      this tab (Phone number included) lands on — measured live: titles at the
+                      card's left edge, toggles at the right edge, neither anywhere near the ~40%
+                      line. .align-col-label + .align-col-flex is the same pattern Meal times uses
+                      for a non-<label> "label" (title stacked over its sub-caption, right-aligned
+                      as one block); the toggle-group is the field. */}
                   {[
                     ["notifyDailySummary","Daily summary","8:30am — today's plan"],
                     ["notifyPastDueNudge","Evening check-in","8:00pm — reminder to report completion"],
-                    ["notifyExamCountdown","Exam / project countdown","Not yet automatic — coming soon"],
-                  ].map(([key,label,sub])=>(
-                    <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
-                      <div>
+                  ].map(([key,label,sub],i,arr)=>(
+                    <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
+                      <div className="align-col-label align-col-flex align-col-stacked">
                         <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
                         <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
                       </div>
@@ -566,7 +626,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
                 </button>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
-                  The 8:30am and 8:00pm sends are scheduled server-side and go out automatically — this button just proves the connection works right now. The exam/project countdown above isn't wired up to an automatic send yet. Reply STOP to any text, or turn off above, any time.
+                  The 8:30am and 8:00pm sends are scheduled server-side and go out automatically — this button just proves the connection works right now. Reply STOP to any text, or turn off above, any time.
                 </div>
               </>
             )}
