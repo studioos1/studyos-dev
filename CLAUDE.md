@@ -107,6 +107,30 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 - When redesigning a layout from a screenshot: match the *exact* structure shown (element order,
   grouping, spacing pattern), not an approximation. This took multiple iterations to get right on
   the Focus Time row layout (v2.37.0 → v2.37.3) — read reference images very literally.
+- **Notification-channel section pattern** (v2.82.0-2, Preferences → Notifications) — the shape
+  every delivery channel (Browser, SMS, and whatever's added next — email, a native app push, …)
+  should follow, each its own card:
+  1. A tinted **master-switch banner** at the top (`var(--green-bg)` once on, `var(--card2)` once
+     off, `var(--red-bg)` only for a real failure/blocked state like denied browser permission) —
+     status text on the left, a **Turn off**/**Turn on** button on the right. This is a real app-
+     level preference (its own boolean profile field, e.g. `browserNotifsEnabled`/`smsEnabled`),
+     never a stand-in for something outside the app's control (browser permission itself is tracked
+     separately, live, via `Notification.permission` — not stored, not what this switch means).
+  2. A **per-type toggle list** below it, shown only while the master is on: each row is one
+     `.field-grid` with a stacked title+sub-caption "label" (`.align-col-label .align-col-flex
+     .align-col-stacked`) and a `.toggle-group` field, one row per distinct notification *type* the
+     channel can send (e.g. SMS's Daily summary/Evening check-in/Exam countdown; Browser's Daily
+     priorities/Session start/Break reminders). Each type is its own profile boolean
+     (`notify<Channel><Type>`), independent of the master — turning the master off must never erase
+     an individual type's own remembered choice; turning it back on resumes exactly where it left
+     off (see `disableSms`/`enableBrowserNotifs` in `components/Sett.jsx` for the exact pattern).
+  3. Every real send/fire site for that channel checks BOTH: the master switch AND that specific
+     type's own toggle — never just one. A type gated only by the master (or only by its own
+     toggle) is a bug, found and fixed exactly this way for Browser's Focus Timer chime once
+     already (it had ignored the old single switch entirely).
+  A brand-new notification type within an existing channel is "add one profile boolean + one row in
+  that channel's toggle list + gate its one send/fire site on master-AND-own-toggle" — no new UI
+  pattern needed. A brand-new channel is "copy the whole card structure above."
 
 ## Real bugs found and fixed this session (worth knowing so they don't recur)
 
