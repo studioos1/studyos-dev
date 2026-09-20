@@ -235,7 +235,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <div className="field-grid" style={{marginBottom:hasConflict?10:0}}>
                     <div className="align-col-label align-col-flex">
                       <span style={{fontSize:18}}>{l==="Breakfast"?"🍳":l==="Lunch"?"🥗":"🍽"}</span>
-                      <span style={{fontSize:15,color:"var(--t1)"}}>{l}</span>
+                      {/* Real reported inconsistency: this rendered var(--t1) (white, 15px) while
+                          every other field's label in this same aligned group — Wake time, Sleep
+                          time, Focus length, etc. — uses the global label{} styling (var(--t3),
+                          12px, uppercase, letter-spaced). Matched exactly rather than just the
+                          color alone, so this genuinely reads as the same label style, not merely
+                          the same hue. */}
+                      <span style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:400}}>{l}</span>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <input type="time" className="input-time" value={p[tk]} onChange={e=>mk(()=>updP({[tk]:e.target.value}))}/>
@@ -259,7 +265,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       )}
 
       {sec==="life"&&(
-        <div>
+        <div className="aligned-fields">
           <div className="card">
             <SecHead icon="ti-barbell" title="Gym schedule"/>
             <div style={{background:"var(--amber-bg)",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#fff",display:"flex",gap:8}}>

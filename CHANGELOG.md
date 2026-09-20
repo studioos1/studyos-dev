@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.81.6 — 2026-09-19
+
+**Gym & Fun's fields now use the same centered/aligned layout as Daily Schedule's cards**
+
+Requested: "align the field near the center as we did in all other tabs, as well as in the same
+tab below section: fun time targets." Gym schedule's Stretch prep/Drive to gym and Fun time
+targets' Weekday/Weekend fields were still on the older per-instance "size to content, center the
+block" layout — Daily Schedule's 3 cards had already moved to the shared 40:60 aligned-and-centered
+`.aligned-fields` layout, so this was a real leftover inconsistency, not a new pattern to invent.
+Wrapped the whole Gym & Fun tab's content in `.aligned-fields`, same as Daily Schedule's wrapper —
+the per-day gym rows (checkbox/time/duration, a different widget entirely) are unaffected since
+they don't use `.field-grid` at all. Verified live: all 4 fields land at the identical aligned
+position as Daily Schedule's fields; re-checked mobile safety (no overflow, clean stacking) since
+this changes the field-column formula for a section not previously covered by that check.
+
+## v2.81.5 — 2026-09-19
+
+**Meal times' field labels now match every other label's color/style in Preferences**
+
+Reported: Sleep & Wake and Study preferences' field labels ("WAKE TIME", "FOCUS LENGTH", etc.) are
+a muted light-blue-gray; Meal times' "Breakfast"/"Lunch"/"Dinner" were plain white — an
+inconsistency. Root cause: those three are a `<span>` standing in for a `<label>` (Meal times'
+icon+name pair can't literally be a `<label>` element), and it had never been given the same
+styling as the real `<label>` elements beside it — it used `var(--t1)` (white, 15px) instead of
+the global `label{}` rule's `var(--t3)`, 12px, uppercase, letter-spaced. Matched exactly, not just
+the color, so it genuinely reads as the same label style. Verified live.
+
 ## v2.81.4 — 2026-09-19
 
 **Fixed daily-summary failing in production; redesigned the evening check-in text; closed two real null-safety gaps**
