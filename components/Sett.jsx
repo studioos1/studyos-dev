@@ -421,12 +421,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               Get a browser notification for anything due today or in the next 2 days, and when it's time to start exam prep. Sent at most once per day, only while StudyOS is open in a tab.
             </p>
             {/* Plain label+description row, same as every other field on this tab — no more
-                highlighted card2 bar; the colored pill badge is now just a centered "On"/"Off"
-                marker (still color-coded, just not boxed) so this reads as a normal status field
-                rather than an alert banner. Title+description stacked as one right-aligned "label"
-                is the same .align-col-stacked pattern as the SMS toggle rows. The marker itself is
-                flex-centered both axes so it sits centered against the description's full height,
-                not pinned to the top like a plain grid item would default to. */}
+                highlighted card2 bar. Title+description stacked as one right-aligned "label" is
+                the same .align-col-stacked pattern as the SMS toggle rows. The marker sits where
+                every other field starts (justifySelf:"start" — same as .toggle-group's position,
+                the "center line" the toggle buttons themselves start from) rather than centered
+                across the whole wide field column, and keeps a small badge background so it still
+                reads as a highlighted status, not plain text; alignSelf:"center" keeps it vertically
+                centered against the label's full two-line height. */}
             <div className="field-grid" style={{marginBottom:14}}>
               <div className="align-col-label align-col-flex align-col-stacked">
                 <div style={{fontSize:14,color:"var(--t1)"}}>Browser permission</div>
@@ -434,9 +435,9 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {notifPerm==="granted"?"Granted":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Not yet requested"}
                 </div>
               </div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:notifPerm==="granted"?"var(--green)":notifPerm==="denied"?"var(--red)":"var(--t3)"}}>
+              <span className={`badge ${notifPerm==="granted"?"badge-green":notifPerm==="denied"?"badge-red":"badge-amber"}`} style={{justifySelf:"start",alignSelf:"center"}}>
                 {notifPerm==="denied"?"Blocked":notifPerm==="granted"?"On":"Off"}
-              </div>
+              </span>
             </div>
             {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
               <button className="btn btn-action" onClick={enableNotifs}>

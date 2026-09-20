@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.81.11 — 2026-09-20
+
+**Browser permission marker moved to the column start line, small badge restored**
+
+Requested: "the marker 'On' is placed in the very right, please move it to the center line as the
+buttons. Please add a small background to keep is highlighted." v2.81.10 centered the marker across
+the whole wide field column — too far right. It now sits at the exact same start position as the
+Due-date reminders toggle buttons below it (the field column's left edge, the "center line" of the
+tab), and keeps a small badge background (reusing `.badge`/`.badge-green`/`.badge-red`/`.badge-amber`,
+the same pill style used before v2.81.10 simplified it away) so it still reads as a highlighted
+status rather than plain text — just small and positioned like a field value now, not a full-width
+bar.
+
+Verified live via `getBoundingClientRect()`: badge and toggle-group both start at the identical
+x-position (677px). Mobile re-checked via the iframe technique — stacks cleanly. Build clean,
+227/227 tests pass.
+
 ## v2.81.10 — 2026-09-20
 
 **Browser permission row simplified: plain label/description, centered On/Off marker**
