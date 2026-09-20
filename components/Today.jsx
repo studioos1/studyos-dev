@@ -174,7 +174,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
         }
         const breakMins=(+p.breakMins)||5;
         const title="Break time! ☕",body=`Take a ${breakMins}-min break — you've earned it.`;
-        const notifyEnabled=p.notifyBrowserBreaks!==false;
+        const notifyEnabled=p.browserNotifsEnabled!==false&&p.notifyBrowserBreaks!==false;
         notifyPhase("break-start",title,body,notifyEnabled);
         if(notifyEnabled)pushNotification(data,upd,{title,body});
         setPhase("break");
@@ -183,7 +183,7 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
       }
       {
         const title="Break's over 💪",body="Back to it — resume when you're ready.";
-        const notifyEnabled=p.notifyBrowserBreaks!==false;
+        const notifyEnabled=p.browserNotifsEnabled!==false&&p.notifyBrowserBreaks!==false;
         notifyPhase("break-end",title,body,notifyEnabled);
         if(notifyEnabled)pushNotification(data,upd,{title,body});
       }

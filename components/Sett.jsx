@@ -56,6 +56,11 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     if(perm==="granted"){toast2("Notifications enabled! 🔔");}
     else{toast2("Permission denied — enable it in your browser's site settings",true);}
   }
+  // Master pause/resume — same idea as disableSms below, its own flag rather than the three
+  // per-type toggles so each keeps its own remembered choice while paused (turning the master back
+  // on shouldn't silently re-enable a type the student had deliberately turned off separately).
+  function disableBrowserNotifs(){updP({browserNotifsEnabled:false});toast2("Browser notifications off");}
+  function enableBrowserNotifs(){updP({browserNotifsEnabled:true});toast2("Browser notifications on");}
 
   // SMS reminders (B-11) — this "send now" call proves the pipe works end-to-end; the scheduled
   // 8:30am/8:00pm sends are separate server-side cron routes (app/api/cron/*, lib/sms/cronSend.js),
@@ -424,24 +429,37 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 are on / Turn off" row below, deliberately NOT the same plain field-grid style as
                 the per-type toggle list underneath it: this is the gate that makes every one of
                 those toggles meaningless if it's off, so it needs to read as a level above them,
-                not just one more row in the list. Color tracks state (green once granted, red if
-                blocked) the same way the badge used to, just carried by the whole row now instead
-                of a small marker. */}
+                not just one more row in the list. Two independent things can make this "off":
+                browser PERMISSION not granted (can't be toggled by us at all — only Notification
+                .requestPermission()/the browser's own site settings can change it) or the app-level
+                browserNotifsEnabled pause (a real Turn off/Turn on, exactly like SMS's smsEnabled,
+                for a student who's already granted permission but wants one quick pause instead of
+                hunting down three switches). Once granted, color+button track the pause state, not
+                permission (which is now fixed); before that, they track permission itself. */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",
-              background:notifPerm==="granted"?"var(--green-bg)":notifPerm==="denied"?"var(--red-bg)":"var(--card2)",
+              background:notifPerm==="denied"?"var(--red-bg)":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"var(--green-bg)":"var(--card2)",
               borderRadius:9,marginBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:notifPerm==="granted"||notifPerm==="denied"?"#fff":"var(--t1)"}}>
-                <i className={`ti ${notifPerm==="granted"?"ti-circle-check":notifPerm==="denied"?"ti-circle-x":"ti-bell"}`}
-                  style={{color:notifPerm==="granted"?"var(--green)":notifPerm==="denied"?"var(--red)":"var(--t3)"}}/>
-                {notifPerm==="granted"?"Browser notifications are on":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Turn on browser notifications to get the reminders below"}
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:notifPerm==="denied"||(notifPerm==="granted"&&p.browserNotifsEnabled!==false)?"#fff":"var(--t1)"}}>
+                <i className={`ti ${notifPerm==="denied"?"ti-circle-x":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"ti-circle-check":"ti-bell"}`}
+                  style={{color:notifPerm==="denied"?"var(--red)":notifPerm==="granted"&&p.browserNotifsEnabled!==false?"var(--green)":"var(--t3)"}}/>
+                {notifPerm==="denied"?"Blocked — check your browser's site settings"
+                  :notifPerm==="unsupported"?"Not supported in this browser"
+                  :notifPerm!=="granted"?"Turn on browser notifications to get the reminders below"
+                  :p.browserNotifsEnabled!==false?"Browser notifications are on"
+                  :"Browser notifications are off"}
               </div>
               {notifPerm!=="granted"&&notifPerm!=="unsupported"&&notifPerm!=="denied"&&(
                 <button className="btn btn-action btn-sm" onClick={enableNotifs}>
                   <i className="ti ti-bell"/> Enable
                 </button>
               )}
+              {notifPerm==="granted"&&(p.browserNotifsEnabled!==false?(
+                <button className="btn btn-ghost btn-sm" onClick={disableBrowserNotifs}>Turn off</button>
+              ):(
+                <button className="btn btn-action btn-sm" onClick={enableBrowserNotifs}>Turn on</button>
+              ))}
             </div>
-            {notifPerm==="granted"&&(
+            {notifPerm==="granted"&&p.browserNotifsEnabled!==false&&(
               // Same per-type toggle-row pattern as SMS Reminders below (title+sub-caption as one
               // right-aligned .align-col-stacked "label", a toggle-group as the field) — replaces
               // the single "Due-date reminders" switch, which actually gated 3 different behaviors

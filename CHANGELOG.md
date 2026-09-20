@@ -1,5 +1,31 @@
 # StudyOS Changelog
 
+## v2.82.2 — 2026-09-20
+
+**Browser Notifications gets a real Turn off/Turn on master switch**
+
+Requested: "dont we miss similar button as in SMS reminders for the Browser notification - ON/OFF?"
+— right: the v2.82.1 banner showed live permission status but had no way to pause everything short
+of hunting down three switches individually, unlike SMS's own master "SMS reminders are on / Turn
+off." Added `browserNotifsEnabled` (`lib/data/schema.js`) — a new, separate flag rather than
+reusing the three per-type toggles, so pausing doesn't erase which types were individually on/off;
+flipping it back on resumes exactly where it left off. The banner's button now tracks this real
+switch: "Turn off"/"Turn on", same style as SMS's; the per-type toggle list only shows while the
+master is on, same as SMS's toggle list only showing while `smsEnabled` is true. Every notification
+call site (the daily-priorities effect, the schedule-driven session/break effect, Today's Focus
+Timer chime, and the server-side `notify-urgent-items` cron) now checks the master switch in
+addition to its own specific per-type toggle.
+
+The old `remindersOn` migration (added in v2.82.0, before this master switch existed) now carries
+an explicit past "off" forward onto `browserNotifsEnabled` instead of onto all three per-type
+toggles — more faithful to what `remindersOn` actually was: a blunt all-or-nothing pause, not three
+separate choices.
+
+Verified live: Turn off hides the toggle list and shows a neutral "off" banner with Turn on;
+toggling back on restores every per-type toggle's previous state untouched. Checked on mobile too.
+Build clean, 231/231 tests pass (1 new, covering the master switch overriding an enabled per-type
+toggle in the server-side cron path).
+
 ## v2.82.1 — 2026-09-20
 
 **Browser permission is now a standout master-switch banner**
