@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.82.1 — 2026-09-20
+
+**Browser permission is now a standout master-switch banner**
+
+Requested: "don't forget the main toggle to allow browser permission, its has to stand out vs. the
+list of notifications" — caught mid-build of v2.82.0's 3-toggle split. The permission row had
+shrunk down to a plain field (matching the per-type toggle rows below it) across the last few
+iterations, so it no longer read as the master gate that makes those three toggles meaningful in
+the first place. Replaced with the same tinted full-width banner treatment SMS Reminders already
+uses for its own master switch ("SMS reminders are on / Turn off") — green once granted, red if
+blocked, neutral with an "Enable" button before it's ever been requested — so it now reads a level
+above the plain toggle list underneath it, not as one more row in it.
+
+Verified live (including the "not yet requested" and "blocked" states, previewed via a direct React
+state override rather than actually revoking real browser permission) and on mobile. Build clean,
+230/230 tests pass.
+
 ## v2.82.0 — 2026-09-20
 
 **Browser Notifications split into 3 individually-toggled types, matching SMS Reminders**

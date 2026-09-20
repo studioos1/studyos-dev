@@ -420,30 +420,27 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
               Get a browser notification for anything due today or in the next 2 days, and when it's time to start exam prep. Sent at most once per day, only while StudyOS is open in a tab.
             </p>
-            {/* Plain label+description row, same as every other field on this tab — no more
-                highlighted card2 bar. Title+description stacked as one right-aligned "label" is
-                the same .align-col-stacked pattern as the SMS toggle rows. The marker sits where
-                every other field starts (justifySelf:"start" — same as .toggle-group's position,
-                the "center line" the toggle buttons themselves start from) rather than centered
-                across the whole wide field column, and keeps a small badge background so it still
-                reads as a highlighted status, not plain text; alignSelf:"center" keeps it vertically
-                centered against the label's full two-line height. */}
-            <div className="field-grid" style={{marginBottom:14}}>
-              <div className="align-col-label align-col-flex align-col-stacked">
-                <div style={{fontSize:14,color:"var(--t1)"}}>Browser permission</div>
-                <div style={{fontSize:12,color:"var(--t3)"}}>
-                  {notifPerm==="granted"?"Granted":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Not yet requested"}
-                </div>
+            {/* The master switch — same tinted-banner treatment as SMS Reminders' "SMS reminders
+                are on / Turn off" row below, deliberately NOT the same plain field-grid style as
+                the per-type toggle list underneath it: this is the gate that makes every one of
+                those toggles meaningless if it's off, so it needs to read as a level above them,
+                not just one more row in the list. Color tracks state (green once granted, red if
+                blocked) the same way the badge used to, just carried by the whole row now instead
+                of a small marker. */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",
+              background:notifPerm==="granted"?"var(--green-bg)":notifPerm==="denied"?"var(--red-bg)":"var(--card2)",
+              borderRadius:9,marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:notifPerm==="granted"||notifPerm==="denied"?"#fff":"var(--t1)"}}>
+                <i className={`ti ${notifPerm==="granted"?"ti-circle-check":notifPerm==="denied"?"ti-circle-x":"ti-bell"}`}
+                  style={{color:notifPerm==="granted"?"var(--green)":notifPerm==="denied"?"var(--red)":"var(--t3)"}}/>
+                {notifPerm==="granted"?"Browser notifications are on":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Turn on browser notifications to get the reminders below"}
               </div>
-              <span className={`badge ${notifPerm==="granted"?"badge-green":notifPerm==="denied"?"badge-red":"badge-amber"}`} style={{justifySelf:"start",alignSelf:"center"}}>
-                {notifPerm==="denied"?"Blocked":notifPerm==="granted"?"On":"Off"}
-              </span>
+              {notifPerm!=="granted"&&notifPerm!=="unsupported"&&notifPerm!=="denied"&&(
+                <button className="btn btn-action btn-sm" onClick={enableNotifs}>
+                  <i className="ti ti-bell"/> Enable
+                </button>
+              )}
             </div>
-            {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
-              <button className="btn btn-action" onClick={enableNotifs}>
-                <i className="ti ti-bell"/> Enable notifications
-              </button>
-            )}
             {notifPerm==="granted"&&(
               // Same per-type toggle-row pattern as SMS Reminders below (title+sub-caption as one
               // right-aligned .align-col-stacked "label", a toggle-group as the field) — replaces
