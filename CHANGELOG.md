@@ -1,5 +1,39 @@
 # StudyOS Changelog
 
+## v2.82.0 — 2026-09-20
+
+**Browser Notifications split into 3 individually-toggled types, matching SMS Reminders**
+
+Requested: "similar the breakdown of SMS message-type with individual toggle, let's build
+similarly on the first section the list of notification-types for Browser with individual
+toggle." Investigating "how many types of notifications do we have" (previous message) surfaced
+that the single `remindersOn` switch this section used to expose was actually gating 3 different
+behaviors at once — and one of them (the Focus Timer's own break chime) wasn't gated by it at all,
+a real inconsistency. Split into three independent toggles, same row pattern as SMS's Daily
+summary/Evening check-in/Exam countdown:
+
+- **Daily priorities** (`notifyBrowserPriorities`) — the once-a-day "today's priorities"
+  notification (due dates within 2 days, exams within 5). Also gates its server-side counterpart
+  (`app/api/cron/notify-urgent-items`), which writes the same content into the bell log even when
+  the browser was never open — previously read `remindersOn` there too.
+- **Session start reminders** (`notifyBrowserSessions`) — "time to start studying" nudges at a
+  planned session's actual clock time.
+- **Break reminders** (`notifyBrowserBreaks`) — break start/end nudges. Now covers BOTH the
+  passive schedule-driven check AND Today's own Focus Timer chime (`lib/notify.js`'s `notifyPhase`
+  gained a `notify` flag for this) — the chime tone itself still always plays, only the desktop
+  popup + bell-log entry are gated, so "turn off break reminders" now actually turns off every
+  break reminder instead of just half of them.
+
+`remindersOn` itself is no longer read anywhere except a one-time migration (`lib/data/store.js`):
+an account that had explicitly turned it off gets that off-state carried forward to all three new
+toggles once; an account that never touched it (or had it on) needs nothing written, since unset
+already reads as "on" everywhere, the same convention every other toggle in this app already uses.
+
+Verified live: toggles operate independently, persist across reload, align with the SMS section's
+column on desktop, and stack cleanly on mobile (iframe technique). Build clean, 230/230 tests pass
+(3 new covering the migration's carry-forward, off-preservation, and already-migrated passthrough
+cases).
+
 ## v2.81.11 — 2026-09-20
 
 **Browser permission marker moved to the column start line, small badge restored**

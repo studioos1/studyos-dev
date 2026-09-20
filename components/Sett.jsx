@@ -53,7 +53,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
     if(typeof Notification==="undefined"){toast2("Notifications aren't supported in this browser",true);return;}
     const perm=await Notification.requestPermission();
     setNotifPerm(perm);
-    if(perm==="granted"){updP({remindersOn:true});toast2("Notifications enabled! 🔔");}
+    if(perm==="granted"){toast2("Notifications enabled! 🔔");}
     else{toast2("Permission denied — enable it in your browser's site settings",true);}
   }
 
@@ -445,12 +445,30 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               </button>
             )}
             {notifPerm==="granted"&&(
-              <div className="field-grid">
-                <label className="align-col-label">Due-date reminders</label>
-                <div className="toggle-group">
-                  <button className={`toggle-opt${p.remindersOn!==false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:true}));toast2("Reminders on");}}>On</button>
-                  <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
-                </div>
+              // Same per-type toggle-row pattern as SMS Reminders below (title+sub-caption as one
+              // right-aligned .align-col-stacked "label", a toggle-group as the field) — replaces
+              // the single "Due-date reminders" switch, which actually gated 3 different behaviors
+              // at once (daily priorities, session-start nudges, and break reminders — the last of
+              // those from two separate code paths, one of which used to ignore it entirely). Real
+              // requested split: each gets its own toggle now, same as SMS's Daily summary/Evening
+              // check-in/Exam countdown rows.
+              <div style={{marginBottom:14}}>
+                {[
+                  ["notifyBrowserPriorities","Daily priorities","Once a day — due dates & exam prep"],
+                  ["notifyBrowserSessions","Session start reminders","When it's time to start a planned session"],
+                  ["notifyBrowserBreaks","Break reminders","At break start & end, incl. the Focus Timer"],
+                ].map(([key,label,sub],i,arr)=>(
+                  <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
+                    <div className="align-col-label align-col-flex align-col-stacked">
+                      <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
+                      <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
+                    </div>
+                    <div className="toggle-group">
+                      <button className={`toggle-opt${p[key]!==false?" on":""}`} onClick={()=>mk(()=>updP({[key]:true}))}>On</button>
+                      <button className={`toggle-opt${p[key]===false?" on":""}`} onClick={()=>mk(()=>updP({[key]:false}))}>Off</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
