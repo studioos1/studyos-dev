@@ -1,5 +1,20 @@
 # StudyOS Changelog
 
+## v2.81.10 — 2026-09-20
+
+**Browser permission row simplified: plain label/description, centered On/Off marker**
+
+Requested: "Split the long bar showing Browser Permission to be a standard display/description, and
+at the right to center, please just the marker 'On' or 'Off'." The highlighted card2 background bar
+from v2.81.9 is gone — "Browser permission" now reads as a plain label + status description like
+every other field on this tab, and the colored pill badge (with its "✓"/"✗" icons and "Blocked"
+wording baked in) is now just a plain "On"/"Off" (or "Blocked" when denied) marker, color-coded but
+unboxed, centered in the field column both horizontally and vertically against the label's full
+height.
+
+Verified live on desktop and mobile (real-viewport iframe technique). Build clean, 227/227 tests
+pass.
+
 ## v2.81.9 — 2026-09-20
 
 **"Due-date reminders" renamed to "Browser Notifications"; whole section aligned**

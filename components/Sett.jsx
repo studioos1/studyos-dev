@@ -420,23 +420,23 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
               Get a browser notification for anything due today or in the next 2 days, and when it's time to start exam prep. Sent at most once per day, only while StudyOS is open in a tab.
             </p>
-            {/* Both rows now use the same .field-grid column as every other Preferences field —
-                the status row keeps its card2 highlight, just moved onto the grid itself (rather
-                than a plain flex row) so its label/value still land on the ~40% line. Title+status
-                stacked as one right-aligned "label" is the same .align-col-stacked pattern as the
-                SMS toggle rows; .badge needed adding to globals.css's justify-self:start list
-                (alongside .toggle-group) for the same reason that one did — nothing here otherwise
-                stops a grid item from stretching to fill the wide field column. */}
-            <div className="field-grid" style={{padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:12}}>
+            {/* Plain label+description row, same as every other field on this tab — no more
+                highlighted card2 bar; the colored pill badge is now just a centered "On"/"Off"
+                marker (still color-coded, just not boxed) so this reads as a normal status field
+                rather than an alert banner. Title+description stacked as one right-aligned "label"
+                is the same .align-col-stacked pattern as the SMS toggle rows. The marker itself is
+                flex-centered both axes so it sits centered against the description's full height,
+                not pinned to the top like a plain grid item would default to. */}
+            <div className="field-grid" style={{marginBottom:14}}>
               <div className="align-col-label align-col-flex align-col-stacked">
                 <div style={{fontSize:14,color:"var(--t1)"}}>Browser permission</div>
                 <div style={{fontSize:12,color:"var(--t3)"}}>
                   {notifPerm==="granted"?"Granted":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Not yet requested"}
                 </div>
               </div>
-              <span className={`badge ${notifPerm==="granted"?"badge-green":notifPerm==="denied"?"badge-red":"badge-amber"}`}>
-                {notifPerm==="granted"?"✓ On":notifPerm==="denied"?"✗ Blocked":"Off"}
-              </span>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:notifPerm==="granted"?"var(--green)":notifPerm==="denied"?"var(--red)":"var(--t3)"}}>
+                {notifPerm==="denied"?"Blocked":notifPerm==="granted"?"On":"Off"}
+              </div>
             </div>
             {notifPerm!=="granted"&&notifPerm!=="unsupported"&&(
               <button className="btn btn-action" onClick={enableNotifs}>
