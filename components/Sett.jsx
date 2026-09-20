@@ -416,14 +416,21 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       {sec==="notifs"&&(
         <div className="aligned-fields">
           <div className="card" style={{marginBottom:12}}>
-            <SecHead icon="ti-bell" title="Due-date reminders"/>
+            <SecHead icon="ti-bell" title="Browser Notifications"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
               Get a browser notification for anything due today or in the next 2 days, and when it's time to start exam prep. Sent at most once per day, only while StudyOS is open in a tab.
             </p>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:12}}>
-              <div>
+            {/* Both rows now use the same .field-grid column as every other Preferences field —
+                the status row keeps its card2 highlight, just moved onto the grid itself (rather
+                than a plain flex row) so its label/value still land on the ~40% line. Title+status
+                stacked as one right-aligned "label" is the same .align-col-stacked pattern as the
+                SMS toggle rows; .badge needed adding to globals.css's justify-self:start list
+                (alongside .toggle-group) for the same reason that one did — nothing here otherwise
+                stops a grid item from stretching to fill the wide field column. */}
+            <div className="field-grid" style={{padding:"12px 14px",background:"var(--card2)",borderRadius:9,marginBottom:12}}>
+              <div className="align-col-label align-col-flex align-col-stacked">
                 <div style={{fontSize:14,color:"var(--t1)"}}>Browser permission</div>
-                <div style={{fontSize:12,color:"var(--t3)",marginTop:2}}>
+                <div style={{fontSize:12,color:"var(--t3)"}}>
                   {notifPerm==="granted"?"Granted":notifPerm==="denied"?"Blocked — check your browser's site settings":notifPerm==="unsupported"?"Not supported in this browser":"Not yet requested"}
                 </div>
               </div>
@@ -437,13 +444,12 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               </button>
             )}
             {notifPerm==="granted"&&(
-              // Real reported bug: bare .toggle-group has no width of its own, so with nothing
-              // else in this row it stretched to the full card width — "super large" on/off
-              // buttons. display:"inline-flex" hugs its own content instead, same as every other
-              // toggle-group in this file already does by virtue of sitting in a row with a label.
-              <div className="toggle-group" style={{display:"inline-flex"}}>
-                <button className={`toggle-opt${p.remindersOn!==false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:true}));toast2("Reminders on");}}>On</button>
-                <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
+              <div className="field-grid">
+                <label className="align-col-label">Due-date reminders</label>
+                <div className="toggle-group">
+                  <button className={`toggle-opt${p.remindersOn!==false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:true}));toast2("Reminders on");}}>On</button>
+                  <button className={`toggle-opt${p.remindersOn===false?" on":""}`} onClick={()=>{mk(()=>updP({remindersOn:false}));toast2("Reminders off");}}>Off</button>
+                </div>
               </div>
             )}
           </div>

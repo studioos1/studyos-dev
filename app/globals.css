@@ -145,7 +145,8 @@
     .aligned-fields .field-grid>.input-date,
     .aligned-fields .field-grid>.input-num-sm,
     .aligned-fields .field-grid>.select-compact,
-    .aligned-fields .field-grid>.toggle-group{justify-self:start;}
+    .aligned-fields .field-grid>.toggle-group,
+    .aligned-fields .field-grid>.badge{justify-self:start;}
     /* A row whose "label" is more than plain text (Meal times' icon+name pair, components/Sett.jsx)
        can't be a <label> and still lay out icon-then-text with a <label>'s own text-align, so it
        uses this class instead — same right-alignment as a real label, and the same mobile flip. */

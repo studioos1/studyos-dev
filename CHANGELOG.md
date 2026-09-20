@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.81.9 — 2026-09-20
+
+**"Due-date reminders" renamed to "Browser Notifications"; whole section aligned**
+
+Requested: "the first section 'Due-date reminders' is not the proper title. Shall be 'Brower
+Notifications'. Please revise the UI of the entire section to align with the center alignment
+concept." Section title renamed. Both rows inside it moved onto `.field-grid` so they land on the
+same ~40% column as every other field on this tab: "Browser permission" (title + status stacked as
+one right-aligned label, matching the SMS toggle rows' pattern, with its badge on the field side —
+`.badge` needed adding to globals.css's `justify-self:start` list, same reason `.toggle-group`
+needed it in v2.81.8) keeps its highlighted card2 background, now on the grid row itself; the
+On/Off toggle below it — previously unlabeled — now reads "Due-date reminders" as its own field
+label instead of floating with no caption.
+
+Verified live: both rows visually align with Phone number/the SMS toggle rows on desktop; mobile
+re-checked via the real-viewport iframe technique — status box and toggle both stack cleanly,
+flush left. Build clean, 227/227 tests pass.
+
 ## v2.81.8 — 2026-09-20
 
 **SMS Reminders toggle rows now align with the rest of the Notifications tab**
