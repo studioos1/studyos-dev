@@ -119,8 +119,8 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   2. A **per-type toggle list** below it, shown only while the master is on: each row is one
      `.field-grid` with a stacked title+sub-caption "label" (`.align-col-label .align-col-flex
      .align-col-stacked`) and a `.toggle-group` field, one row per distinct notification *type* the
-     channel can send (e.g. SMS's Daily summary/Evening check-in/Exam countdown; Browser's Daily
-     priorities/Session start/Break reminders). Each type is its own profile boolean
+     channel can send (e.g. SMS's Daily summary/Evening check-in; Browser's Daily priorities/
+     Session start/Break reminders). Each type is its own profile boolean
      (`notify<Channel><Type>`), independent of the master — turning the master off must never erase
      an individual type's own remembered choice; turning it back on resumes exactly where it left
      off (see `disableSms`/`enableBrowserNotifs` in `components/Sett.jsx` for the exact pattern).
@@ -192,9 +192,12 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   each user's in-app bell log (`data.notifications`) — not its own schedule, called from inside
   `daily-summary` on that same 8:30am trigger. All three are gated by `CRON_SECRET` + a
   `SUPABASE_SERVICE_ROLE_KEY`-backed client (`lib/sms/cronSend.js` — the one deliberate place this
-  app uses a service-role key, never imported from client code). The exam/project-countdown
-  reminder toggle in Preferences is still UI-only, no cron built for it yet — labeled honestly as
-  "coming soon" rather than implying it already runs. The "Morning Message" daily-briefing card
+  app uses a service-role key, never imported from client code). There is no standalone exam/
+  project-countdown send — deliberately not built, to avoid a third scheduled cron/toggle; instead
+  `lib/sms/dailySummary.js`'s own message and `urgentItems()` (`lib/data/notifications.js`, feeds
+  both the bell log and the browser-notification effect) each include an exam AND a project
+  countdown line directly, gated by the same `notifyDailySummary`/`notifyBrowserPriorities`
+  toggles those channels already have — see `PROJECT_COUNTDOWN_DAYS` there. The "Morning Message" daily-briefing card
   (the feature formerly labeled WhatsApp)
   is still preview-only, not auto-sent — separate from the scheduled SMS reminders above.
   Email/username/password fields on the Account modal / onboarding Welcome step remain

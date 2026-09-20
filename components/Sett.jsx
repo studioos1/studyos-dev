@@ -491,7 +491,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
           <div className="card" style={{marginBottom:12}}>
             <SecHead icon="ti-message-2" title="SMS Reminders"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
-              Text reminders to your phone: a daily summary, a nudge for anything overdue, an exam/project countdown, and any custom reminders you add below.
+              Text reminders to your phone: a daily summary (with any exam or project deadlines coming up built right in), an evening nudge for anything overdue, and any custom reminders you add below.
             </p>
             {/* Label + field on one line, same .aligned-fields treatment as every other
                 Preferences tab now — this one field was the last holdout on the old
@@ -592,13 +592,14 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   <button className="btn btn-ghost btn-sm" onClick={disableSms}>Turn off</button>
                 </div>
                 <div style={{marginBottom:14}}>
-                  {/* "Daily summary" and "Past-due nudge" are real, automatic scheduled sends now
-                      (app/api/cron/daily-summary, app/api/cron/evening-checkin — see vercel.json).
-                      "Exam / project countdown" is NOT yet built — its own cron route doesn't
-                      exist — labeled honestly below rather than implying it already runs, per this
-                      codebase's own "UI copy must never describe behavior the code doesn't have
-                      yet" rule (CLAUDE.md). */}
-                  {/* Real reported gap: these 3 rows used a full-width flush-left/flush-right
+                  {/* Both real, automatic scheduled sends (app/api/cron/daily-summary,
+                      app/api/cron/evening-checkin — see .github/workflows/scheduled-reminders.yml).
+                      There used to be a third row here, Exam / project countdown, for a standalone
+                      send that never got built — removed once the decision was made to fold that
+                      content into Daily summary's own message instead (lib/sms/dailySummary.js),
+                      rather than leave a "coming soon" toggle around indefinitely for a feature not
+                      actually being built as its own send. */}
+                  {/* Real reported gap: these rows used to use a full-width flush-left/flush-right
                       layout, completely ignoring the aligned-fields column every other field on
                       this tab (Phone number included) lands on — measured live: titles at the
                       card's left edge, toggles at the right edge, neither anywhere near the ~40%
@@ -608,9 +609,8 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {[
                     ["notifyDailySummary","Daily summary","8:30am — today's plan"],
                     ["notifyPastDueNudge","Evening check-in","8:00pm — reminder to report completion"],
-                    ["notifyExamCountdown","Exam / project countdown","Not yet automatic — coming soon"],
-                  ].map(([key,label,sub])=>(
-                    <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
+                  ].map(([key,label,sub],i,arr)=>(
+                    <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
                       <div className="align-col-label align-col-flex align-col-stacked">
                         <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
                         <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
@@ -626,7 +626,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                   {smsBusy?<><Sp sz={13}/> Sending...</>:<><i className="ti ti-send"/> Send me a test text</>}
                 </button>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:10,lineHeight:1.5}}>
-                  The 8:30am and 8:00pm sends are scheduled server-side and go out automatically — this button just proves the connection works right now. The exam/project countdown above isn't wired up to an automatic send yet. Reply STOP to any text, or turn off above, any time.
+                  The 8:30am and 8:00pm sends are scheduled server-side and go out automatically — this button just proves the connection works right now. Reply STOP to any text, or turn off above, any time.
                 </div>
               </>
             )}

@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.82.3 — 2026-09-20
+
+**Project deadlines get their own countdown, same as exams**
+
+Requested: build the Exam/project countdown SMS — then, once the timing trade-off was discussed
+("shall we add a preferred time field, or keep it simple") the direction settled on: "let's avoid
+extra infra work... include project reminders in the daily morning notifications and ensure it also
+appears in the daily summary" — fold it into the two channels that already exist instead of a third
+scheduled send.
+
+Real gap found along the way: the "Exam / project countdown" toggle's own name promised project
+countdowns, but the underlying content (`urgentItems()` in `lib/data/notifications.js`, and
+`lib/sms/dailySummary.js`'s SMS message) only ever surfaced exams — a `type:"project"` assignment
+fell into the same 2-day-out bucket as any regular homework, no earlier heads-up at all.
+
+- `urgentItems()` — a project assignment now gets the same 5-day window an exam gets (a new
+  `PROJECT_COUNTDOWN_DAYS` constant, exported for reuse), tagged `[Project]` in the bell log/
+  browser-notification text so it reads distinctly from a same-window exam entry. Both channels
+  this feeds — the bell log and the once-a-day browser notification — are gated by the existing
+  `notifyBrowserPriorities` toggle, no new toggle needed.
+- `buildDailySummaryMessage()` — a new `Reminder ⚠️: PROJECT due in N Days (Weekday) Course — Title`
+  line, same shape as the existing exam line, using the same `PROJECT_COUNTDOWN_DAYS` window so the
+  two channels never quietly drift apart on "how far ahead does this get mentioned." Gated by the
+  existing `notifyDailySummary` toggle.
+- Removed the now-permanently-stale "Exam / project countdown" toggle from SMS Reminders — keeping
+  a "coming soon" stub around indefinitely for a feature deliberately *not* being built as its own
+  send would violate this codebase's own "UI copy must never describe behavior the code doesn't
+  have yet" rule (CLAUDE.md), same as `notifyExamCountdown`'s schema field.
+- Documented the decision (fold into existing channels vs. a third scheduled send + timing
+  trade-offs) in CLAUDE.md's backlog section for future reference.
+
+Verified live: SMS Reminders now shows only Daily summary/Evening check-in; Browser Notifications'
+Daily priorities toggle unchanged (project reminders ride the same toggle). Build clean, 237/237
+tests pass (6 new, covering the widened project window, the `[Project]` tag, exclusion outside the
+window/already-done, and the daily summary's new line alongside an exam line in the same message).
+
 ## v2.82.2 — 2026-09-20
 
 **Browser Notifications gets a real Turn off/Turn on master switch**
