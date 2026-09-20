@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.81.7 — 2026-09-19
+
+**Notifications tab: Phone number and Custom reminders now use the same centered/aligned layout**
+
+Requested: "SMS reminder alignment - same style." Phone number was the last field in Preferences
+still on the old label-above-field layout — deliberately left alone in an earlier pass since it's
+a multi-part control (a fixed +1 box, the input, a validation message below), but per the standing
+consistency priority it's now converted too: label + field on one line, the field cell holding the
++1/input row and its validation message together (the same "field-hint" pattern already used for
+Fun time targets' caption text). The whole Notifications tab is now wrapped in `.aligned-fields`,
+same as Daily Schedule and Gym & Fun, so Custom reminders' fields (already `.field-grid`, just not
+previously wrapped) automatically picked up the same aligned position.
+
+Caught and resolved during verification, not a real app bug: the phone field's live blur-validation
+(red/green message) appeared not to fire when tested via synthetic DOM events (dispatched `blur`,
+`.focus()`+`.blur()`, even a real automated click+Tab) — traced to a limitation of the browser
+automation tooling's synthetic blur delivery in this environment, confirmed by calling the
+React-bound `onBlur` handler directly, which worked immediately. A real user's actual click/Tab
+away from the field fires a genuine browser blur event and is unaffected. No code changed to
+"fix" this since there was nothing to fix — the underlying validation logic was untouched by this
+layout change and confirmed working. Verified live: red/green validation messages render
+correctly with the new layout; the real phone number round-tripped through a full page reload
+successfully.
+
 ## v2.81.6 — 2026-09-19
 
 **Gym & Fun's fields now use the same centered/aligned layout as Daily Schedule's cards**

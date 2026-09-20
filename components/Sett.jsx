@@ -414,7 +414,7 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
       )}
 
       {sec==="notifs"&&(
-        <div>
+        <div className="aligned-fields">
           <div className="card" style={{marginBottom:12}}>
             <SecHead icon="ti-bell" title="Due-date reminders"/>
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
@@ -453,41 +453,48 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
             <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
               Text reminders to your phone: a daily summary, a nudge for anything overdue, an exam/project countdown, and any custom reminders you add below.
             </p>
-            <div style={{marginBottom:14}}>
-              <label>Phone number</label>
-              {/* US-only, so +1 is fixed/shown outside the field rather than something the user
-                  has to type themselves — the input only ever holds the 10 digits. Blur is the
-                  explicit "Confirm Number" moment: nothing is flagged while still mid-typing, but
-                  leaving the field with anything other than a complete 10-digit number shows a
-                  real error rather than silently accepting it. */}
-              <div style={{display:"flex",maxWidth:220}}>
-                <div style={{display:"flex",alignItems:"center",padding:"0 10px",background:"var(--card2)",
-                  border:"1.5px solid var(--b1)",borderRight:"none",borderRadius:"8px 0 0 8px",
-                  color:"var(--t2)",fontSize:16,flexShrink:0}}>+1</div>
-                <div style={{position:"relative",flex:1,minWidth:0}}>
-                  <input type="tel" inputMode="numeric" value={p.phone?p.phone.replace(/^\+1/,""):""} maxLength={10}
-                    onChange={e=>{
-                      const digits=e.target.value.replace(/\D/g,"").slice(0,10);
-                      setPhoneTouched(false);
-                      mk(()=>{setAwaitingConfirm(false);updP({phone:digits?`+1${digits}`:""});});
-                    }}
-                    onBlur={()=>setPhoneTouched(true)}
-                    placeholder="5551234567" style={{borderRadius:"0 8px 8px 0",paddingRight:30}}/>
-                  {isValidUsPhone(p.phone)&&(
-                    <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
-                  )}
+            {/* Label + field on one line, same .aligned-fields treatment as every other
+                Preferences tab now — this one field was the last holdout on the old
+                label-above-field layout. The field cell holds the +1/input row AND the
+                validation message together (a field-hint-style line), same pattern already used
+                for Fun time targets' "Xh total" caption. */}
+            <div className="field-grid" style={{marginBottom:14}}>
+              <label className="align-col-label">Phone number</label>
+              <div>
+                {/* US-only, so +1 is fixed/shown outside the field rather than something the user
+                    has to type themselves — the input only ever holds the 10 digits. Blur is the
+                    explicit "Confirm Number" moment: nothing is flagged while still mid-typing,
+                    but leaving the field with anything other than a complete 10-digit number
+                    shows a real error rather than silently accepting it. */}
+                <div style={{display:"flex",maxWidth:220}}>
+                  <div style={{display:"flex",alignItems:"center",padding:"0 10px",background:"var(--card2)",
+                    border:"1.5px solid var(--b1)",borderRight:"none",borderRadius:"8px 0 0 8px",
+                    color:"var(--t2)",fontSize:16,flexShrink:0}}>+1</div>
+                  <div style={{position:"relative",flex:1,minWidth:0}}>
+                    <input type="tel" inputMode="numeric" value={p.phone?p.phone.replace(/^\+1/,""):""} maxLength={10}
+                      onChange={e=>{
+                        const digits=e.target.value.replace(/\D/g,"").slice(0,10);
+                        setPhoneTouched(false);
+                        mk(()=>{setAwaitingConfirm(false);updP({phone:digits?`+1${digits}`:""});});
+                      }}
+                      onBlur={()=>setPhoneTouched(true)}
+                      placeholder="5551234567" style={{borderRadius:"0 8px 8px 0",paddingRight:30}}/>
+                    {isValidUsPhone(p.phone)&&(
+                      <i className="ti ti-circle-check-filled" style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",color:"var(--green)",fontSize:17,pointerEvents:"none"}}/>
+                    )}
+                  </div>
                 </div>
+                {phoneTouched&&p.phone&&!isValidUsPhone(p.phone)&&(
+                  <div className="field-hint" style={{color:"var(--red)"}}>
+                    <i className="ti ti-alert-circle" style={{marginRight:4}}/>Enter a full 10-digit number.
+                  </div>
+                )}
+                {phoneTouched&&isValidUsPhone(p.phone)&&(
+                  <div className="field-hint" style={{color:"var(--green)"}}>
+                    <i className="ti ti-check" style={{marginRight:4}}/>Number confirmed.
+                  </div>
+                )}
               </div>
-              {phoneTouched&&p.phone&&!isValidUsPhone(p.phone)&&(
-                <div style={{fontSize:12,color:"var(--red)",marginTop:5}}>
-                  <i className="ti ti-alert-circle" style={{marginRight:4}}/>Enter a full 10-digit number.
-                </div>
-              )}
-              {phoneTouched&&isValidUsPhone(p.phone)&&(
-                <div style={{fontSize:12,color:"var(--green)",marginTop:5}}>
-                  <i className="ti ti-check" style={{marginRight:4}}/>Number confirmed.
-                </div>
-              )}
             </div>
 
             {/* A test text just went out — nothing is actually saved as "on" until the user
