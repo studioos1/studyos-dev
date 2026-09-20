@@ -1,5 +1,29 @@
 # StudyOS Changelog
 
+## v2.81.8 — 2026-09-20
+
+**SMS Reminders toggle rows now align with the rest of the Notifications tab**
+
+Requested: "Daily Summary, Evening checin, Exam count down - these 3 fields need UI adjusment ot to
+unifiy with the rest of the section." v2.81.7's Phone number fix was real, but it wasn't the whole
+gap — confirmed by measuring exact pixel positions rather than trusting a visual glance: Phone
+number landed right at the card's ~40% column line (767.5px vs. the card's 768.7px mark), but the
+3 toggle rows below it (Daily summary / Evening check-in / Exam & project countdown) were still on
+their old flush-left-title/flush-right-toggle layout, nowhere near that line. Converted each row to
+`.field-grid`, with the title+sub-caption pair as the "label" cell — right-aligned as one stacked
+block via a new `.align-col-stacked` class (`flex-direction:column; align-items:flex-end`) layered
+onto the existing `.align-col-label .align-col-flex` pattern already used for Meal times' icon+name
+pairs, rather than an inline style — an inline `flexDirection` override would have silently
+defeated the tab's existing mobile breakpoint (media queries can't reach into inline styles), so
+`.align-col-stacked` carries its own mobile override (`align-items:flex-start`) right alongside the
+existing one for `.align-col-flex`, keeping both classes flippable at 640px like everything else on
+this tab.
+
+Verified live via `getBoundingClientRect()`: all 3 rows now measure identically to Phone number
+(label edge 767.5px, field edge 781.5px) — pixel-exact, not just visually close. Mobile re-checked
+via the same real-viewport iframe technique used earlier this session: all 3 rows stack cleanly,
+titles flush left like every other label at that width. Build clean, 227/227 tests pass.
+
 ## v2.81.7 — 2026-09-19
 
 **Notifications tab: Phone number and Custom reminders now use the same centered/aligned layout**

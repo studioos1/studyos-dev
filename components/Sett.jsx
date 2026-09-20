@@ -558,13 +558,20 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                       exist — labeled honestly below rather than implying it already runs, per this
                       codebase's own "UI copy must never describe behavior the code doesn't have
                       yet" rule (CLAUDE.md). */}
+                  {/* Real reported gap: these 3 rows used a full-width flush-left/flush-right
+                      layout, completely ignoring the aligned-fields column every other field on
+                      this tab (Phone number included) lands on — measured live: titles at the
+                      card's left edge, toggles at the right edge, neither anywhere near the ~40%
+                      line. .align-col-label + .align-col-flex is the same pattern Meal times uses
+                      for a non-<label> "label" (title stacked over its sub-caption, right-aligned
+                      as one block); the toggle-group is the field. */}
                   {[
                     ["notifyDailySummary","Daily summary","8:30am — today's plan"],
                     ["notifyPastDueNudge","Evening check-in","8:00pm — reminder to report completion"],
                     ["notifyExamCountdown","Exam / project countdown","Not yet automatic — coming soon"],
                   ].map(([key,label,sub])=>(
-                    <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
-                      <div>
+                    <div key={key} className="field-grid" style={{padding:"9px 0",borderBottom:"1px solid var(--b1)"}}>
+                      <div className="align-col-label align-col-flex align-col-stacked">
                         <div style={{fontSize:13,color:"var(--t1)"}}>{label}</div>
                         <div style={{fontSize:11,color:"var(--t3)"}}>{sub}</div>
                       </div>
