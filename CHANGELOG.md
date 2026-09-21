@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.82.5 — 2026-09-21
+
+**Gym schedule's day checkboxes now form a clean vertical column**
+
+Reported: "the checkboxes of every day are not fully aligned. the Friday especially is off." Real
+cause found via measurement: v2.82.4 right-aligned the checkbox+day-name block as a whole, but the
+day-name span had no fixed width — so a narrower name ("Fri") let the block wrap the checkbox
+tighter and shift it right, while a wider one ("Wed") pushed the checkbox further left. Right-
+aligning a block whose own width varies by row is exactly what breaks a clean vertical column, even
+when the container's right edge is identical every time. Gave the day-name span a fixed width, so
+every row's block is the same total width and the checkbox lands at the identical x regardless of
+which day it is.
+
+Verified live via `getBoundingClientRect()`: all 7 checkboxes now measure the exact same left edge
+(716.5px). Build clean, 237/237 tests pass.
+
 ## v2.82.4 — 2026-09-21
 
 **Gym schedule's per-day rows aligned with the rest of the tab**
