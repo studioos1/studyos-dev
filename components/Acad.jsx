@@ -95,9 +95,15 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
 }
 
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
-export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg}){
+export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg,helpJump}){
   const {confirm,modal}=useConfirm();
   const [view,setView]=useState("courses");
+  // Deep-link target from the Help drawer's "Take me there" (components/shared/HelpDrawer.jsx) —
+  // same {tab,sec,token} shape and same "keyed on token, not the value" reasoning as Sett.jsx's
+  // identical effect; see that one's comment for why.
+  useEffect(()=>{
+    if(helpJump?.tab==="acad"&&helpJump.sec)setView(helpJump.sec);
+  },[helpJump?.token]); // eslint-disable-line
   const [showDiffHelp,setShowDiffHelp]=useState(false);
   const [showCourseHelp,setShowCourseHelp]=useState(false);
   const [showAddAssign,setShowAddAssign]=useState(false);

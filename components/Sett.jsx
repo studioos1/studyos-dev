@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { t2m, m2t, f12, iso } from "@/lib/time";
 import { DS, DF, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, CHORE_PRESETS, uid } from "@/lib/data";
@@ -7,8 +7,17 @@ import { SecHead, DelBtn, DayPick, Sp } from "@/components/shared";
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
 // "Reset all data" moved to the Account modal (password + are-you-sure gated) — see AccountModal.
-export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,planning}){
+export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,planning,helpJump}){
   const [sec,setSec]=useState("schedule");
+  // Deep-link target from the Help drawer's "Take me there" (components/shared/HelpDrawer.jsx) —
+  // {tab,sec,token}, only acted on when tab==="settings" (App.jsx passes the same object to every
+  // tab component; each one filters for its own tab id rather than App.jsx needing to know which
+  // components care about which). Keyed on `token` (not `sec` itself) so clicking the same link
+  // twice in a row — e.g. jump to Notifications, look around, click "Take me there" again — still
+  // re-applies even though the target value didn't change.
+  useEffect(()=>{
+    if(helpJump?.tab==="settings"&&helpJump.sec)setSec(helpJump.sec);
+  },[helpJump?.token]); // eslint-disable-line
   const [nc,setNc]=useState({n:"",e:"📋",days:[],time:"",dur:30});
   const p=data.profile;
 
