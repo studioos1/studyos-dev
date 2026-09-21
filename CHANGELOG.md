@@ -1,5 +1,22 @@
 # StudyOS Changelog
 
+## v2.85.1 — 2026-09-21
+
+**Study Pace's tooltip restored, with a clearer explanation**
+
+Reported: "study pace metric on the daily page lost the tooltip, please put back and make sure it
+explain well." Real regression confirmed: "Study Pace" on Today's Progress card had lost its
+`tt`/`data-tt` hover-tooltip classes at some point, while its sibling metric right below it
+("Assignment on-time") still had one — an inconsistency, not an intentional removal.
+
+Restored, worded from the actual calculation (`components/Today.jsx`'s `studyPace` derivation,
+term-accumulated from `data.studyPlan.weeks`): "Study Pace: % of the study/homework/project time
+StudyOS has scheduled for you so far this term (from your term start through today) that you've
+actually completed."
+
+Verified live via hover — tooltip renders and wraps cleanly within the existing `.tt` style's
+280px max-width. Build clean, 246/246 tests pass.
+
 ## v2.85.0 — 2026-09-21
 
 **History tab removed — its functions now live under School Info**
