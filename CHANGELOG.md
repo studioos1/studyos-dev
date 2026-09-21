@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.83.2 — 2026-09-21
+
+**Help drawer: dropped the strikethrough — the green check is the one done signal**
+
+Asked directly: "what's the purpose of the green checks? and why do we need to strike them?" — fair
+question, since the previous round had already removed one redundant signal (dimmed title color)
+for the same reason. Answer: the checkmark is load-bearing (feeds the real "X of N done" count),
+the strikethrough was purely decorative on top of it. Dropped it — completed items now show only
+the filled green check, title stays plain white either way.
+
+Deliberately did NOT make the other 5 (auto-detected) items' checks clickable, even though that
+came up as an option — those reflect real account state (you have a school, you have courses, a
+plan exists, a session was run), and letting anyone hand-check them would mean the progress count
+no longer means anything. Only the 2 items with no honest auto-detect signal ("Review daily
+schedule," "Review estimated difficulties") stay clickable, unchanged from before.
+
+Verified live. Build clean, 246/246 tests pass (no logic changed, purely visual).
+
 ## v2.83.1 — 2026-09-21
 
 **Help drawer: "Review estimated difficulties" item, and every title now stays white**

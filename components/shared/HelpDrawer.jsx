@@ -111,11 +111,10 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
                       justifyContent:"center",fontSize:11,color:done?"#0a1f16":"transparent",padding:0,
                       cursor:item.manual?"pointer":"default"}}>✓</button>
                   <div style={{flex:1,minWidth:0}}>
-                    {/* Title stays white (var(--t1)) whether done or not — the checkmark bubble
-                        plus the strikethrough are already a clear enough "done" cue on their own;
-                        dimming the text on top of that made completed titles hard to read. */}
-                    <div style={{fontSize:13.5,fontWeight:600,color:"var(--t1)",
-                      textDecoration:done?"line-through":"none",textDecorationColor:"var(--b2)",marginBottom:2}}>{item.title}</div>
+                    {/* Title stays plain white (var(--t1)), no strikethrough — the green checkmark
+                        bubble to the left is the one "done" signal now, not a second echo of the
+                        same state on the text itself. */}
+                    <div style={{fontSize:13.5,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{item.title}</div>
                     <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.sub}</div>
                     {!done&&(
                       <button onClick={()=>onJump(item.tab,item.sec)} style={{background:"none",border:"none",padding:0,
