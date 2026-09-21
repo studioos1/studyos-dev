@@ -299,21 +299,32 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
               const curDur=Math.max(0,Math.round(gymEnd-gymStart));
               const durOpts=GYM_DUR_OPTIONS.includes(curDur)?GYM_DUR_OPTIONS:[...GYM_DUR_OPTIONS,curDur].sort((a,b)=>a-b);
               return(
-                <div key={gd.day} style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--b1)":"none"}}>
-                  {/* flexWrap:"wrap" (not the old fontSize:12/width:85 squeeze) is what actually
-                      makes this row mobile-friendly — real reported bug: the tiny font shrank
-                      below the app-wide 16px baseline, which triggers iOS Safari's
-                      auto-zoom-on-focus (see the note above input,select,textarea in globals.css),
-                      and even then the row didn't reliably fit a phone width. Full-size,
-                      full-width-but-capped .input-time fields now wrap onto their own line under
-                      the day checkbox on narrow screens instead of shrinking to fit. */}
-                  <div className="list-item" style={{padding:0,gap:10,borderBottom:"none",flexWrap:"wrap"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,width:78,flexShrink:0}}>
-                      <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};mk(()=>updP({gymDays:d}));}} style={{width:14,height:14}}/>
-                      <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
-                    </div>
+                // Real reported gap: this row still used the old flush-left .list-item layout —
+                // checkbox+day flush against the card edge, time/duration wherever they happened
+                // to sit after — while every other row on this tab (Stretch prep/Drive to gym
+                // right below, Fun time targets, every other Preferences tab) lands on the shared
+                // ~40% .field-grid column. Day+checkbox is the same "non-<label> label" idiom as
+                // Meal times' icon+name and the SMS toggle rows' title (.align-col-label
+                // .align-col-flex — right-aligned against the label column, same as a real <label>
+                // already is, with the same automatic mobile flip to flush-left). The conflict
+                // banner moved from spanning the full row to living inside the field column, same
+                // "value + hint stacked underneath" shape as Phone number's validation message —
+                // reads as tied to the time being set, not the whole row including the checkbox.
+                <div key={gd.day} className="field-grid" style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--b1)":"none"}}>
+                  <div className="align-col-label align-col-flex" style={{gap:7}}>
+                    <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};mk(()=>updP({gymDays:d}));}} style={{width:14,height:14}}/>
+                    <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
+                  </div>
+                  <div>
+                    {/* flexWrap:"wrap" (not the old fontSize:12/width:85 squeeze) is what actually
+                        makes this row mobile-friendly — real reported bug: the tiny font shrank
+                        below the app-wide 16px baseline, which triggers iOS Safari's
+                        auto-zoom-on-focus (see the note above input,select,textarea in
+                        globals.css), and even then the row didn't reliably fit a phone width.
+                        Full-size, full-width-but-capped .input-time fields now wrap onto their
+                        own line instead of shrinking to fit. */}
                     {gd.on?(
-                      <div className="row" style={{gap:6}}>
+                      <div className="row" style={{gap:6,flexWrap:"wrap"}}>
                         <input type="time" className="input-time" value={gd.s} onChange={e=>{
                           const d=[...(p.gymDays||GYM0)];
                           d[i]={...d[i],s:e.target.value,e:m2t(t2m(e.target.value)+curDur)};
@@ -328,13 +339,13 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                         </select>
                       </div>
                     ):<span style={{fontSize:12,color:"var(--t3)"}}>rest day</span>}
+                    {conflict&&(
+                      <div style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",background:"var(--red-bg)",borderRadius:7,marginTop:6,fontSize:12,color:"#fff"}}>
+                        <i className="ti ti-alert-circle" style={{fontSize:13,color:"var(--red)"}}/>
+                        Overlaps class or commute on {DF[gd.day]} — adjust time
+                      </div>
+                    )}
                   </div>
-                  {conflict&&(
-                    <div style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",background:"var(--red-bg)",borderRadius:7,marginTop:6,fontSize:12,color:"#fff"}}>
-                      <i className="ti ti-alert-circle" style={{fontSize:13,color:"var(--red)"}}/>
-                      Overlaps class or commute on {DF[gd.day]} — adjust time
-                    </div>
-                  )}
                 </div>
               );
             })}
