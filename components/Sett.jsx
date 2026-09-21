@@ -311,9 +311,17 @@ export function Sett({data,upd,updP,toast2,refreshQuarterPlan,planMsg,busy,plann
                 // "value + hint stacked underneath" shape as Phone number's validation message —
                 // reads as tied to the time being set, not the whole row including the checkbox.
                 <div key={gd.day} className="field-grid" style={{padding:"10px 0",borderBottom:i<6?"1px solid var(--b1)":"none"}}>
+                  {/* Real reported bug: the checkbox itself wasn't in a clean vertical column —
+                      align-col-flex right-aligns the whole checkbox+text BLOCK, and the day
+                      abbreviation's rendered width varies by name ("Wed"/"Sat" are visibly wider
+                      than "Fri" in a proportional font), so the block's total width shifted row to
+                      row and dragged the checkbox left/right with it — Friday's shorter width
+                      pushed its checkbox noticeably off from the others. Giving the label span a
+                      fixed width makes the block's total width identical on every row, so
+                      right-aligning it lands the checkbox at the exact same x every time. */}
                   <div className="align-col-label align-col-flex" style={{gap:7}}>
-                    <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};mk(()=>updP({gymDays:d}));}} style={{width:14,height:14}}/>
-                    <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)"}}>{DF[gd.day].slice(0,3)}</span>
+                    <input type="checkbox" checked={gd.on} onChange={e=>{const d=[...(p.gymDays||GYM0)];d[i]={...d[i],on:e.target.checked};mk(()=>updP({gymDays:d}));}} style={{width:14,height:14,flexShrink:0}}/>
+                    <span style={{fontSize:13,color:gd.on?"var(--t1)":"var(--t3)",width:30,textAlign:"left"}}>{DF[gd.day].slice(0,3)}</span>
                   </div>
                   <div>
                     {/* flexWrap:"wrap" (not the old fontSize:12/width:85 squeeze) is what actually
