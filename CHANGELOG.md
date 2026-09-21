@@ -1,5 +1,26 @@
 # StudyOS Changelog
 
+## v2.82.4 — 2026-09-21
+
+**Gym schedule's per-day rows aligned with the rest of the tab**
+
+Reported: "Gym schedule section is still aligned to the right, please unify this section UI." The
+7 per-day rows (checkbox + day abbreviation, then time/duration or "rest day") had been missed by
+the earlier Gym & Fun alignment pass (v2.81.6) — they still used the old flush-left `.list-item`
+layout, while Stretch prep/Drive to gym right below them (and Fun time targets, and every other
+Preferences tab) already sit on the shared `.field-grid` column. Converted to the same
+`.align-col-label .align-col-flex` "non-`<label>` label" idiom already used for Meal times' icon+
+name and the SMS toggle rows' title — checkbox+day now right-aligns against the same ~40% line
+every other field does, with the automatic mobile flip to flush-left already built into that class.
+The per-day conflict banner ("Overlaps class or commute...") moved from spanning the whole row to
+living inside the field column, under the time/duration controls — same "value + hint stacked
+underneath" shape as Phone number's validation message, so it now reads as tied to the time being
+set rather than the whole row including the checkbox.
+
+Verified live via `getBoundingClientRect()`: all 7 day rows measure identical to Stretch prep/Drive
+to gym (767.5px / 781.5px). Mobile re-checked via the iframe technique — stacks cleanly. Build
+clean, 237/237 tests pass (no logic touched, purely structural).
+
 ## v2.82.3 — 2026-09-20
 
 **Project deadlines get their own countdown, same as exams**
