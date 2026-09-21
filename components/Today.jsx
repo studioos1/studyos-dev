@@ -15,7 +15,7 @@ import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
 import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
 import { dedupeCourseFromTaskLabel } from "@/lib/taskLabel";
-import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner } from "@/components/shared";
+import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner, SideDrawer, DrawerHeader } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
 export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
@@ -860,36 +860,28 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
         <i className="ti ti-refresh"/> Regenerate briefing
       </button>
 
-      {showCalendar&&(
-        <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
-          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowCalendar(false)}>
-          <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",
-            maxWidth:900,width:"100%",maxHeight:"85vh",overflowY:"auto",
-            boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>
-                <i className="ti ti-calendar" style={{marginRight:8,color:"var(--blue)"}}/>Today's Calendar
-              </div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowCalendar(false)}><i className="ti ti-x"/></button>
+      {/* Side drawer, not a centered popup — same SideDrawer shell as Help/Account
+          (components/shared/SideDrawer.jsx). Always mounted (not gated on showCalendar) so the
+          open/close actually animates; no local state here to reset on reopen (DayAgenda is pure
+          read-only rendering off data/td), unlike AccountModal, so there's nothing extra to wire. */}
+      <SideDrawer open={showCalendar} onClose={()=>setShowCalendar(false)} width={640}
+        header={<DrawerHeader icon="ti-calendar" title="Today's Calendar" onClose={()=>setShowCalendar(false)}/>}>
+        <div style={{marginTop:4}}>
+          {/* DayAgenda (components/shared) — the same colored-list rendering the Calendar tab's
+              day view uses, so "today" looks identical whether you're looking at it here or
+              there. It shows its own "not planned yet" banner and still lists the day's real
+              fixed schedule (classes, meals, gym) regardless; the Plan-now action below is the
+              one thing specific to this drawer. */}
+          <DayAgenda data={data} dateStr={td}/>
+          {!weekHasBeenPlanned(data,td)&&(
+            <div style={{textAlign:"center",marginTop:12}}>
+              <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
+                {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
+              </button>
             </div>
-            {/* DayAgenda (components/shared) — the same colored-list rendering the Calendar tab's
-                day view uses, so "today" looks identical whether you're looking at it here or
-                there. It shows its own "not planned yet" banner and still lists the day's real
-                fixed schedule (classes, meals, gym) regardless; the Plan-now action below is the
-                one thing specific to this modal. */}
-            <DayAgenda data={data} dateStr={td}/>
-            {!weekHasBeenPlanned(data,td)&&(
-              <div style={{textAlign:"center",marginTop:12}}>
-                <button className="btn btn-sm" style={{background:"var(--red)",color:"#fff"}} onClick={refreshQuarterPlan} disabled={planning}>
-                  {planning?<><Sp sz={12}/> Planning...</>:<><i className="ti ti-sparkles"/> Plan now</>}
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      </SideDrawer>
 
       {showDailyMsg&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",

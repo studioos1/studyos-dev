@@ -775,7 +775,11 @@ function App(){
         );
       })()}
       {modalApp}
-      {showAccount&&<AccountModal data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
+      {/* Always mounted once onboarded (not just while showAccount is true) so the SideDrawer's
+          open/close actually animates — see the note atop AccountModal's own definition for what
+          that costs and how it's handled (draft/subform state now resets explicitly, keyed on
+          `open`, instead of getting it for free from unmounting). */}
+      {data.onboarded&&<AccountModal open={showAccount} data={data} updP={updP} toast2={toast2} onClose={()=>setShowAccount(false)}
         onSignOut={()=>supabase.auth.signOut()} onReset={()=>upd({...ED})} userEmail={session.user?.email}/>}
       {showBugReport&&<BugReportModal onSubmit={sendBugReport} onCancel={()=>setShowBugReport(false)}/>}
     </div>

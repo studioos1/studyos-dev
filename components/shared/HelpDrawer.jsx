@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { gettingStartedStatus } from "@/lib/help";
+import { SideDrawer } from "./SideDrawer";
 
 // ── HELP DRAWER ──────────────────────────────────────────────────────────────
-// Replaces an earlier full-screen spotlight-tour design (dimmed overlay + forced click-through
-// Next/Back sequence) with a calm, non-modal side panel instead — deliberately NO backdrop and NO
-// click-outside-to-close, unlike every other overlay in this app (InfoModal/ConfirmModal etc. all
-// use a dimming backdrop, components/shared/modals.jsx). That's on purpose here: the whole point is
-// that the real app stays fully visible and clickable while this is open, so a student can read a
+// The original of the SideDrawer.jsx shell — replaces an earlier full-screen spotlight-tour design
+// (dimmed overlay + forced click-through Next/Back sequence) with a calm, non-modal side panel
+// instead. Account and the daily Calendar popup (previously centered dim-backdrop modals) now use
+// the same SideDrawer shell this introduced, deliberately with NO backdrop and NO
+// click-outside-to-close, unlike a normal modal (InfoModal/ConfirmModal, components/shared/
+// modals.jsx) — the app stays fully visible and clickable behind it, so a student can read a
 // checklist item, click into Preferences right behind the drawer, and come back — closing only via
 // the × or re-clicking the ? icon that opened it (App.jsx).
 //
@@ -58,38 +60,29 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
     : QA;
   let lastGroup=null;
 
-  return(
-    // Fixed-position panel, not a flex-reflow layout like the mockup — App.jsx's root uses a fixed
-    // header over normal document flow, not a flex row, so reflowing the whole app to make room
-    // for a sidebar would mean restructuring layout every tab already depends on. Floating on top
-    // instead gets the same "app stays usable" result (nothing dimmed, nothing blocked) without
-    // that risk — it just overlaps the right edge of the screen instead of shrinking it.
-    <div style={{
-      position:"fixed",top:0,right:0,bottom:0,zIndex:9000,
-      width:open?"min(400px, 100vw)":0,overflow:"hidden",
-      background:"var(--card)",borderLeft:open?"1px solid var(--b1)":"none",
-      boxShadow:open?"-16px 0 40px rgba(0,0,0,0.35)":"none",
-      transition:"width .28s cubic-bezier(.2,.8,.3,1)",display:"flex",flexDirection:"column",
-    }}>
-      <div style={{padding:"22px 24px 0",flexShrink:0,minWidth:352}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <span style={{fontSize:19,fontWeight:700,letterSpacing:"-0.01em",color:"var(--t1)"}}>Hey — need a hand?</span>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t3)",fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
-        </div>
-        <div style={{fontSize:12.5,color:"var(--t3)",lineHeight:1.6,marginBottom:16}}>
-          A self-paced checklist for getting set up, plus quick answers for anything that comes up later.
-        </div>
-        <div style={{display:"flex",gap:4,background:"var(--card2)",borderRadius:9,padding:3}}>
-          <button onClick={()=>setTab("start")} style={{flex:1,background:tab==="start"?"var(--amber)":"none",border:"none",
-            padding:"8px 10px",fontSize:12.5,fontWeight:tab==="start"?600:500,color:tab==="start"?"#241a08":"var(--t3)",
-            borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Getting Started</button>
-          <button onClick={()=>setTab("qa")} style={{flex:1,background:tab==="qa"?"var(--amber)":"none",border:"none",
-            padding:"8px 10px",fontSize:12.5,fontWeight:tab==="qa"?600:500,color:tab==="qa"?"#241a08":"var(--t3)",
-            borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Q&amp;A</button>
-        </div>
+  const header=(
+    <>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <span style={{fontSize:19,fontWeight:700,letterSpacing:"-0.01em",color:"var(--t1)"}}>Hey — need a hand?</span>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t3)",fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
       </div>
+      <div style={{fontSize:12.5,color:"var(--t3)",lineHeight:1.6,marginBottom:16}}>
+        A self-paced checklist for getting set up, plus quick answers for anything that comes up later.
+      </div>
+      <div style={{display:"flex",gap:4,background:"var(--card2)",borderRadius:9,padding:3}}>
+        <button onClick={()=>setTab("start")} style={{flex:1,background:tab==="start"?"var(--amber)":"none",border:"none",
+          padding:"8px 10px",fontSize:12.5,fontWeight:tab==="start"?600:500,color:tab==="start"?"#241a08":"var(--t3)",
+          borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Getting Started</button>
+        <button onClick={()=>setTab("qa")} style={{flex:1,background:tab==="qa"?"var(--amber)":"none",border:"none",
+          padding:"8px 10px",fontSize:12.5,fontWeight:tab==="qa"?600:500,color:tab==="qa"?"#241a08":"var(--t3)",
+          borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Q&amp;A</button>
+      </div>
+    </>
+  );
 
-      <div style={{flex:1,overflowY:"auto",padding:"18px 24px 24px",minWidth:352}}>
+  return(
+    <SideDrawer open={open} onClose={onClose} width={400} header={header}>
+      <div style={{paddingTop:4}}>
         {tab==="start"?(
           <>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
@@ -164,6 +157,6 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
           </>
         )}
       </div>
-    </div>
+    </SideDrawer>
   );
 }

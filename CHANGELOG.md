@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.84.0 — 2026-09-21
+
+**Account and Today's Calendar now open as side drawers, same as Help**
+
+Requested: "for desktop view, I like the concept of side-window as done for the help... [Account]
+and [Today's Calendar] — both today are using pop-up... Can we use the same side-window as in
+help?" Pulled the sliding-panel shell HelpDrawer introduced out into its own reusable
+`components/shared/SideDrawer.jsx` (plus a `DrawerHeader` convenience for the plain icon+title+×
+header both of these already had) and converted both:
+
+- **Account** (`AccountModal`, `components/shared/modals.jsx`) — same fields, same change-password
+  and reset-all-data subforms, same dirty-check-before-close confirm, just in the drawer instead of
+  a centered card. The real behavior change needed to make this work: it now stays mounted the
+  whole session (like HelpDrawer) instead of being created/destroyed each open, so the slide
+  actually animates instead of snapping into place — which meant everything that used to reset for
+  free on unmount (the draft, the two subforms, the invite-link fetch) now resets explicitly, keyed
+  on `open` flipping true, so reopening never shows stale state from a previous session.
+- **Today's Calendar** (`components/Today.jsx`) — same `DayAgenda` content and Plan-now button,
+  same always-mounted treatment for the animation; no extra state to reset here since it's pure
+  read-only rendering off `data`/`td`.
+
+Deliberately still no backdrop and no click-outside-to-close on either — same reasoning as Help:
+the app stays fully visible and clickable behind them, so closing is always an explicit ✕ click.
+
+Verified live: both open/close with the same slide, Account's fields/invite-link/subforms all work
+identically to before, Calendar's day list renders correctly at 640px wide. Build clean, 246/246
+tests pass (no logic changed in either modal, purely structural — the new reset effects are the one
+real behavior addition, and they replicate exactly what unmounting used to do).
+
 ## v2.83.2 — 2026-09-21
 
 **Help drawer: dropped the strikethrough — the green check is the one done signal**
