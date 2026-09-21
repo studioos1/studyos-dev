@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.83.0 — 2026-09-21
+
+**New Help drawer — Getting Started checklist + Q&A**
+
+Requested: help/guided-tour for new users covering (1) getting started and (2) how-to Q&A. An
+earlier design (a full-screen spotlight tour — dimmed overlay, glowing ring around each element,
+forced Next/Back click-through) didn't land well; replaced with a calm, non-modal side panel
+instead, opened from a new amber `?` icon in the top bar (`components/shared/HelpDrawer.jsx`).
+Deliberately no dimming backdrop and no click-outside-to-close, unlike every other overlay in this
+app (`InfoModal`/`ConfirmModal`) — the app stays fully visible and clickable behind it; only the ×
+or re-clicking `?` closes it.
+
+Two tabs:
+- **Getting Started** — a self-paced checklist (jump to any item in any order, no forced sequence):
+  add school/term, upload a syllabus, review daily schedule, turn on notifications, Save & Replan,
+  try Focus Time. Each "Take me there" link does a real navigation — switches top-level tab
+  (`App.jsx`'s `go()`) and, for Academics/Preferences, deep-links into the right sub-section too
+  (`Sett.jsx`'s `sec`, `Acad.jsx`'s `view`, both now accept a `helpJump` prop and react via a
+  `useEffect` keyed on a token so the same link works even clicked twice in a row). Progress is
+  real, not self-reported: `lib/help.js`'s `gettingStartedStatus()` derives "done" from actual data
+  (has a school, has courses, `quarterPlan` exists, `completionLog`/`pomodoroLogs` has an entry) —
+  deliberately NOT from the browser-notification toggles defaulting true for every account, which
+  would mark that item done for someone who never touched it. The one exception is "review your
+  daily schedule," which has no honest auto-detect signal (every field already has a sane default
+  whether touched or not) — that one stays a manual checkbox, persisted as
+  `profile.helpScheduleReviewed` so it survives a reload.
+- **Q&A** — a searchable, grouped FAQ accordion with StudyOS-specific answers (how the plan gets
+  built, what happens if you miss a session, browser vs. SMS reminders, etc.), not generic filler —
+  the piece meant to stay useful as an ongoing reference, not just a first-login tour.
+
+Verified live end-to-end: checklist reflects a real test account's actual progress (5 of 6 done on
+load), "Take me there" correctly switches tabs and sub-sections, the app stays interactive behind
+the open drawer, the manual checkbox persists across a reload, Q&A search/accordion both work.
+Build clean, 246/246 tests pass (9 new, covering `gettingStartedStatus()`'s real-signal-only
+detection, including the "default toggles don't count" case).
+
 ## v2.82.5 — 2026-09-21
 
 **Gym schedule's day checkboxes now form a clean vertical column**
