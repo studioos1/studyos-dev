@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.85.0 — 2026-09-21
+
+**History tab removed — its functions now live under School Info**
+
+Requested: "let's move the function under History 'Close' term as a button under School-info. and
+remove the 'History' from the menu" — then, since removing the tab would also remove the only way
+to browse past archived terms: "can we keep this functionality but structure it under 'school Info'
+as well?"
+
+Both of History's real functions moved into `components/SchoolInfo.jsx`, which already tracks the
+real multi-school/multi-term data these belong next to:
+- **Close current term** — same archiving logic, same confirm, same "Nothing active to archive yet"
+  state. One real improvement along the way: the term-name field now defaults from
+  `currentTerm.name` (School Info's own real term data) instead of the old `getQ()` legacy
+  single-term profile lookup History.jsx used — still just a starting suggestion, editable either
+  way, but a more accurate one now that it's sitting next to the real term list.
+- **Archived terms** — same list, same read-only detail view (`HistoryDetail`, moved verbatim) for
+  a past term's final GPA/courses/assignments/exams.
+
+`components/History.jsx` is deleted; the "History" tab is gone from `App.jsx`'s `TABS` and its
+route. Note this archiving mechanism still isn't linked to a specific `data.terms[]` entry — it
+snapshots whatever's currently in `data.courses/assignments/exams` under a name the student types,
+same as it always has; moving it next to School Info doesn't change that, it's just now grouped
+with the term data it conceptually belongs to instead of sitting in its own separate tab.
+
+Verified live: History is gone from the nav, School Info now shows "Current term" (with the correct
+prefilled term name) and "Archived terms — 0" as two new cards, styled identically to School Info's
+existing cards. Build clean, 246/246 tests pass.
+
 ## v2.84.0 — 2026-09-21
 
 **Account and Today's Calendar now open as side drawers, same as Help**

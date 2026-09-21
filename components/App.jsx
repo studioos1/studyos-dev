@@ -33,7 +33,6 @@ import { Acad } from "@/components/Acad";
 import { Onboard } from "@/components/Onboard";
 import { SchoolInfo } from "@/components/SchoolInfo";
 import { Sett } from "@/components/Sett";
-import { History } from "@/components/History";
 import { Prog } from "@/components/Prog";
 import { Login } from "@/components/Login";
 import { BugReports } from "@/components/BugReports";
@@ -537,7 +536,6 @@ function App(){
     {id:"week",    icon:"ti-calendar-week",label:"Calendar"},
     {id:"acad",    icon:"ti-school",       label:"Academics"},
     {id:"prog",    icon:"ti-chart-bar",    label:"Progress"},
-    {id:"history", icon:"ti-history",      label:"History"},
     {id:"school",  icon:"ti-building",     label:"School Info"},
     {id:"settings",icon:"ti-settings",    label:"Preferences"},
     ...(isAdmin?[{id:"bugs",icon:"ti-bug",label:"Bug Reports"}]:[]),
@@ -714,7 +712,6 @@ function App(){
           :tab==="week"    ?<Week     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
           :tab==="acad"    ?<Acad     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
-          :tab==="history" ?<History  data={data} upd={upd} toast2={toast2}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)
           :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
