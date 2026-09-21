@@ -421,7 +421,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
             <div className="pace-metrics">
               {studyPace!==null&&(
                 <div className="pace-metric-row">
-                  <span className="pace-metric-label">Study Pace</span>
+                  <span className="tt pace-metric-label" data-tt="Study Pace: % of the study/homework/project time StudyOS has scheduled for you so far this term (from your term start through today) that you've actually completed">Study Pace</span>
                   <div className="pace-bonus-slot"/>
                   <span className="pace-pct" style={{color:paceColor}}>{studyPace}%</span>
                   <div className="pace-bar-wrap">
@@ -565,7 +565,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 everywhere else (a full sentence directly in the accent color reads poorly on its
                 own matching-tint background). */}
             <div style={{fontSize:15,color:"#fff",marginBottom:8}}>
-              <span style={{color:"var(--amber)"}}>⚠</span> {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Academics to fix
+              <span style={{color:"var(--amber)"}}>⚠</span> {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Courses to fix
             </div>
             {missing.slice(0,3).map((a,i)=>(
               <div key={i} style={{fontSize:14,color:"var(--t3)",marginBottom:3}}>· {a.title} ({courseNameFor(data.courses,a.courseId)})</div>

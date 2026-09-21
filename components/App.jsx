@@ -87,6 +87,25 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
   return Math.min(maxPerDay,Math.max(minPerDay,Math.round(raw)));
 }
 
+// URL <-> top-level tab mapping — so the browser's address bar, back/forward, and bookmarks all
+// reflect which tab is open (e.g. www.studyos.io/courses), while the app underneath stays exactly
+// the single-page client state machine it already was (tab id, not the route, is still what every
+// `tab==="..."` check in this file reads). Plain browser APIs (history.pushState/popstate), not
+// next/navigation's router hooks — matches how this app already reads the ?invite= query param
+// (components/Login.jsx, via window.location.search directly) rather than introducing a second
+// URL-handling convention. Slugs are the human-readable, user-facing version of each tab's
+// internal id (which stays as-is everywhere else — "acad"/"week"/"settings" etc. — to avoid
+// touching the many tab==="..." checks throughout this file for a purely cosmetic URL change).
+// The catch-all route (app/[...slug]/page.jsx) is what makes a fresh load of /courses (not just a
+// same-session navigation) resolve to this same app instead of 404ing — see that file's comment.
+const TAB_SLUGS={today:"today",week:"calendar",acad:"courses",prog:"progress",school:"school-info",settings:"preferences",bugs:"bug-reports"};
+const SLUG_TO_TAB=Object.fromEntries(Object.entries(TAB_SLUGS).map(([id,slug])=>[slug,id]));
+function tabFromLocation(){
+  if(typeof window==="undefined")return "today";
+  const slug=window.location.pathname.replace(/^\/+|\/+$/g,"").split("/")[0];
+  return SLUG_TO_TAB[slug]||"today";
+}
+
 function App(){
   // Auth session: undefined = still checking on mount, null = signed out, object = signed in.
   // load()/save() (lib/data/store.js) key off the Supabase session themselves, so `data` is only
@@ -115,13 +134,27 @@ function App(){
     load().then(d=>{if(!cancelled)setD(d||{...ED});});
     return ()=>{cancelled=true;};
   },[session?.user?.id]); // eslint-disable-line
-  const [tab,setTab]=useState("today");
+  const [tab,setTab]=useState(tabFromLocation);
+  // Keeps the address bar in sync with `tab` — both directions. go() below pushes a new URL on
+  // every deliberate navigation; this effect handles the OTHER direction, the browser's own
+  // back/forward buttons (a popstate event fires then, not a normal render), which otherwise
+  // wouldn't update `tab` at all despite the URL having changed underneath it.
+  useEffect(()=>{
+    function onPopState(){setTab(tabFromLocation());}
+    window.addEventListener("popstate",onPopState);
+    return ()=>window.removeEventListener("popstate",onPopState);
+  },[]);
   // Tracks "arrived at Progress via the Today check-in shortcut" so Progress can offer an easy
   // way straight back — cleared on any NORMAL tab navigation (go()) so it only ever shows right
   // after that specific shortcut, never lingers once the user's navigated elsewhere on purpose.
   const [progBackTo,setProgBackTo]=useState(null);
-  function go(id){setProgBackTo(null);setTab(id);}
-  function goCheckIn(){setProgBackTo("today");setTab("prog");}
+  function go(id){
+    setProgBackTo(null);
+    setTab(id);
+    const path="/"+(TAB_SLUGS[id]||id);
+    if(window.location.pathname!==path)window.history.pushState({},"",path);
+  }
+  function goCheckIn(){setProgBackTo("today");setTab("prog");window.history.pushState({},"","/"+TAB_SLUGS.prog);}
   // Help drawer (components/shared/HelpDrawer.jsx) — showHelp is just visibility; helpJump is the
   // deep-link a "Take me there" click sends down to whichever tab component owns the target
   // sub-section (Sett.jsx's `sec`, Acad.jsx's `view`), each filtering on helpJump.tab being its own
@@ -355,7 +388,7 @@ function App(){
             forcedShort.length&&otherShort.length?`+${otherShort.length} other item${otherShort.length!==1?"s":""} also short.`:null,
           ].filter(Boolean).join(" "),
           lines,
-          footer:`${result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:""}Check Academics → Study Preferences.`,
+          footer:`${result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:""}Check Courses → Study Preferences.`,
         },true,"warning");
         setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
@@ -433,7 +466,7 @@ function App(){
           forcedShortWk.length&&otherShortWk.length?`+${otherShortWk.length} other item${otherShortWk.length!==1?"s":""} also short.`:null,
         ].filter(Boolean).join(" "),
         lines:linesWk,
-        footer:`${result.shortfalls.length>linesWk.length?`+${result.shortfalls.length-linesWk.length} more. `:""}Check Academics → Study Preferences.`,
+        footer:`${result.shortfalls.length>linesWk.length?`+${result.shortfalls.length-linesWk.length} more. `:""}Check Courses → Study Preferences.`,
       },true,"warning");
       setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer
     }
@@ -534,7 +567,7 @@ function App(){
   const TABS=data.onboarded?[
     {id:"today",   icon:"ti-sun",          label:"Today"},
     {id:"week",    icon:"ti-calendar-week",label:"Calendar"},
-    {id:"acad",    icon:"ti-school",       label:"Academics"},
+    {id:"acad",    icon:"ti-school",       label:"Courses"},
     {id:"prog",    icon:"ti-chart-bar",    label:"Progress"},
     {id:"school",  icon:"ti-building",     label:"School Info"},
     {id:"settings",icon:"ti-settings",    label:"Preferences"},

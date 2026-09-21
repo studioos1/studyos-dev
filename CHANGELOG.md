@@ -1,5 +1,61 @@
 # StudyOS Changelog
 
+## v2.86.0 — 2026-09-21
+
+**"Academics" renamed to "Courses"; every tab now has its own real URL**
+
+Requested renaming Academics — settled on "Courses" (more concrete than the institutional-sounding
+"Academics," matches what's actually there, and reads less ambiguous next to "School Info," which
+covers a genuinely different thing). Renamed everywhere it appeared: the nav tab, the page's own
+`<h2>` heading, and the few toast/status strings that named the tab by name
+(`components/App.jsx`, `Acad.jsx`, `Today.jsx`, `SchoolInfo.jsx`).
+
+Then: "I'd like the url to show the main menu selection, e.g. www.studyos.io/courses." Every
+top-level tab now has a real, human-readable path — `/today`, `/calendar`, `/courses`,
+`/progress`, `/school-info`, `/preferences`, `/bug-reports` — that updates the address bar on
+navigation, survives a refresh, and works with the browser's back/forward buttons, while the app
+underneath stays exactly the client-side single-page state machine it already was:
+
+- `components/App.jsx`'s `go()` now also calls `history.pushState` to a slug derived from the tab
+  id (a `TAB_SLUGS` map — the internal tab ids like `"acad"`/`"week"`/`"settings"` are untouched
+  everywhere else in the file, only the URL-facing slug changed, so this didn't require touching
+  every `tab==="..."` check in the app).
+- The initial `tab` state is now derived from `window.location.pathname` on mount, so a direct/
+  fresh load of `/courses` opens on Courses, not always Today.
+- A new `popstate` listener syncs `tab` back from the URL when the browser's own back/forward
+  buttons are used (a real, separate case from `go()`'s own pushState — back/forward doesn't fire
+  through the app's normal navigation path at all).
+- A new catch-all route, `app/[...slug]/page.jsx`, is what makes a genuinely fresh server request
+  to `/courses` resolve instead of 404ing — Next.js needs a real route file to match a path; the
+  slug itself is unused there, since which tab actually renders is still decided client-side by
+  `App.jsx` reading the URL, same as everywhere else. More specific existing routes (`/`,
+  `/privacy`, `/sms-optin`, `/terms`, `/api/*`) still win over this catch-all.
+- Uses plain browser APIs (`history.pushState`/`popstate`), not `next/navigation`'s router hooks —
+  matches how this app already reads its `?invite=` query param (`components/Login.jsx`, via
+  `window.location.search` directly) rather than introducing a second URL-handling convention.
+
+Verified live: every slug (`/courses`, `/today`, `/preferences`, `/school-info`) opens the right
+tab on a genuinely fresh load (not just an in-session click), clicking a tab updates the URL
+without a reload, and the browser's real back button correctly restored both the URL and the
+active tab. Build clean, 246/246 tests pass.
+
+## v2.85.1 — 2026-09-21
+
+**Study Pace's tooltip restored, with a clearer explanation**
+
+Reported: "study pace metric on the daily page lost the tooltip, please put back and make sure it
+explain well." Real regression confirmed: "Study Pace" on Today's Progress card had lost its
+`tt`/`data-tt` hover-tooltip classes at some point, while its sibling metric right below it
+("Assignment on-time") still had one — an inconsistency, not an intentional removal.
+
+Restored, worded from the actual calculation (`components/Today.jsx`'s `studyPace` derivation,
+term-accumulated from `data.studyPlan.weeks`): "Study Pace: % of the study/homework/project time
+StudyOS has scheduled for you so far this term (from your term start through today) that you've
+actually completed."
+
+Verified live via hover — tooltip renders and wraps cleanly within the existing `.tt` style's
+280px max-width. Build clean, 246/246 tests pass.
+
 ## v2.85.0 — 2026-09-21
 
 **History tab removed — its functions now live under School Info**

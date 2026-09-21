@@ -444,7 +444,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
             </div>
           )}
           {!data.courses.length&&!data.assignments.length&&!closing&&(
-            <div style={{fontSize:12,color:"var(--t3)",marginTop:10}}>Nothing active to archive yet — add courses in Academics first.</div>
+            <div style={{fontSize:12,color:"var(--t3)",marginTop:10}}>Nothing active to archive yet — add some from the Courses tab first.</div>
           )}
         </div>
       </div>
