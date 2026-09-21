@@ -1,5 +1,27 @@
 # StudyOS Changelog
 
+## v2.83.1 — 2026-09-21
+
+**Help drawer: "Review estimated difficulties" item, and every title now stays white**
+
+Requested: "we shall add after uploading the syllabus - something like 'Review the estimated
+Difficulties and adjust if needed'" — a new checklist item, mapped onto Academics' existing
+Difficulty view (`view==="difficulty"` in `components/Acad.jsx` — the same screen the syllabus-sync
+flow already lands on after adding items), inserted right after "Upload a syllabus." Same manual-
+checkbox treatment as "Review your daily schedule" — leaving an AI difficulty/hours estimate
+unchanged is just as legitimate an outcome as adjusting it, so there's no honest way to auto-detect
+"reviewed" from the data alone (`profile.helpDifficultyReviewed`, persisted the same way). The
+manual-item handling in `HelpDrawer.jsx` was generalized from one hardcoded field name to a
+`field` per item, so adding this one didn't mean duplicating the toggle logic.
+
+Also: "also - the title of each step shall be in white text" — every checklist item's title now
+stays `var(--t1)` (white) whether done or not; previously a done item's title dimmed to `var(--t3)`
+on top of the strikethrough, which was one signal too many and made completed titles hard to read.
+The checkmark bubble + strikethrough alone are a clear enough "done" cue.
+
+Verified live: new item shows between syllabus and schedule, "Academics → Difficulty" jump lands on
+the real Difficulty view, progress now reads out of 7. Build clean, 246/246 tests pass.
+
 ## v2.83.0 — 2026-09-21
 
 **New Help drawer — Getting Started checklist + Q&A**

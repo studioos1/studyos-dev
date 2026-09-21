@@ -13,13 +13,17 @@ import { gettingStartedStatus } from "@/lib/help";
 // Two tabs: a self-paced Getting Started checklist (jump to any item in any order — no forced
 // sequence) and a searchable Q&A reference that stays useful long after first login, unlike a
 // one-time tour. See lib/help.js for how "done" is actually derived from real data — most items
-// are, "Review your daily schedule" is the one exception (no honest auto-detect signal exists for
-// it, since every schedule field already has a sane default; it's the one manually-toggled item,
-// persisted as profile.helpScheduleReviewed so it survives a reload rather than resetting itself).
+// are. Two items are manual instead (`manual:true`, each with its own `field`): "Review your daily
+// schedule" and "Review estimated difficulties" both lack an honest auto-detect signal — every
+// schedule field already has a sane default whether touched or not, and leaving an AI difficulty
+// estimate unchanged is just as legitimate an outcome as adjusting it (so "has userValue been set"
+// would false-negative on "looked at it, decided the estimate was already right"). Each manual
+// item's own boolean persists on the profile (profile[item.field]) so it survives a reload.
 const ITEMS = [
   { id:"school", title:"Add your school & term", sub:"Sets the real dates the planner works from.", tab:"school", label:"School Info" },
   { id:"syllabus", title:"Upload a syllabus", sub:"Drop in a PDF and StudyOS reads every assignment, exam, and due date automatically.", tab:"acad", sec:"sync", label:"Academics → Update Syllabus" },
-  { id:"schedule", title:"Review your daily schedule", sub:"Wake/sleep, meals, gym, how long a study session runs before a break.", tab:"settings", sec:"schedule", label:"Preferences → Daily Schedule", manual:true },
+  { id:"difficulty", title:"Review estimated difficulties", sub:"StudyOS estimates how hard each item is and how long it'll take — adjust any that don't look right.", tab:"acad", sec:"difficulty", label:"Academics → Difficulty", manual:true, field:"helpDifficultyReviewed" },
+  { id:"schedule", title:"Review your daily schedule", sub:"Wake/sleep, meals, gym, how long a study session runs before a break.", tab:"settings", sec:"schedule", label:"Preferences → Daily Schedule", manual:true, field:"helpScheduleReviewed" },
   { id:"notifications", title:"Turn on notifications", sub:"A heads-up when it's time to study, and a daily text summary if you want one.", tab:"settings", sec:"notifs", label:"Preferences → Notifications" },
   { id:"replan", title:"Save & Replan", sub:"Turns everything above into your actual day-by-day schedule.", tab:"settings", sec:"schedule", label:"Preferences → Save & Replan" },
   { id:"focusTime", title:"Try Focus Time", sub:"Press play on a real session from Today — StudyOS tracks it as you go.", tab:"today", label:"Today → Focus Time" },
@@ -44,7 +48,7 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
   const p=data.profile||{};
 
   function isDone(item){
-    return item.manual ? p.helpScheduleReviewed===true : status[item.id];
+    return item.manual ? p[item.field]===true : status[item.id];
   }
   const doneCount=ITEMS.filter(isDone).length;
   const pct=Math.round(doneCount/ITEMS.length*100);
@@ -99,7 +103,7 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
               return(
                 <div key={item.id} style={{display:"flex",gap:12,padding:"13px 0",borderBottom:i<ITEMS.length-1?"1px solid var(--b1)":"none"}}>
                   <button
-                    onClick={item.manual?()=>updP({helpScheduleReviewed:!done}):undefined}
+                    onClick={item.manual?()=>updP({[item.field]:!done}):undefined}
                     disabled={!item.manual}
                     title={item.manual?(done?"Mark not reviewed":"Mark reviewed"):undefined}
                     style={{width:20,height:20,borderRadius:"50%",border:`1.5px solid ${done?"var(--green)":"var(--b2)"}`,
@@ -107,7 +111,10 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
                       justifyContent:"center",fontSize:11,color:done?"#0a1f16":"transparent",padding:0,
                       cursor:item.manual?"pointer":"default"}}>✓</button>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13.5,fontWeight:600,color:done?"var(--t3)":"var(--t1)",
+                    {/* Title stays white (var(--t1)) whether done or not — the checkmark bubble
+                        plus the strikethrough are already a clear enough "done" cue on their own;
+                        dimming the text on top of that made completed titles hard to read. */}
+                    <div style={{fontSize:13.5,fontWeight:600,color:"var(--t1)",
                       textDecoration:done?"line-through":"none",textDecorationColor:"var(--b2)",marginBottom:2}}>{item.title}</div>
                     <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.sub}</div>
                     {!done&&(
