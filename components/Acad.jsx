@@ -744,7 +744,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       {/* Page header */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,position:"relative"}}>
-          <h2>Academics</h2>
+          <h2>Courses</h2>
           {termStatuses.length>0&&(()=>{
             const viewing=termStatuses.find(t=>t.id===viewingTermId);
             const badgeColor=viewing?.status==="current"?"var(--amber)":viewing?.status==="upcoming"?"var(--blue)":"var(--t3)";

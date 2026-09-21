@@ -565,7 +565,7 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 everywhere else (a full sentence directly in the accent color reads poorly on its
                 own matching-tint background). */}
             <div style={{fontSize:15,color:"#fff",marginBottom:8}}>
-              <span style={{color:"var(--amber)"}}>⚠</span> {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Academics to fix
+              <span style={{color:"var(--amber)"}}>⚠</span> {missing.length} assignment{missing.length>1?"s":""} missing due date — go to Courses to fix
             </div>
             {missing.slice(0,3).map((a,i)=>(
               <div key={i} style={{fontSize:14,color:"var(--t3)",marginBottom:3}}>· {a.title} ({courseNameFor(data.courses,a.courseId)})</div>
