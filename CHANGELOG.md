@@ -1,5 +1,103 @@
 # StudyOS Changelog
 
+## v2.85.0 — 2026-09-21
+
+**History tab removed — its functions now live under School Info**
+
+Requested: "let's move the function under History 'Close' term as a button under School-info. and
+remove the 'History' from the menu" — then, since removing the tab would also remove the only way
+to browse past archived terms: "can we keep this functionality but structure it under 'school Info'
+as well?"
+
+Both of History's real functions moved into `components/SchoolInfo.jsx`, which already tracks the
+real multi-school/multi-term data these belong next to:
+- **Close current term** — same archiving logic, same confirm, same "Nothing active to archive yet"
+  state. One real improvement along the way: the term-name field now defaults from
+  `currentTerm.name` (School Info's own real term data) instead of the old `getQ()` legacy
+  single-term profile lookup History.jsx used — still just a starting suggestion, editable either
+  way, but a more accurate one now that it's sitting next to the real term list.
+- **Archived terms** — same list, same read-only detail view (`HistoryDetail`, moved verbatim) for
+  a past term's final GPA/courses/assignments/exams.
+
+`components/History.jsx` is deleted; the "History" tab is gone from `App.jsx`'s `TABS` and its
+route. Note this archiving mechanism still isn't linked to a specific `data.terms[]` entry — it
+snapshots whatever's currently in `data.courses/assignments/exams` under a name the student types,
+same as it always has; moving it next to School Info doesn't change that, it's just now grouped
+with the term data it conceptually belongs to instead of sitting in its own separate tab.
+
+Verified live: History is gone from the nav, School Info now shows "Current term" (with the correct
+prefilled term name) and "Archived terms — 0" as two new cards, styled identically to School Info's
+existing cards. Build clean, 246/246 tests pass.
+
+## v2.84.0 — 2026-09-21
+
+**Account and Today's Calendar now open as side drawers, same as Help**
+
+Requested: "for desktop view, I like the concept of side-window as done for the help... [Account]
+and [Today's Calendar] — both today are using pop-up... Can we use the same side-window as in
+help?" Pulled the sliding-panel shell HelpDrawer introduced out into its own reusable
+`components/shared/SideDrawer.jsx` (plus a `DrawerHeader` convenience for the plain icon+title+×
+header both of these already had) and converted both:
+
+- **Account** (`AccountModal`, `components/shared/modals.jsx`) — same fields, same change-password
+  and reset-all-data subforms, same dirty-check-before-close confirm, just in the drawer instead of
+  a centered card. The real behavior change needed to make this work: it now stays mounted the
+  whole session (like HelpDrawer) instead of being created/destroyed each open, so the slide
+  actually animates instead of snapping into place — which meant everything that used to reset for
+  free on unmount (the draft, the two subforms, the invite-link fetch) now resets explicitly, keyed
+  on `open` flipping true, so reopening never shows stale state from a previous session.
+- **Today's Calendar** (`components/Today.jsx`) — same `DayAgenda` content and Plan-now button,
+  same always-mounted treatment for the animation; no extra state to reset here since it's pure
+  read-only rendering off `data`/`td`.
+
+Deliberately still no backdrop and no click-outside-to-close on either — same reasoning as Help:
+the app stays fully visible and clickable behind them, so closing is always an explicit ✕ click.
+
+Verified live: both open/close with the same slide, Account's fields/invite-link/subforms all work
+identically to before, Calendar's day list renders correctly at 640px wide. Build clean, 246/246
+tests pass (no logic changed in either modal, purely structural — the new reset effects are the one
+real behavior addition, and they replicate exactly what unmounting used to do).
+
+## v2.83.2 — 2026-09-21
+
+**Help drawer: dropped the strikethrough — the green check is the one done signal**
+
+Asked directly: "what's the purpose of the green checks? and why do we need to strike them?" — fair
+question, since the previous round had already removed one redundant signal (dimmed title color)
+for the same reason. Answer: the checkmark is load-bearing (feeds the real "X of N done" count),
+the strikethrough was purely decorative on top of it. Dropped it — completed items now show only
+the filled green check, title stays plain white either way.
+
+Deliberately did NOT make the other 5 (auto-detected) items' checks clickable, even though that
+came up as an option — those reflect real account state (you have a school, you have courses, a
+plan exists, a session was run), and letting anyone hand-check them would mean the progress count
+no longer means anything. Only the 2 items with no honest auto-detect signal ("Review daily
+schedule," "Review estimated difficulties") stay clickable, unchanged from before.
+
+Verified live. Build clean, 246/246 tests pass (no logic changed, purely visual).
+
+## v2.83.1 — 2026-09-21
+
+**Help drawer: "Review estimated difficulties" item, and every title now stays white**
+
+Requested: "we shall add after uploading the syllabus - something like 'Review the estimated
+Difficulties and adjust if needed'" — a new checklist item, mapped onto Academics' existing
+Difficulty view (`view==="difficulty"` in `components/Acad.jsx` — the same screen the syllabus-sync
+flow already lands on after adding items), inserted right after "Upload a syllabus." Same manual-
+checkbox treatment as "Review your daily schedule" — leaving an AI difficulty/hours estimate
+unchanged is just as legitimate an outcome as adjusting it, so there's no honest way to auto-detect
+"reviewed" from the data alone (`profile.helpDifficultyReviewed`, persisted the same way). The
+manual-item handling in `HelpDrawer.jsx` was generalized from one hardcoded field name to a
+`field` per item, so adding this one didn't mean duplicating the toggle logic.
+
+Also: "also - the title of each step shall be in white text" — every checklist item's title now
+stays `var(--t1)` (white) whether done or not; previously a done item's title dimmed to `var(--t3)`
+on top of the strikethrough, which was one signal too many and made completed titles hard to read.
+The checkmark bubble + strikethrough alone are a clear enough "done" cue.
+
+Verified live: new item shows between syllabus and schedule, "Academics → Difficulty" jump lands on
+the real Difficulty view, progress now reads out of 7. Build clean, 246/246 tests pass.
+
 ## v2.83.0 — 2026-09-21
 
 **New Help drawer — Getting Started checklist + Q&A**

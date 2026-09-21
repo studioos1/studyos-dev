@@ -1,25 +1,31 @@
 import { useState } from "react";
 import { gettingStartedStatus } from "@/lib/help";
+import { SideDrawer } from "./SideDrawer";
 
 // ── HELP DRAWER ──────────────────────────────────────────────────────────────
-// Replaces an earlier full-screen spotlight-tour design (dimmed overlay + forced click-through
-// Next/Back sequence) with a calm, non-modal side panel instead — deliberately NO backdrop and NO
-// click-outside-to-close, unlike every other overlay in this app (InfoModal/ConfirmModal etc. all
-// use a dimming backdrop, components/shared/modals.jsx). That's on purpose here: the whole point is
-// that the real app stays fully visible and clickable while this is open, so a student can read a
+// The original of the SideDrawer.jsx shell — replaces an earlier full-screen spotlight-tour design
+// (dimmed overlay + forced click-through Next/Back sequence) with a calm, non-modal side panel
+// instead. Account and the daily Calendar popup (previously centered dim-backdrop modals) now use
+// the same SideDrawer shell this introduced, deliberately with NO backdrop and NO
+// click-outside-to-close, unlike a normal modal (InfoModal/ConfirmModal, components/shared/
+// modals.jsx) — the app stays fully visible and clickable behind it, so a student can read a
 // checklist item, click into Preferences right behind the drawer, and come back — closing only via
 // the × or re-clicking the ? icon that opened it (App.jsx).
 //
 // Two tabs: a self-paced Getting Started checklist (jump to any item in any order — no forced
 // sequence) and a searchable Q&A reference that stays useful long after first login, unlike a
 // one-time tour. See lib/help.js for how "done" is actually derived from real data — most items
-// are, "Review your daily schedule" is the one exception (no honest auto-detect signal exists for
-// it, since every schedule field already has a sane default; it's the one manually-toggled item,
-// persisted as profile.helpScheduleReviewed so it survives a reload rather than resetting itself).
+// are. Two items are manual instead (`manual:true`, each with its own `field`): "Review your daily
+// schedule" and "Review estimated difficulties" both lack an honest auto-detect signal — every
+// schedule field already has a sane default whether touched or not, and leaving an AI difficulty
+// estimate unchanged is just as legitimate an outcome as adjusting it (so "has userValue been set"
+// would false-negative on "looked at it, decided the estimate was already right"). Each manual
+// item's own boolean persists on the profile (profile[item.field]) so it survives a reload.
 const ITEMS = [
   { id:"school", title:"Add your school & term", sub:"Sets the real dates the planner works from.", tab:"school", label:"School Info" },
   { id:"syllabus", title:"Upload a syllabus", sub:"Drop in a PDF and StudyOS reads every assignment, exam, and due date automatically.", tab:"acad", sec:"sync", label:"Academics → Update Syllabus" },
-  { id:"schedule", title:"Review your daily schedule", sub:"Wake/sleep, meals, gym, how long a study session runs before a break.", tab:"settings", sec:"schedule", label:"Preferences → Daily Schedule", manual:true },
+  { id:"difficulty", title:"Review estimated difficulties", sub:"StudyOS estimates how hard each item is and how long it'll take — adjust any that don't look right.", tab:"acad", sec:"difficulty", label:"Academics → Difficulty", manual:true, field:"helpDifficultyReviewed" },
+  { id:"schedule", title:"Review your daily schedule", sub:"Wake/sleep, meals, gym, how long a study session runs before a break.", tab:"settings", sec:"schedule", label:"Preferences → Daily Schedule", manual:true, field:"helpScheduleReviewed" },
   { id:"notifications", title:"Turn on notifications", sub:"A heads-up when it's time to study, and a daily text summary if you want one.", tab:"settings", sec:"notifs", label:"Preferences → Notifications" },
   { id:"replan", title:"Save & Replan", sub:"Turns everything above into your actual day-by-day schedule.", tab:"settings", sec:"schedule", label:"Preferences → Save & Replan" },
   { id:"focusTime", title:"Try Focus Time", sub:"Press play on a real session from Today — StudyOS tracks it as you go.", tab:"today", label:"Today → Focus Time" },
@@ -44,7 +50,7 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
   const p=data.profile||{};
 
   function isDone(item){
-    return item.manual ? p.helpScheduleReviewed===true : status[item.id];
+    return item.manual ? p[item.field]===true : status[item.id];
   }
   const doneCount=ITEMS.filter(isDone).length;
   const pct=Math.round(doneCount/ITEMS.length*100);
@@ -54,38 +60,29 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
     : QA;
   let lastGroup=null;
 
-  return(
-    // Fixed-position panel, not a flex-reflow layout like the mockup — App.jsx's root uses a fixed
-    // header over normal document flow, not a flex row, so reflowing the whole app to make room
-    // for a sidebar would mean restructuring layout every tab already depends on. Floating on top
-    // instead gets the same "app stays usable" result (nothing dimmed, nothing blocked) without
-    // that risk — it just overlaps the right edge of the screen instead of shrinking it.
-    <div style={{
-      position:"fixed",top:0,right:0,bottom:0,zIndex:9000,
-      width:open?"min(400px, 100vw)":0,overflow:"hidden",
-      background:"var(--card)",borderLeft:open?"1px solid var(--b1)":"none",
-      boxShadow:open?"-16px 0 40px rgba(0,0,0,0.35)":"none",
-      transition:"width .28s cubic-bezier(.2,.8,.3,1)",display:"flex",flexDirection:"column",
-    }}>
-      <div style={{padding:"22px 24px 0",flexShrink:0,minWidth:352}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <span style={{fontSize:19,fontWeight:700,letterSpacing:"-0.01em",color:"var(--t1)"}}>Hey — need a hand?</span>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t3)",fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
-        </div>
-        <div style={{fontSize:12.5,color:"var(--t3)",lineHeight:1.6,marginBottom:16}}>
-          A self-paced checklist for getting set up, plus quick answers for anything that comes up later.
-        </div>
-        <div style={{display:"flex",gap:4,background:"var(--card2)",borderRadius:9,padding:3}}>
-          <button onClick={()=>setTab("start")} style={{flex:1,background:tab==="start"?"var(--amber)":"none",border:"none",
-            padding:"8px 10px",fontSize:12.5,fontWeight:tab==="start"?600:500,color:tab==="start"?"#241a08":"var(--t3)",
-            borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Getting Started</button>
-          <button onClick={()=>setTab("qa")} style={{flex:1,background:tab==="qa"?"var(--amber)":"none",border:"none",
-            padding:"8px 10px",fontSize:12.5,fontWeight:tab==="qa"?600:500,color:tab==="qa"?"#241a08":"var(--t3)",
-            borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Q&amp;A</button>
-        </div>
+  const header=(
+    <>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <span style={{fontSize:19,fontWeight:700,letterSpacing:"-0.01em",color:"var(--t1)"}}>Hey — need a hand?</span>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t3)",fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
       </div>
+      <div style={{fontSize:12.5,color:"var(--t3)",lineHeight:1.6,marginBottom:16}}>
+        A self-paced checklist for getting set up, plus quick answers for anything that comes up later.
+      </div>
+      <div style={{display:"flex",gap:4,background:"var(--card2)",borderRadius:9,padding:3}}>
+        <button onClick={()=>setTab("start")} style={{flex:1,background:tab==="start"?"var(--amber)":"none",border:"none",
+          padding:"8px 10px",fontSize:12.5,fontWeight:tab==="start"?600:500,color:tab==="start"?"#241a08":"var(--t3)",
+          borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Getting Started</button>
+        <button onClick={()=>setTab("qa")} style={{flex:1,background:tab==="qa"?"var(--amber)":"none",border:"none",
+          padding:"8px 10px",fontSize:12.5,fontWeight:tab==="qa"?600:500,color:tab==="qa"?"#241a08":"var(--t3)",
+          borderRadius:7,cursor:"pointer",fontFamily:"inherit"}}>Q&amp;A</button>
+      </div>
+    </>
+  );
 
-      <div style={{flex:1,overflowY:"auto",padding:"18px 24px 24px",minWidth:352}}>
+  return(
+    <SideDrawer open={open} onClose={onClose} width={400} header={header}>
+      <div style={{paddingTop:4}}>
         {tab==="start"?(
           <>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
@@ -99,7 +96,7 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
               return(
                 <div key={item.id} style={{display:"flex",gap:12,padding:"13px 0",borderBottom:i<ITEMS.length-1?"1px solid var(--b1)":"none"}}>
                   <button
-                    onClick={item.manual?()=>updP({helpScheduleReviewed:!done}):undefined}
+                    onClick={item.manual?()=>updP({[item.field]:!done}):undefined}
                     disabled={!item.manual}
                     title={item.manual?(done?"Mark not reviewed":"Mark reviewed"):undefined}
                     style={{width:20,height:20,borderRadius:"50%",border:`1.5px solid ${done?"var(--green)":"var(--b2)"}`,
@@ -107,8 +104,10 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
                       justifyContent:"center",fontSize:11,color:done?"#0a1f16":"transparent",padding:0,
                       cursor:item.manual?"pointer":"default"}}>✓</button>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13.5,fontWeight:600,color:done?"var(--t3)":"var(--t1)",
-                      textDecoration:done?"line-through":"none",textDecorationColor:"var(--b2)",marginBottom:2}}>{item.title}</div>
+                    {/* Title stays plain white (var(--t1)), no strikethrough — the green checkmark
+                        bubble to the left is the one "done" signal now, not a second echo of the
+                        same state on the text itself. */}
+                    <div style={{fontSize:13.5,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{item.title}</div>
                     <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.sub}</div>
                     {!done&&(
                       <button onClick={()=>onJump(item.tab,item.sec)} style={{background:"none",border:"none",padding:0,
@@ -158,6 +157,6 @@ export function HelpDrawer({open,onClose,data,updP,onJump}){
           </>
         )}
       </div>
-    </div>
+    </SideDrawer>
   );
 }

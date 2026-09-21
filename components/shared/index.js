@@ -31,3 +31,4 @@ export { Timeline } from "./Timeline";
 export { PaceRunner } from "./PaceRunner";
 export { DayAgenda } from "./DayAgenda";
 export { HelpDrawer } from "./HelpDrawer";
+export { SideDrawer, DrawerHeader } from "./SideDrawer";

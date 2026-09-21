@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getMyInviteInfo } from "@/lib/invites";
 import { sparkleBurst } from "@/lib/sparkle";
 import { Sp, ExtractionIssues, PasswordInput } from "./ui";
+import { SideDrawer, DrawerHeader } from "./SideDrawer";
 
 // Shown right after the AI parses a syllabus/schedule PDF, BEFORE anything is saved to
 // data.assignments/data.exams. Gives the student one place to catch and fix any misclassified
@@ -577,13 +578,23 @@ export function useConfirm(){
 // Unlike every other field in the app, this one deliberately does NOT auto-save on change: this
 // is sensitive personal data (now including username/password placeholders), and per explicit
 // instruction, updates here need a real, intentional Save action.
-export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEmail}){
+// `open` controls the SideDrawer's slide animation (components/shared/SideDrawer.jsx) — this
+// component now stays MOUNTED the whole time the user is onboarded (App.jsx renders it
+// unconditionally, same as HelpDrawer), rather than being created fresh and destroyed each time
+// like the old centered-modal version was. That's what makes the open/close motion actually
+// animate instead of snapping instantly into place — but it also means every piece of state below
+// that used to reset for free on unmount now needs an explicit reset, keyed on `open` flipping
+// true: the draft re-syncs from the latest profile (so a previous session's saved/discarded edits
+// never leak into the next), and both subforms (change password, reset all data) snap back closed
+// so reopening never shows a stale half-filled form from before.
+export function AccountModal({open,data,updP,toast2,onClose,onSignOut,onReset,userEmail}){
   const p=data.profile;
   const {confirm,modal}=useConfirm();
-  const [draft,setDraft]=useState(()=>({
+  const freshDraft=()=>({
     name:p.name,lastName:p.lastName||"",phone:p.phone,email:p.email||"",
     homeAddress:p.homeAddress,username:p.username||"",password:p.password||"",
-  }));
+  });
+  const [draft,setDraft]=useState(freshDraft);
   const baseline=JSON.stringify({
     name:p.name,lastName:p.lastName||"",phone:p.phone,email:p.email||"",
     homeAddress:p.homeAddress,username:p.username||"",password:p.password||"",
@@ -627,12 +638,20 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
     toast2("Password updated");
   }
 
-  // Invite a friend — fetched once when the modal opens (create-on-first-view, via
-  // lib/invites.js's getMyInviteInfo). Sharing the link is the whole feature; use_count/max_uses
-  // is just a light "did this actually reach anyone" signal, not a hard cap the user manages here.
+  // Invite a friend — fetched each time the drawer opens (create-on-first-view, via
+  // lib/invites.js's getMyInviteInfo), not once on mount — this component stays mounted the whole
+  // session now (see the note above the function), so "on mount" would mean "the moment
+  // onboarding finishes," long before anyone's actually looked at Account. Keying on `open`
+  // instead means the fetch only happens when it's actually needed, same as before. Sharing the
+  // link is the whole feature; use_count/max_uses is just a light "did this actually reach
+  // anyone" signal, not a hard cap the user manages here.
   const [inviteInfo,setInviteInfo]=useState(null);
   const [inviteLoading,setInviteLoading]=useState(true);
-  useEffect(()=>{getMyInviteInfo().then(info=>{setInviteInfo(info);setInviteLoading(false);});},[]);
+  useEffect(()=>{
+    if(!open)return;
+    setInviteLoading(true);
+    getMyInviteInfo().then(info=>{setInviteInfo(info);setInviteLoading(false);});
+  },[open]);
   const inviteLink=inviteInfo&&typeof window!=="undefined"?`${window.location.origin}/?invite=${inviteInfo.code}`:"";
   async function copyInviteLink(){
     try{ await navigator.clipboard.writeText(inviteLink); toast2("Invite link copied!"); }
@@ -648,6 +667,18 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
   const [resetPw,setResetPw]=useState("");
   const [resetErr,setResetErr]=useState("");
   const [resetBusy,setResetBusy]=useState(false);
+
+  // Everything unmounting used to reset for free now needs doing by hand, keyed on `open` flipping
+  // true: re-sync the draft from the latest profile (a previous session's saved/discarded edits
+  // never leak into the next), and snap both subforms closed so reopening never shows a stale
+  // half-filled password-change or reset-data form from before.
+  useEffect(()=>{
+    if(!open)return;
+    setDraft(freshDraft());
+    closePwForm();
+    setResetOpen(false);setResetPw("");setResetErr("");setResetBusy(false);
+  },[open]); // eslint-disable-line
+
   async function verifyAndReset(){
     if(!resetPw){setResetErr("Enter your password");return;}
     setResetBusy(true);setResetErr("");
@@ -663,20 +694,10 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
   }
 
   return(
-    <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
-      display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-      onClick={handleClose}>
-      <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",
-        maxWidth:420,width:"100%",maxHeight:"85vh",overflowY:"auto",
-        boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
-        onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>
-            <i className="ti ti-user-circle" style={{marginRight:8,color:"var(--blue)"}}/>Account
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={handleClose}><i className="ti ti-x"/></button>
-        </div>
-        <div className="g2" style={{marginBottom:12}}>
+    <>
+    <SideDrawer open={open} onClose={handleClose} width={420}
+      header={<DrawerHeader icon="ti-user-circle" title="Account" onClose={handleClose}/>}>
+        <div className="g2" style={{marginTop:4,marginBottom:12}}>
           <div><label>First name</label><input value={draft.name} onChange={set("name")}/></div>
           <div><label>Last name</label><input value={draft.lastName} onChange={set("lastName")}/></div>
         </div>
@@ -794,8 +815,8 @@ export function AccountModal({data,updP,toast2,onClose,onSignOut,onReset,userEma
             )}
           </div>
         )}
-      </div>
+      </SideDrawer>
       {modal}
-    </div>
+    </>
   );
 }
