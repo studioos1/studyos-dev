@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.86.1 — 2026-09-22
+
+**Study Pace and Assignment on-time: extracted to lib/metrics.js, fully tested**
+
+Asked to clarify and verify how Study Pace is actually computed, then to extract it (and audit
+every Progress-card metric while at it). Traced the formula by hand against the real code before
+touching anything: confirmed it's term-accumulated from term-start through *today only* (never the
+term's full total, never future days), confirmed `studyPlan.weeks` only ever contains study/
+homework/project blocks by construction (the planner never writes classes/meals/gym into it), and
+confirmed the date-boundary, duration-unit, and completion-flag logic all check out — no bugs
+found, but one real gap: the calculation lived inline in `components/Today.jsx`, untested, unlike
+its sibling metric (`assignmentOnTimeScore`/`splitOnTimeScore` were already proper tested exports
+in `lib/metrics.js`).
+
+Extracted both metrics' full aggregation logic (not just the already-tested scoring primitives) into
+`lib/metrics.js`:
+- `computeStudyPace(weeks, termStart, today)` — the term-to-date completion rate.
+- `computeOnTimeRaw(assignments, termStart, today)` — the raw (uncapped) on-time average, still
+  passed to the existing `splitOnTimeScore()` for display same as before.
+
+`components/Today.jsx` now just supplies term-scoped data to these and keeps only the presentation
+logic (color bands, the shared headline) of its own.
+
+Verified live: both metrics show identical values before/after the refactor (46% / 100% on a real
+test account), tooltip still renders correctly. Build clean, 264/264 tests pass (18 new, covering
+both functions' range boundaries, null-vs-zero edge cases, the early-completion-before-due-date
+case, and the still-open-item-scores-against-today behavior).
+
 ## v2.86.0 — 2026-09-21
 
 **"Academics" renamed to "Courses"; every tab now has its own real URL**
