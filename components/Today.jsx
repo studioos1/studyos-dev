@@ -13,7 +13,7 @@ import {
 } from "@/lib/calendar";
 import { courseNameFor } from "@/lib/courses";
 import { DF } from "@/lib/constants";
-import { assignmentOnTimeScore, splitOnTimeScore } from "@/lib/metrics";
+import { computeStudyPace, computeOnTimeRaw, splitOnTimeScore } from "@/lib/metrics";
 import { dedupeCourseFromTaskLabel } from "@/lib/taskLabel";
 import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner, SideDrawer, DrawerHeader } from "@/components/shared";
 
@@ -83,47 +83,16 @@ export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planni
   const health=healthReasons.some(r=>r.level==="red")?"red":healthReasons.length?"yellow":"green";
   const healthColor={red:"var(--red)",yellow:"var(--amber)",green:"var(--green)"}[health];
 
-  // Study Pace — term-accumulated: every study/homework/project minute the planner has actually
-  // scheduled from the term's start through today, vs. how much of that is marked completed.
-  // Reads straight from data.studyPlan.weeks (the same source realDayBlocks uses) rather than
-  // walking a day-by-day date range, so it only touches weeks/days that actually exist in the
-  // plan. null (not 0) when nothing's been planned yet in-range — that's "no data", not "0%".
+  // Study Pace / Assignments On-time — both fully extracted to lib/metrics.js (computeStudyPace,
+  // computeOnTimeRaw) so the actual calculation has real test coverage instead of living inline
+  // here untested; this file now only supplies the term-scoped data and derives the presentation
+  // (color bands, the shared headline below). See those functions' own comments for exactly what
+  // each counts and why.
   const termStart=p.termStart;
-  let paceMinPlanned=0,paceMinDone=0;
-  if(termStart&&termStart<=td){
-    Object.values(data.studyPlan?.weeks||{}).forEach(week=>{
-      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-        if(dateStr<termStart||dateStr>td)return;
-        (blocks||[]).forEach(b=>{
-          const mins=b.e-b.s;
-          paceMinPlanned+=mins;
-          if(b.completed)paceMinDone+=mins;
-        });
-      });
-    });
-  }
-  const studyPace=paceMinPlanned>0?Math.round(100*paceMinDone/paceMinPlanned):null;
+  const studyPace=computeStudyPace(data.studyPlan?.weeks,termStart,td);
   const paceColor=studyPace===null?"var(--t3)":studyPace<60?"var(--red)":studyPace<85?"var(--amber)":"var(--green)";
 
-  // Assignments On-time — accumulated from the term's start through today: every assignment
-  // EITHER already due, OR already done (even if its due date hasn't arrived yet — that's
-  // exactly what "early" means, and it should count the moment it happens, not sit excluded
-  // until the due date eventually passes it by). Scored individually via assignmentOnTimeScore()
-  // above (on time=100%, early=bonus, late/still-missing=shrinking partial credit), then
-  // averaged — a continuous score, not a binary on-time/late count, so it can exceed 100% when
-  // enough items were done early (see splitOnTimeScore below for how that's displayed).
-  // completedAt (stamped the moment status flips to "done" — see Acad.jsx / Prog.jsx) is the
-  // reference date; an assignment marked done before that field existed has no completedAt and
-  // defaults to its own due date (i.e. exactly on time) rather than being penalized retroactively
-  // for data that was never recorded. A still-open, already-due item scores against TODAY, so it
-  // keeps shrinking until it's actually done, then locks in wherever it landed.
-  const dueToDate=termStart?data.assignments.filter(a=>a.dueDate&&a.dueDate>=termStart&&(a.dueDate<=td||a.status==="done")):[];
-  const onTimeScores=dueToDate.map(a=>{
-    const refDate=a.status==="done"?(a.completedAt?a.completedAt.slice(0,10):a.dueDate):td;
-    const diffDays=Math.round((new Date(a.dueDate)-new Date(refDate))/864e5);
-    return assignmentOnTimeScore(diffDays);
-  });
-  const onTimeRaw=onTimeScores.length>0?Math.round(onTimeScores.reduce((s,v)=>s+v,0)/onTimeScores.length):null;
+  const onTimeRaw=computeOnTimeRaw(data.assignments,termStart,td);
   // The raw average can exceed 100 (early-submission bonus) — split so the main number/bar/color
   // stay a normal capped 0-100% reading, with any bonus earned above that as its own small badge.
   const {pct:onTimePct,bonus:onTimeBonus}=splitOnTimeScore(onTimeRaw);
