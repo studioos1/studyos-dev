@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.87.0 — 2026-09-22
+
+**Help is now a real nav tab, not a small ? icon opening a side drawer**
+
+Follows directly from the "will a new user actually find their way through setup" discussion — a
+small amber "?" icon in the corner isn't something a first-time user has any reason to notice.
+"Let's move the access... to a menu item 'Help' and make this page not as side page":
+
+- `components/Help.jsx` is a new, real nav tab (`Today · Calendar · Courses · Progress · School
+  Info · Help · Preferences · Bug Reports`), with its own URL (`/help`, via the routing added in
+  v2.86.0). `components/shared/HelpDrawer.jsx` is deleted — the sliding-panel shell it introduced
+  (`SideDrawer.jsx`) stays in place and keeps serving Account and the daily Calendar popup, only
+  Help itself moved out of it.
+- Rebuilt as a normal full-width page instead of a narrow 400px panel, using the same
+  BOX/TITLE_ROW/etc. card pattern every other tab component defines locally (CLAUDE.md's own
+  documented convention) — Getting Started and Q&A are now two stacked cards rather than a
+  tab-switcher, since there's no longer a narrow panel forcing one to hide behind the other.
+- Content updated to match the "Academics" → "Courses" rename from the last release (both the
+  checklist's jump-labels and a Q&A answer still said "Academics").
+- `App.jsx`'s `jumpTo()` simplified — no more separate drawer open/close state to juggle
+  alongside the navigation; jumping away from Help is just `go()` like any other tab.
+
+Verified live: the "?" icon is gone, "Help" opens as a full page at `/help`, progress/checklist
+state and "Take me there" deep-links all work identically to before (confirmed against a real
+account showing 5 of 7 done, and a jump to Preferences → Daily Schedule landing correctly). Build
+clean, 264/264 tests pass.
+
 ## v2.86.1 — 2026-09-22
 
 **Study Pace and Assignment on-time: extracted to lib/metrics.js, fully tested**
