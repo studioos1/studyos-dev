@@ -4,7 +4,7 @@ import { iso } from "@/lib/time";
 import { AI } from "@/lib/api";
 import { APP_VERSION, APP_BUILD_DATE, APP_BUILD_TIME } from "@/lib/version";
 import { freeSlots, weekStartOf, hasCheckInWork, scheduleReminders } from "@/lib/calendar";
-import { useConfirm, AccountModal, BugReportModal, HelpDrawer } from "@/components/shared";
+import { useConfirm, AccountModal, BugReportModal } from "@/components/shared";
 import { planHorizon } from "@/lib/planner";
 import { ADMIN_EMAILS } from "@/lib/constants";
 import { submitBugReport } from "@/lib/bugReports";
@@ -32,6 +32,7 @@ import { Week } from "@/components/Week";
 import { Acad } from "@/components/Acad";
 import { Onboard } from "@/components/Onboard";
 import { SchoolInfo } from "@/components/SchoolInfo";
+import { Help } from "@/components/Help";
 import { Sett } from "@/components/Sett";
 import { Prog } from "@/components/Prog";
 import { Login } from "@/components/Login";
@@ -98,7 +99,7 @@ function rampMinutes(windowDays,d,totalMinutes,minPerDay,maxPerDay){
 // touching the many tab==="..." checks throughout this file for a purely cosmetic URL change).
 // The catch-all route (app/[...slug]/page.jsx) is what makes a fresh load of /courses (not just a
 // same-session navigation) resolve to this same app instead of 404ing — see that file's comment.
-const TAB_SLUGS={today:"today",week:"calendar",acad:"courses",prog:"progress",school:"school-info",settings:"preferences",bugs:"bug-reports"};
+const TAB_SLUGS={today:"today",week:"calendar",acad:"courses",prog:"progress",school:"school-info",help:"help",settings:"preferences",bugs:"bug-reports"};
 const SLUG_TO_TAB=Object.fromEntries(Object.entries(TAB_SLUGS).map(([id,slug])=>[slug,id]));
 function tabFromLocation(){
   if(typeof window==="undefined")return "today";
@@ -155,17 +156,17 @@ function App(){
     if(window.location.pathname!==path)window.history.pushState({},"",path);
   }
   function goCheckIn(){setProgBackTo("today");setTab("prog");window.history.pushState({},"","/"+TAB_SLUGS.prog);}
-  // Help drawer (components/shared/HelpDrawer.jsx) — showHelp is just visibility; helpJump is the
-  // deep-link a "Take me there" click sends down to whichever tab component owns the target
-  // sub-section (Sett.jsx's `sec`, Acad.jsx's `view`), each filtering on helpJump.tab being its own
-  // id. `token` (not sec itself) is what their effects key off, so clicking the same link twice in
-  // a row still re-applies even though the target value didn't change.
-  const [showHelp,setShowHelp]=useState(false);
+  // Help tab (components/Help.jsx) — helpJump is the deep-link a "Take me there" click sends down
+  // to whichever tab component owns the target sub-section (Sett.jsx's `sec`, Acad.jsx's `view`),
+  // each filtering on helpJump.tab being its own id. `token` (not sec itself) is what their
+  // effects key off, so clicking the same link twice in a row still re-applies even though the
+  // target value didn't change. No separate open/close state anymore — Help is a normal tab now
+  // (`tab==="help"`), not a drawer, so jumping away from it is just go() like any other tab
+  // navigation.
   const [helpJump,setHelpJump]=useState(null);
   function jumpTo(tabId,sec){
     setHelpJump({tab:tabId,sec,token:Date.now()});
     go(tabId);
-    setShowHelp(false);
   }
   const [busy,setBusy]=useState(false);
   // Dedicated to refreshQuarterPlan/refreshWeekPlan specifically — deliberately SEPARATE from
@@ -570,6 +571,7 @@ function App(){
     {id:"acad",    icon:"ti-school",       label:"Courses"},
     {id:"prog",    icon:"ti-chart-bar",    label:"Progress"},
     {id:"school",  icon:"ti-building",     label:"School Info"},
+    {id:"help",    icon:"ti-help",         label:"Help"},
     {id:"settings",icon:"ti-settings",    label:"Preferences"},
     ...(isAdmin?[{id:"bugs",icon:"ti-bug",label:"Bug Reports"}]:[]),
   ]:[];
@@ -683,19 +685,8 @@ function App(){
                 )}
               </div>
             )}
-            {/* Help — opens components/shared/HelpDrawer.jsx (Getting Started checklist + Q&A).
-                Amber-tinted at rest (not just on hover/active) so it reads as a standing entry
-                point rather than a neutral icon like the others in this row — matches this app's
-                own "activated state = amber" convention, just applied to "this thing is always
-                worth noticing," not only a currently-selected state. */}
-            {data.onboarded&&(
-              <button className="tt tt-below tt-right icon-btn-28" data-tt="Help" onClick={()=>setShowHelp(v=>!v)}
-                style={{borderRadius:"50%",border:"1px solid var(--amber)",background:"var(--amber-bg)",
-                  color:"var(--amber)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-                  padding:0,flexShrink:0,fontWeight:700,fontSize:14}}>
-                ?
-              </button>
-            )}
+            {/* The "?" icon that used to live here now points at a real nav tab (Help,
+                components/Help.jsx) instead of a drawer — see TABS below. */}
             {/* Real reported duplication: this used to be a second "Evening check-in" checkbox
                 icon, always present on every tab — Today.jsx already has its own (amber, only
                 shown once there's actually unchecked-off work), so the header one was pure
@@ -746,11 +737,11 @@ function App(){
           :tab==="acad"    ?<Acad     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
+          :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)
           :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
         }
       </div>
-      {data.onboarded&&<HelpDrawer open={showHelp} onClose={()=>setShowHelp(false)} data={data} updP={updP} onJump={jumpTo}/>}
       {toast&&(()=>{
         // Background stays severity-tinted (dark red/amber card, same as .card-critical/.card-warn
         // elsewhere), but the TEXT is near-white (--t1) rather than the severity color itself —
