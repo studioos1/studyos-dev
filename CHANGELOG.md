@@ -1,5 +1,21 @@
 # StudyOS Changelog
 
+## v2.88.10 — 2026-09-25
+
+**Fix: week-picker arrow duplication from the previous custom-chevron attempt**
+
+Real request: "you have added tons of arrows in the entire week-selection-display box. Please
+remove them all and as before, and keep only one at the right, located near the right edge."
+
+v2.88.9's fix (a custom SVG chevron via `appearance:none` + `background-image`, replacing the
+native `<select>` arrow) rendered as multiple stray arrows across the box on the real browser —
+didn't reproduce in this session's own testing, evidently a real cross-browser risk not worth
+taking for a one-line spacing tweak. Reverted to the plain native `<select>` arrow, with just
+enough right padding to push it in from the edge — no custom icon, no `appearance` override.
+
+Verified live via zoomed screenshot: exactly one arrow, with real space from the border, nothing
+duplicated. Build clean, 281/281 tests pass.
+
 ## v2.88.9 — 2026-09-25
 
 **Calendar week-picker chevron no longer touches the edge**
