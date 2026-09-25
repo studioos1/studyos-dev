@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PDF } from "@/lib/pdf";
+import { PDF, MAX_SYLLABUS_CHARS } from "@/lib/pdf";
 import { CI } from "@/lib/api";
 import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
 import { iso, f12, t2m, m2t } from "@/lib/time";
@@ -112,7 +112,7 @@ SCHEDULE:\n${t.slice(0,6000)}`);
     if(!sylPdfs.length)return;setParsing(true);
     setProgress?.({label:"Reading PDF...",detail:sylPdfs.map(f=>f.name).join(", ")});
     try{
-      const texts=await Promise.all(sylPdfs.slice(0,6).map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,16000)}`;}));
+      const texts=await Promise.all(sylPdfs.slice(0,6).map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,MAX_SYLLABUS_CHARS)}`;}));
       setProgress?.({label:"Extracting syllabus with AI (classes, assignments & exams)...",detail:sylPdfs.map(f=>f.name).join(", ")});
       const r=await ai("Parse college syllabi. Return ONLY valid JSON. Be exhaustive — extract every single dated item, not a representative sample.",
         `Extract EVERY deadline for EVERY course in this document. Today: ${iso()}.

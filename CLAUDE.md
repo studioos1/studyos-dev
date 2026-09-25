@@ -213,20 +213,22 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Known backlog (not yet built)
 
-- **Open, actively being investigated: syllabus-sync extraction miss on the real account's Fall
-  2026 DSC 10.** Real report: "the doc we uploaded for DSC10 include only few HW, no tests and
-  most of the weeks has only the class time." Confirmed live so far, not yet root-caused: the sync
-  record shows the uploaded file was named `DSC 10 updated.pdf`, synced with exactly 4 items added
-  — all first-week administrative tasks (Join Campuswire, Check Gradescope Access, Syllabus Check,
-  Welcome Survey), all due the same date, no weight, no exams. The course's own difficulty/hours
-  DID get correctly web-researched (`CI()` in the sync flow, `components/Acad.jsx` around
-  `syncSyl`) — this isn't that gap. Two live possibilities not yet distinguished: (1) the source
-  PDF genuinely only contains those first-week logistics items (the "updated" in the filename
-  suggests a short administrative update doc, not the full syllabus) — in which case there's
-  nothing to fix, the student needs to upload the real syllabus; or (2) the AI extraction is
-  missing real content that IS in the PDF. The built-in "Show Raw AI Extraction" diagnostic
-  (Update Syllabus tab, re-upload same file, nothing saved) is the tool to tell these apart —
-  hasn't been run yet since the original PDF file isn't available in this session. Start there.
+- ~~Syllabus-sync extraction miss on the real account's Fall 2026 DSC 10~~ — **fixed, v2.88.13.**
+  Root cause: `t.slice(0,16000)` in all three upload flows (`Onboard.parseSyl`, `Acad.syncSyl`,
+  `Acad.rawExtract`) truncated each PDF's extracted text before sending it to the AI — a leftover
+  constant unrelated to the model's real context window. The actual uploaded file (found at
+  `~/Downloads/DSC 10 updated.pdf`, matching the sync record's filename) is a real 23-page UCSD
+  "Course Info" page that extracts to 40,616 characters; 16,000 landed mid-page-9, before the
+  Exams/Quizzes section, Weekly Schedule, and Grades weight table were ever reached — confirmed by
+  reproducing the exact pdf.js extraction and re-running the real prompt against `/api/ai` both
+  truncated (reproduced the bug exactly: 4 admin items, 0 exams) and untruncated (correctly
+  returned the 4 admin items + 4 quizzes + 2 real exams with real weights, matching the syllabus's
+  own grading table). Fixed by centralizing a much larger, explicitly-justified
+  `MAX_SYLLABUS_CHARS=120000` in `lib/pdf.js` (still just a safety valve against a truly degenerate
+  PDF, not a real content limit) shared by all three call sites, replacing three separate copies of
+  the old magic number. Separately (not a bug): this specific PDF has no individual per-assignment
+  HW/lab dates at all — it explicitly defers those to a separate live "homepage" calendar page not
+  included in the upload; nothing in extraction can recover dates that aren't in the document.
 - **Known next step, explicitly requested, not yet built: term-switching (viewing).** See the
   studyPlan/completionLog/pomodoroLogs isolation gap and the "Known next step" note in the
   Multi-school/multi-term section above — this is the real prerequisite/design question before

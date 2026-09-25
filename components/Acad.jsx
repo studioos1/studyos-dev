@@ -12,7 +12,7 @@ import {
   expectedHoursRange,
 } from "@/lib/planner";
 import { CI } from "@/lib/api";
-import { PDF } from "@/lib/pdf";
+import { PDF, MAX_SYLLABUS_CHARS } from "@/lib/pdf";
 import { sparkleBurst } from "@/lib/sparkle";
 import { reclassifyMisplacedQuizzes } from "@/lib/syllabus";
 import { DS, CC } from "@/lib/constants";
@@ -439,7 +439,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     if(!sylPdfs.length)return;setRawExtracting(true);setRawExtractResult(null);
     const fileNames=sylPdfs.map(f=>f.name);
     try{
-      const texts=await Promise.all(sylPdfs.map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,16000)}`;}));
+      const texts=await Promise.all(sylPdfs.map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,MAX_SYLLABUS_CHARS)}`;}));
       const t=await ai("Parse updated syllabi. Return ONLY valid JSON. Be exhaustive — extract every single dated item, not a representative sample.",
         `Extract EVERY deadline for EVERY course in this document. Today: ${iso()}.
 
@@ -488,7 +488,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     const fileNames=sylPdfs.map(f=>f.name);
     setProgress?.({label:"Reading PDF...",detail:fileNames.join(", ")});
     try{
-      const texts=await Promise.all(sylPdfs.map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,16000)}`;}));
+      const texts=await Promise.all(sylPdfs.map(async f=>{const t=await PDF(f);return `\n=== ${f.name} ===\n${t.slice(0,MAX_SYLLABUS_CHARS)}`;}));
       setProgress?.({label:"Extracting syllabus with AI (classes, assignments & exams)...",detail:fileNames.join(", ")});
       const t=await ai("Parse updated syllabi. Return ONLY valid JSON. Be exhaustive — extract every single dated item, not a representative sample.",
         `Extract EVERY deadline for EVERY course in this document. Today: ${iso()}.

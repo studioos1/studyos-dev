@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.88.13 — 2026-09-25
+
+**Fix: syllabus sync was truncating longer PDFs before reaching exams/grades, critical**
+
+Real report: "the doc we uploaded for DSC10 include only few HW, no tests and most of the weeks
+has only the class time." Root-caused by pulling the actual uploaded file (`DSC 10 updated.pdf`,
+named in the sync record) and reproducing the exact client-side extraction (pdf.js text join) used
+by `syncSyl`/`rawExtract`/`parseSyl`.
+
+The PDF is a real 23-page UCSD "Course Info" page (About/Meetings/Assignments/Assessments/Grades/
+Academic-Integrity/etc.) — normal for this style of syllabus, just long on policy prose before the
+schedule. Extracted text ran 40,616 characters. All three upload flows sliced each file's text to
+**16,000** characters before ever sending it to the AI — a leftover, never-revisited constant with
+no relation to the model's actual context window (200K+ tokens). That cutoff landed mid-page-9,
+*before* the Exams/Quizzes section (Midterm Oct 26, Final Dec 5, 4 quiz dates), the Weekly Schedule,
+and the Grades weight table were ever reached — so the AI only ever saw the first-week admin items
+(Join Campuswire, Gradescope, Syllabus Check, Welcome Survey) and nothing else. Confirmed via a
+live re-run against `/api/ai` with the real extracted text: at the old 16,000-char cap the result
+matched the bug exactly (4 admin items, 0 exams); with the cap removed, it correctly returned the 4
+admin items **plus** 4 quizzes (Oct 9/16, Nov 6/20, 5% each) **and** 2 real exams (Midterm 10/26 —
+10%, Final 12/5 — 20%), matching the syllabus's own grading table.
+
+Fixed by raising the cap to a generous, explicitly-justified `MAX_SYLLABUS_CHARS=120000` (still a
+safety valve against a truly degenerate/garbage-OCR PDF, not a real content limit), centralized in
+`lib/pdf.js` and shared by all three call sites (`Onboard.parseSyl`, `Acad.syncSyl`,
+`Acad.rawExtract` — previously three separate copies of the same magic number).
+
+**Separately, not a bug:** this particular PDF genuinely has no individual per-assignment dates for
+weekly homeworks/labs — it explicitly defers those to "the homepage of this website" (a separate
+live calendar page, not part of this PDF). Nothing in the extraction can recover dates that aren't
+in the uploaded document; if per-item HW/lab dates are wanted, that page needs to be uploaded too
+(as a PDF/screenshot, or pasted text).
+
+281/281 tests pass. Build clean. Verified against the real file end-to-end via the running server's
+`/api/ai`, not just syntax-checked.
+
 ## v2.88.12 — 2026-09-25
 
 **Fix: week-picker label was clipping its trailing year**
