@@ -1,5 +1,41 @@
 # StudyOS Changelog
 
+## v2.88.2 — 2026-09-25
+
+**Fix: deleted term no longer reappears; Courses page reverted to single-term view**
+
+Two real reported bugs: "I deleted all terms, and still showing term. So the delete function
+should REMOVE the isolated data model of that term and the app shall not have any data to show of
+the deleted term" and "on Course page - please remove what added before at the header 'Courses' +
+drop down to select term. Please revert to the original page design without this addition."
+
+- **Deleted term resurrecting itself, root cause fixed.** Two bugs compounded:
+  1. `syncActiveTermToProfilePatch` only ever *wrote* the profile mirror
+     (termName/termStart/termEnd/schoolName/schoolAddress/collegeCalendar) when a term was active —
+     it never *cleared* those fields once the last term was deleted, so a deleted term's name/dates
+     kept showing everywhere that reads them (header badge, isFin/isHol, etc.) indefinitely. Now
+     clears the mirror whenever no term is Current.
+  2. The real culprit behind the term actually coming back: `migrateLegacyTermIfNeeded` treated
+     "terms:[] + legacy profile fields still present" as "not yet migrated" and resynthesized a
+     brand-new term from those fields — which, thanks to bug 1's timing, were still sitting there
+     right after a deletion (cleared by a separate, independently-timed effect). A new
+     `termsInitialized` flag now marks an account as permanently past this migration the moment it
+     first gets a real term (via migration or "Add term"), so deleting every term afterward can
+     never trigger it again — backfilled onto existing accounts automatically.
+  3. Orphaned schedule data: a term's courses/assignments/exams weren't the whole story — deleting
+     or resetting a term left its `studyPlan`/`completionLog`/`pomodoroLogs` entries behind (neither
+     is tagged by term), so Today/Calendar kept showing real scheduled blocks for courses that no
+     longer existed. Both **Reset data** and **Delete** now scrub all three by the term's own
+     courses and date range.
+- **Courses page: removed the in-tab term switcher.** Academics → Courses had picked up its own
+  term-switching dropdown in an earlier build; reverted to always showing/editing the real Current
+  term, no dropdown, matching the original page design.
+
+Verified live end-to-end: deleted the account's last remaining term, reloaded fully, confirmed it
+stays gone (School Info: "No school on record yet"); header/Today show no phantom term. Build
+clean, 281/281 tests pass (+5 new, covering the profile-mirror clearing and the `termsInitialized`
+guard/backfill).
+
 ## v2.88.1 — 2026-09-25
 
 **School Info: per-term Reset data and Delete term, next to Edit**

@@ -96,6 +96,33 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // per-term here in School Info instead of only for whichever term Courses happens to be
   // viewing. Real request: "reset data (with confirmation) > it will erase all academic data back
   // to clear as newly created term." Never touches any OTHER term's data, profile, or habit logs.
+  //
+  // Also scrubs data.studyPlan/completionLog/pomodoroLogs of anything belonging to this term's
+  // courses — real reported bug: "I deleted all terms, and still showing term [schedule]... the
+  // delete function should REMOVE the isolated data model of that term." studyPlan/completionLog
+  // carry no termId of their own (a known, deferred gap — see the "proper DB design" discussion),
+  // so blocks/completions are matched by courseId instead, computed HERE (before courses/
+  // assignments/exams get cleared below) — the exact same approach this session already proved
+  // out for the close-term studyPlan leak. pomodoroLogs carries no course reference at all, so
+  // it's matched by the term's own date range as a fallback.
+  function scrubTermSchedule(t,termCourseIds){
+    const weeks={};
+    Object.entries(data.studyPlan?.weeks||{}).forEach(([weekStart,week])=>{
+      const days={};
+      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
+        const kept=(blocks||[]).filter(b=>!(b.courseId!=null&&termCourseIds.has(b.courseId)));
+        if(kept.length)days[dateStr]=kept;
+      });
+      if(Object.keys(days).length)weeks[weekStart]={...week,days};
+    });
+    const inRange=d=>d&&t.start&&t.end&&d>=t.start&&d<=t.end;
+    return{
+      studyPlan:{weeks},
+      completionLog:(data.completionLog||[]).filter(e=>!(termCourseIds.has(e.courseId)||inRange(e.actualCompletedAt?.slice(0,10)))),
+      pomodoroLogs:(data.pomodoroLogs||[]).filter(p=>!inRange(p.date)),
+    };
+  }
+
   async function resetTermData(t){
     const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
     const courseCount=termCourseIds.size;
@@ -108,6 +135,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
+      ...scrubTermSchedule(t,termCourseIds),
       ...(t.status==="current"?{briefCache:null,briefPeriod:null}:{}),
     });
     toast2(`"${t.name}" reset — back to a clean, newly-created term.`);
@@ -133,6 +161,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
+      ...scrubTermSchedule(t,termCourseIds),
     });
     toast2(`"${t.name}" deleted.`);
   }
@@ -206,6 +235,10 @@ export function SchoolInfo({data,upd,updP,toast2}){
       // 'Upcoming'." A brand-new term never starts Current on its own; that's always an explicit
       // choice made afterward via "Change Status" below.
       patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming"}];
+      // Permanently marks this account as having entered the real terms system, so
+      // migrateLegacyTermIfNeeded can never resurrect a deleted term from stale profile fields
+      // later — see the comment on that guard in lib/data/terms.js.
+      patch.termsInitialized=true;
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);

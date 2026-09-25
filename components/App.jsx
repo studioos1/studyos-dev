@@ -18,6 +18,7 @@ import {
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
   migrateTermStatusIfNeeded,
+  backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
   repairTermLinkageIfNeeded,
@@ -272,6 +273,17 @@ function App(){
     const fix=migrateTermStatusIfNeeded(data);
     if(fix)upd(fix);
   },[data?.terms?.length]); // eslint-disable-line
+
+  // One-time backfill for accounts whose first term was created before `termsInitialized` existed
+  // as a marker — see the guard atop migrateLegacyTermIfNeeded (real, shipped bug: "I deleted all
+  // terms, and still showing term" — a deleted term got resynthesized from stale profile fields).
+  // Without this, any account that already has a term but predates the fix is still one deletion
+  // away from the same resurrection.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=backfillTermsInitializedIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length,data?.termsInitialized]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields

@@ -115,15 +115,13 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const [editExamId,setEditExamId]=useState(null);
   const termStatuses=computeTermStatuses(data.terms);
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
-  // Which term Academics is showing/adding into — defaults to whichever term is current, but can
-  // be switched (e.g. to Upcoming) to prep a future term's syllabus in advance, in isolation from
-  // the current term's own courses. Re-defaults if the previously-viewed term no longer exists
-  // (e.g. was the only term and got replaced by the legacy migration).
-  const [viewingTermId,setViewingTermId]=useState(()=>currentTerm?.id||null);
-  const [showTermSwitcher,setShowTermSwitcher]=useState(false);
-  useEffect(()=>{
-    if(!viewingTermId&&currentTerm)setViewingTermId(currentTerm.id);
-  },[currentTerm?.id]); // eslint-disable-line
+  // Real request: "remove what added before at the header 'Courses' + drop down to select term...
+  // revert to the original page design without this addition." This tab always shows/edits the
+  // real Current term now, full stop — no more switching to prep an Upcoming term's syllabus in
+  // advance from here. `viewingTermId` stays as a name (rather than replacing it with
+  // `currentTerm.id` at every one of its many call sites below) purely to keep this a small,
+  // low-risk diff — it's just an alias now, never independent state.
+  const viewingTermId=currentTerm?.id||null;
   const [ee,setEe]=useState({course:"",topics:"",date:"",prepDays:7});
   const [sylPdfs,setSylPdfs]=useState([]);
   const [syncing,setSyncing]=useState(false);
@@ -741,45 +739,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
   return(
     <div className="fade">
-      {/* Page header */}
+      {/* Page header — real request: "remove what added before at the header 'Courses' + drop
+          down to select term. Please revert to the original page design without this addition."
+          No more in-tab term switcher; this tab only ever shows/edits the real Current term
+          (viewingTermId below is just an alias for currentTerm.id now, not switchable state). */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,position:"relative"}}>
           <h2>Courses</h2>
-          {termStatuses.length>0&&(()=>{
-            const viewing=termStatuses.find(t=>t.id===viewingTermId);
-            const badgeColor=viewing?.status==="current"?"var(--amber)":viewing?.status==="upcoming"?"var(--blue)":"var(--t3)";
-            return(
-              <div style={{position:"relative"}}>
-                <button className="btn btn-ghost btn-sm" onClick={()=>setShowTermSwitcher(s=>!s)}
-                  style={{display:"flex",alignItems:"center",gap:6,border:`1px solid ${badgeColor}`,color:badgeColor}}>
-                  {viewing?.name||"Select term"}
-                  <i className="ti ti-chevron-down" style={{fontSize:12}}/>
-                </button>
-                {showTermSwitcher&&(
-                  <div style={{position:"absolute",top:"110%",left:0,zIndex:200,minWidth:220,
-                    background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
-                    boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
-                    {termStatuses.map(t=>{
-                      const school=(data.schools||[]).find(s=>s.id===t.schoolId);
-                      const color=t.status==="current"?"var(--amber)":t.status==="upcoming"?"var(--blue)":"var(--t3)";
-                      return(
-                        <button key={t.id} onClick={()=>{setViewingTermId(t.id);setShowTermSwitcher(false);}}
-                          style={{display:"block",width:"100%",textAlign:"left",padding:"8px 10px",borderRadius:7,border:"none",
-                            background:t.id===viewingTermId?"var(--card2)":"transparent",cursor:"pointer",fontFamily:"inherit"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <span style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
-                            <span style={{fontSize:13,color:"var(--t1)"}}>{t.name}</span>
-                            <span style={{fontSize:10,color,textTransform:"uppercase",marginLeft:"auto"}}>{t.status}</span>
-                          </div>
-                          {school&&<div style={{fontSize:11,color:"var(--t3)",marginLeft:12}}>{school.name}</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
         </div>
         {/* Tab bar + Review Difficulty button, same row. Below 480px, labels abbreviate (see
             .acad-tab-label-short in globals.css) so all 6 tabs actually fit within the page
