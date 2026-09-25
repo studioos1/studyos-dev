@@ -1,5 +1,27 @@
 # StudyOS Changelog
 
+## v2.88.6 — 2026-09-25
+
+**Current term can't be deleted directly — change status first**
+
+Real request: "if user wants to delete the current - we shall not allow to do so only after
+changing to other status. We shall guide the user about this logic when trying."
+
+- Deleting your Current term used to be allowed outright (with just a warning in the confirm
+  dialog). Now it's blocked entirely — the delete (trash) icon on a Current term shows a red toast
+  explaining why and exactly how to proceed: "'X' is your Current term, so it can't be deleted
+  directly. Change its status first (Change Status → Upcoming or Archive), then delete it." No
+  confirm dialog even opens.
+- The trash icon's tooltip is also context-aware now — hovering a Current term's delete button
+  reads "Change status first — your Current term can't be deleted directly," so the guidance is
+  visible before a student even clicks.
+- Upcoming and Archived terms are unaffected — deleting those still works exactly as before
+  (confirm dialog, cascading course/assignment/exam/schedule cleanup).
+
+Verified live: set a term Current, clicked delete — blocked with the toast and updated tooltip, no
+data touched; changed its status to Archive via the (v2.88.5) inline editor and confirmed the
+guard no longer applies once it's not Current. Build clean, 281/281 tests pass.
+
 ## v2.88.5 — 2026-09-25
 
 **Change Status: inline editing replaces the popup**

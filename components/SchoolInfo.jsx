@@ -148,13 +148,22 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // it — status changes never copy data anywhere else (see "Change Status" above), so nothing of
   // this term survives a real delete.
   async function deleteTermEntirely(t){
+    // Real request: "if user wants to delete the current - we shall not allow to do so only after
+    // changing to other status. We shall guide the user about this logic when trying." Deleting
+    // your Current term used to be allowed (with just a warning in the confirm dialog) — now it's
+    // blocked outright; the guidance fires right at the moment they try, rather than hiding/
+    // disabling the delete button with no explanation. Upcoming/Archive terms are unaffected —
+    // this only guards Current.
+    if(t.status==="current"){
+      toast2(`"${t.name}" is your Current term, so it can't be deleted directly. Change its status first (Change Status → Upcoming or Archive), then delete it.`,true);
+      return;
+    }
     const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
     const courseCount=termCourseIds.size;
     const assignmentCount=data.assignments.filter(a=>termCourseIds.has(a.courseId)).length;
     const examCount=data.exams.filter(e=>termCourseIds.has(e.courseId)).length;
     const dataWarning=courseCount?` This also permanently deletes ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} attached to it.`:"";
-    const currentWarning=t.status==="current"?" This is your Current term — no term will be Current until you set another one via Change Status.":"";
-    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning}${currentWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
+    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
     if(!ok)return;
     upd({
       terms:data.terms.filter(x=>x.id!==t.id),
@@ -385,7 +394,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
                         display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
                       <i className="ti ti-eraser" style={{fontSize:13}}/>
                     </button>
-                    <button className="tt" data-tt="Delete this term entirely — its courses, assignments, and exams go with it" onClick={()=>deleteTermEntirely(t)}
+                    <button className="tt" data-tt={t.status==="current"?"Change status first — your Current term can't be deleted directly":"Delete this term entirely — its courses, assignments, and exams go with it"} onClick={()=>deleteTermEntirely(t)}
                       style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
                         border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--red)",cursor:"pointer",
                         display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
