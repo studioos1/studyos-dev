@@ -252,28 +252,40 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // never touches a term's own courses/assignments/exams/etc — every consumer already scopes by
   // termId, so nothing here moves or clears any data, ever ("data model of each term is not
   // affected by changing the status... just keep a full set of its isolated data as in that
-  // moment"). Promoting a different term to Current is the one transition with a real side effect
-  // (only one term can hold it), so it's the only one that confirms first; Upcoming/Archive can be
-  // set freely since there's no "only one" rule for those.
-  const [showStatusModal,setShowStatusModal]=useState(false);
-  async function setTermStatus(term,newStatus){
-    if(term.status===newStatus)return;
-    if(newStatus==="current"){
-      const oldCurrent=termStatuses.find(t=>t.status==="current"&&t.id!==term.id);
-      if(oldCurrent){
-        const ok=await confirm(`Set "${term.name}" as your Current term? "${oldCurrent.name}" (currently Current) will be changed to Archive.`,{confirmLabel:"Set as Current",confirmIcon:"ti-check"});
-        if(!ok)return;
-        upd({terms:data.terms.map(t=>{
-          if(t.id===term.id)return{...t,status:"current"};
-          if(t.id===oldCurrent.id)return{...t,status:"archived"};
-          return t;
-        })});
-        toast2(`"${term.name}" is now your Current term.`);
-        return;
+  // moment").
+  //
+  // Redesigned per follow-up request: "remove the popup showing the terms and states... once
+  // clicking 'change states' - display on each terms' section the other two states in gray. User
+  // can select, only one can be set at Current... once user started Edit State... this button
+  // become an active (amber) and show 'Save States' this will stop the edit mode... and store the
+  // new values." Replaces the old confirm-modal-per-click flow with inline, STAGED editing:
+  // selectDraftStatus only ever touches draftStatuses (local, unsaved) — nothing reaches `data`
+  // until saveStatuses runs. Picking Current on one term locally demotes whichever OTHER term
+  // currently reads Current (via effStatus — draft first, falling back to the real stored status)
+  // to Archive, so "only one can be Current" holds live as the student clicks around, with no
+  // per-click confirmation popup — the edit session ending in Save States is the confirmation.
+  const [editingStatus,setEditingStatus]=useState(false);
+  const [draftStatuses,setDraftStatuses]=useState({}); // termId -> staged status, only for terms actually touched this edit session
+  const effStatus=t=>draftStatuses[t.id]||t.status;
+  function selectDraftStatus(term,newStatus){
+    setDraftStatuses(prev=>{
+      const next={...prev};
+      if(newStatus==="current"){
+        termStatuses.forEach(t=>{
+          if(t.id!==term.id&&effStatus(t)==="current")next[t.id]="archived";
+        });
       }
+      next[term.id]=newStatus;
+      return next;
+    });
+  }
+  function saveStatuses(){
+    if(Object.keys(draftStatuses).length){
+      upd({terms:data.terms.map(t=>draftStatuses[t.id]?{...t,status:draftStatuses[t.id]}:t)});
+      toast2("Term statuses saved.");
     }
-    upd({terms:data.terms.map(t=>t.id===term.id?{...t,status:newStatus}:t)});
-    toast2(`"${term.name}" set to ${newStatus==="archived"?"Archive":newStatus==="current"?"Current":"Upcoming"}.`);
+    setEditingStatus(false);
+    setDraftStatuses({});
   }
 
   const statusColor=s=>s==="current"?"var(--amber)":s==="upcoming"?"var(--blue)":"var(--t3)";
@@ -285,10 +297,10 @@ export function SchoolInfo({data,upd,updP,toast2}){
         <h2>School Info</h2>
         <div style={{display:"flex",gap:8}}>
           {data.terms?.length>0&&(
-            <button className="tt tt-below tt-right btn btn-ghost btn-sm"
-              data-tt="Set which term is Current, Upcoming, or Archive. Only one term can be Current at a time."
-              onClick={()=>setShowStatusModal(true)}>
-              <i className="ti ti-adjustments"/> Change Status
+            <button className={`tt tt-below tt-right btn btn-sm ${editingStatus?"btn-action":"btn-ghost"}`}
+              data-tt={editingStatus?"Save the status changes made below":"Set which term is Current, Upcoming, or Archive. Only one term can be Current at a time."}
+              onClick={()=>editingStatus?saveStatuses():setEditingStatus(true)}>
+              <i className={`ti ${editingStatus?"ti-device-floppy":"ti-adjustments"}`}/> {editingStatus?"Save States":"Change Status"}
             </button>
           )}
           <button className="btn btn-action btn-sm" onClick={openAddTerm}>
@@ -305,20 +317,21 @@ export function SchoolInfo({data,upd,updP,toast2}){
 
       {schoolIds.map(schoolId=>{
         const school=schools.find(s=>s.id===schoolId);
-        // Real request: "keep always the 'current' on top, the other order down from now to back
-        // in time" — Current is pinned first regardless of its own dates (status is a manual,
-        // stored choice now, not date-derived — see computeTermStatuses — so Current can't just
-        // fall out of a plain date sort), then everything else runs newest-start-first down to
-        // oldest, so an upcoming term the student is prepping sits right under Current and
-        // archived history trails off at the bottom.
+        // Real request: "keep always the 'current' on top, the other order by end-term date" —
+        // Current is pinned first via effStatus (reflects an in-progress status edit live, not
+        // just the saved value — status is a manual, stored field now, not date-derived, so
+        // Current can't just fall out of a plain date sort), then everything else runs
+        // newest-end-date-first down to oldest, so the display re-sorts live as the student edits
+        // statuses, not only after Save States.
         const terms=[...bySchool[schoolId]].sort((a,b)=>{
-          if(a.status==="current")return -1;
-          if(b.status==="current")return 1;
-          return (b.start||"").localeCompare(a.start||"");
+          const sa=effStatus(a),sb=effStatus(b);
+          if(sa==="current")return -1;
+          if(sb==="current")return 1;
+          return (b.end||"").localeCompare(a.end||"");
         });
         const isCurrent=schoolId===currentSchoolId;
         const isExpanded=expandedSchoolId===schoolId;
-        const archivedCount=terms.filter(t=>t.status==="archived").length;
+        const archivedCount=terms.filter(t=>effStatus(t)==="archived").length;
         if(!isExpanded){
           return(
             <button key={schoolId} onClick={()=>setExpandedSchoolId(schoolId)}
@@ -346,12 +359,24 @@ export function SchoolInfo({data,upd,updP,toast2}){
             {terms.map(t=>(
               <div key={t.id} style={BOX}>
                 <div style={TITLE_ROW}>
-                  <div style={TITLE_LEFT}>
-                    <div style={{width:10,height:10,borderRadius:"50%",background:statusColor(t.status)}}/>
+                  <div style={{...TITLE_LEFT,flexWrap:"wrap",rowGap:6}}>
+                    <div style={{width:10,height:10,borderRadius:"50%",background:statusColor(effStatus(t)),flexShrink:0}}/>
                     <span style={{...TITLE_TEXT,color:"var(--t1)",fontSize:16,textTransform:"none",letterSpacing:"normal",fontWeight:500}}>{t.name}</span>
-                    <span className="badge" style={{background:"transparent",border:`1px solid ${statusColor(t.status)}`,color:statusColor(t.status),fontSize:10,textTransform:"uppercase"}}>
-                      {statusLabel(t.status)}
+                    <span className="badge" style={{background:"transparent",border:`1px solid ${statusColor(effStatus(t))}`,color:statusColor(effStatus(t)),fontSize:10,textTransform:"uppercase"}}>
+                      {statusLabel(effStatus(t))}
                     </span>
+                    {/* Real request: "display on each terms' section the other two states in
+                        gray. User can select, only one can be set at Current." Only the two
+                        statuses NOT currently in effect show, so there's never a redundant pill
+                        for the one already shown above in color. */}
+                    {editingStatus&&["current","upcoming","archived"].filter(s=>s!==effStatus(t)).map(s=>(
+                      <button key={s} onClick={()=>selectDraftStatus(t,s)}
+                        style={{fontSize:10,fontWeight:600,textTransform:"uppercase",padding:"4px 10px",
+                          borderRadius:20,border:"1px solid var(--b1)",background:"var(--card2)",
+                          color:"var(--t3)",cursor:"pointer"}}>
+                        {statusLabel(s)}
+                      </button>
+                    ))}
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
                     <button className="tt" data-tt="Reset this term's data — erase all courses, assignments, and exams back to empty" onClick={()=>resetTermData(t)}
@@ -386,53 +411,6 @@ export function SchoolInfo({data,upd,updP,toast2}){
           </div>
         );
       })}
-
-      {/* "Change Status" modal — real request: "add a button near '+Term' - 'Change Status' - this
-          button allow user to edit each one of the term's status. ONLY ONE can be set to
-          'Current'." Replaces the old "Close current term" card entirely; see setTermStatus above
-          for the actual mechanics (auto-confirm + auto-demote only when promoting to Current). */}
-      {showStatusModal&&(
-        <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
-          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowStatusModal(false)}>
-          <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",maxWidth:460,width:"100%",
-            maxHeight:"85vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div style={{fontSize:16,fontWeight:600}}>Change term status</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowStatusModal(false)}><i className="ti ti-x"/></button>
-            </div>
-            <p style={{fontSize:12,color:"var(--t3)",marginBottom:16,lineHeight:1.5}}>
-              Only one term can be Current. Setting a different term Current will change today's
-              Current term to Archive — your courses, assignments, and data for every term stay
-              exactly as they are; only the status label changes.
-            </p>
-            {/* Same ordering as the term cards above — Current pinned first, then newest-start-
-                first — so this list doesn't visibly reshuffle out of sync with the page behind it
-                right after a status change. */}
-            {[...termStatuses].sort((a,b)=>{
-              if(a.status==="current")return -1;
-              if(b.status==="current")return 1;
-              return (b.start||"").localeCompare(a.start||"");
-            }).map(t=>(
-              <div key={t.id} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--b1)"}}>
-                <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:8}}>{t.name}</div>
-                <div style={{display:"flex",gap:6}}>
-                  {["current","upcoming","archived"].map(s=>(
-                    <button key={s} onClick={()=>setTermStatus(t,s)}
-                      style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",
-                        border:`1px solid ${t.status===s?statusColor(s):"var(--b1)"}`,
-                        background:t.status===s?statusColor(s):"var(--card2)",
-                        color:t.status===s?"#0a1420":"var(--t2)"}}>
-                      {statusLabel(s)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {showAddTerm&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",

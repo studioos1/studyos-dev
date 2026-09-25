@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.88.5 — 2026-09-25
+
+**Change Status: inline editing replaces the popup**
+
+Real request: "1) remove the popup showing the terms and states. 2) once clicking 'change states'
+- display on each terms' section the other two states in gray. User can select, only one can be
+set at Current. 3) once user started Edit State... this button become an active (amber) and show
+'Save States' this will stop the edit mode of states and store the new values. 4) Display on this
+page shall be refreshed and keep the current on top, other order by end-term date."
+
+- The "Change term status" popup is gone entirely. "Change Status" now toggles an inline edit mode
+  directly on the term cards already on the page.
+- In edit mode, each term card shows its current status in color plus the other two statuses as
+  gray pills right next to it. Clicking one selects it — picking Current on one term automatically
+  moves whichever other term was Current to Archive, live, so only one is ever Current — no
+  confirmation popup, since the edit session itself (ending in Save) is the confirmation.
+- While editing, the button turns amber and reads **Save States**; clicking it writes every staged
+  change at once and exits edit mode. Nothing is written to your data until Save States is
+  clicked — clicking pills only stages a local draft.
+- Sort order updated to use each term's **end date** (previously start date) — Current pinned on
+  top, then newest-end-date-first down to oldest — and now re-sorts live as you click through
+  statuses in edit mode, not just after saving.
+
+Verified live end-to-end: entered edit mode, confirmed gray pills appear with no popup; clicked
+Current on a different term and watched the previous Current auto-demote to Archive and the list
+re-sort live; clicked Save States and confirmed the toast, exit from edit mode, and — after a full
+page reload — that the change had actually persisted. Build clean, 281/281 tests pass.
+
 ## v2.88.4 — 2026-09-25
 
 **School Info: Current term always sorted to the top**
