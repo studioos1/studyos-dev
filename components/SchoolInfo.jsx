@@ -305,7 +305,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
 
       {schoolIds.map(schoolId=>{
         const school=schools.find(s=>s.id===schoolId);
-        const terms=bySchool[schoolId].sort((a,b)=>a.start.localeCompare(b.start));
+        // Real request: "keep always the 'current' on top, the other order down from now to back
+        // in time" — Current is pinned first regardless of its own dates (status is a manual,
+        // stored choice now, not date-derived — see computeTermStatuses — so Current can't just
+        // fall out of a plain date sort), then everything else runs newest-start-first down to
+        // oldest, so an upcoming term the student is prepping sits right under Current and
+        // archived history trails off at the bottom.
+        const terms=[...bySchool[schoolId]].sort((a,b)=>{
+          if(a.status==="current")return -1;
+          if(b.status==="current")return 1;
+          return (b.start||"").localeCompare(a.start||"");
+        });
         const isCurrent=schoolId===currentSchoolId;
         const isExpanded=expandedSchoolId===schoolId;
         const archivedCount=terms.filter(t=>t.status==="archived").length;
@@ -397,7 +407,14 @@ export function SchoolInfo({data,upd,updP,toast2}){
               Current term to Archive — your courses, assignments, and data for every term stay
               exactly as they are; only the status label changes.
             </p>
-            {termStatuses.map(t=>(
+            {/* Same ordering as the term cards above — Current pinned first, then newest-start-
+                first — so this list doesn't visibly reshuffle out of sync with the page behind it
+                right after a status change. */}
+            {[...termStatuses].sort((a,b)=>{
+              if(a.status==="current")return -1;
+              if(b.status==="current")return 1;
+              return (b.start||"").localeCompare(a.start||"");
+            }).map(t=>(
               <div key={t.id} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--b1)"}}>
                 <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:8}}>{t.name}</div>
                 <div style={{display:"flex",gap:6}}>

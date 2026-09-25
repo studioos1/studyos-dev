@@ -1,5 +1,24 @@
 # StudyOS Changelog
 
+## v2.88.4 — 2026-09-25
+
+**School Info: Current term always sorted to the top**
+
+Real request: "in case user changed status of terms - keep always the 'current' on top, the other
+order down from now to back in time."
+
+- Term cards (and the "Change Status" modal's own list, kept consistent with it) now sort Current
+  first regardless of its own dates — status is a manually-set, stored field, not date-derived, so
+  a plain date sort could no longer be trusted to surface it — followed by every other term ordered
+  newest-start-date-first down to oldest.
+- Fixes a real regression: with a term's start date later than another's, the later term could sort
+  ABOVE the actual Current term under the old plain ascending-date sort, exactly what was reported.
+
+Verified live: added a 3-term spread (future, near-future, and a 2025 term), confirmed order is
+Current-then-newest-to-oldest in both the term-card list and the Change Status modal; switched
+Current to a different term and watched both lists re-sort live to match. Build clean, 281/281
+tests pass (no new tests — pure display ordering, exercised via live verification).
+
 ## v2.88.3 — 2026-09-25
 
 **Update Syllabus is blocked until a term exists**
