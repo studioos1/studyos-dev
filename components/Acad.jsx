@@ -113,7 +113,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const [ed,setEd]=useState({course:"",title:"",dueDate:"",estimatedHours:2}); // separate edit state
   const [ne,setNe]=useState({course:"",date:"",topics:"",prepDays:7});
   const [editExamId,setEditExamId]=useState(null);
-  const termStatuses=computeTermStatuses(data.terms,iso());
+  const termStatuses=computeTermStatuses(data.terms);
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
   // Which term Academics is showing/adding into — defaults to whichever term is current, but can
   // be switched (e.g. to Upcoming) to prep a future term's syllabus in advance, in isolation from

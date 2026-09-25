@@ -17,6 +17,7 @@ import {
   isFin,
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
+  migrateTermStatusIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
   repairTermLinkageIfNeeded,
@@ -262,6 +263,15 @@ function App(){
     const fix=repairTermLinkageIfNeeded(data);
     if(fix)upd(fix);
   },[data?.terms?.length,data?.courses?.length,data?.profile?.termStart,data?.profile?.termEnd]); // eslint-disable-line
+
+  // One-time backfill for accounts that already had terms before status became a stored, manually-
+  // set field — see migrateTermStatusIfNeeded. Real request: "add a field to manage the term
+  // states: Current, Upcoming, Archive."
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateTermStatusIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields

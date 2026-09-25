@@ -1,5 +1,40 @@
 # StudyOS Changelog
 
+## v2.88.0 — 2026-09-25
+
+**Term status is now something you set — Change Status replaces Close current term**
+
+Real request: "remove the function to 'Close current term' - we do not need that. Instead, we need
+a function to set a term to an Active [state]. That requires: (1) add a field to manage the term
+states: Current, Upcoming, Archive. (2) add a button near '+Term' - 'Change Status' - this button
+allow user to edit each one of the term's status. ONLY ONE can be set to 'Current'."
+
+- **Term status is now a stored, manually-set field** — `current` / `upcoming` / `archived` —
+  instead of always being derived from today's date. This is a deliberate reversal of this app's
+  original design (status used to be 100% date-computed, on purpose, so it could never drift out
+  of sync). The student now explicitly says which term is Current.
+- **"Close current term" is gone entirely** — no more archiving-to-History snapshot, no more
+  clearing courses/assignments/exams as a side effect of anything. Confirmed explicitly: "data
+  model of each term is not affected by changing the status... no need to process anything, just
+  keep a full set of its isolated data as in that moment." Every term's own courses/assignments/
+  exams just stay exactly where they are, tagged to that term, regardless of status changes.
+- **New "Change Status" button**, next to "+ Add term" in School Info — opens a list of every term
+  with a three-way Current / Upcoming / Archive control per term.
+- **Only one term can be Current.** Promoting a different term to Current asks for confirmation
+  first ("Fall 2026 TEST" (currently Current) will be changed to Archive") and, on confirm, flips
+  both in one atomic update. Setting a term to Upcoming or Archive directly needs no confirmation —
+  there's no "only one" rule for those.
+- **New terms default to Upcoming** (was previously whatever the date math computed) — status is
+  now always an explicit, later choice, never inferred at creation.
+- One-time migration for existing accounts (any term missing a stored status gets backfilled using
+  the OLD date-based rule, so nothing changes unexpectedly on first load with this version).
+
+Verified live against the real account: the migration correctly read the existing terms' real
+dates and assigned sensible starting statuses; the Change Status modal correctly swaps Current
+between two real terms with a confirm step, and courses/assignments were confirmed completely
+untouched by the status change. Build clean, 273/273 tests pass (9 new, covering
+`computeTermStatuses` and the new `migrateTermStatusIfNeeded` migration).
+
 ## v2.87.0 — 2026-09-22
 
 **Help is now a real nav tab, not a small ? icon opening a side drawer**

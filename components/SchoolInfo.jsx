@@ -1,170 +1,17 @@
 import { useState, useEffect } from "react";
-import { iso } from "@/lib/time";
 import { computeTermStatuses, datesOverlap, canDeleteTerm } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
-import { courseNameFor } from "@/lib/courses";
-import { calcGPA, letterFromPct } from "@/lib/grades";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
-
-// Read-only archived-term snapshot (components/History.jsx's own detail view, moved here along
-// with the rest of that former tab — see the note above the "Close current term" card below for
-// why). Kept as its own top-level function with its own local style constants, same as it had in
-// History.jsx, rather than threading SchoolInfo's BOX/TITLE_ROW/etc down as props — this view
-// fully replaces the page (see the `viewing` early-return in SchoolInfo below), so there's no
-// shared layout between the two worth centralizing.
-function HistoryDetail({entry,onBack}){
-  const BOX={background:"var(--card)",borderRadius:12,marginBottom:14};
-  const TITLE_ROW={display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px 0 20px"};
-  const TITLE_LEFT={display:"flex",alignItems:"center",gap:8};
-  const TITLE_ICON={fontSize:17,color:"var(--blue)"};
-  const TITLE_TEXT={fontSize:13,fontWeight:500,color:"var(--t2)",textTransform:"uppercase",letterSpacing:"0.08em"};
-  const DIVIDER={borderTop:"1px solid var(--b1)",margin:"10px 20px 0 20px"};
-  const INNER={padding:"14px 20px 18px 20px"};
-  const gradedCount=(entry.courses||[]).filter(c=>c.grade!=null&&c.grade!=="").length;
-  const doneCount=(entry.assignments||[]).filter(a=>a.status==="done").length;
-
-  return(
-    <div className="fade">
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-        <button className="btn btn-ghost btn-sm" onClick={onBack}><i className="ti ti-arrow-left"/> Back to School Info</button>
-      </div>
-      <div style={{marginBottom:20}}>
-        <h2 style={{marginBottom:6}}>{entry.name}</h2>
-        <div style={{fontSize:13,color:"var(--t3)"}}>Archived {entry.closedAt} · View only</div>
-      </div>
-
-      <div style={{...BOX,padding:"18px 20px",textAlign:"center"}}>
-        <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}>Final GPA</div>
-        <div style={{fontSize:40,fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--amber)"}}>
-          {entry.gpa!==null&&entry.gpa!==undefined?entry.gpa.toFixed(2):"—"}
-        </div>
-        <div style={{fontSize:13,color:"var(--t3)",marginTop:4}}>
-          Based on {gradedCount} graded course{gradedCount!==1?"s":""} · {doneCount}/{(entry.assignments||[]).length} assignments completed
-        </div>
-      </div>
-
-      <div style={BOX}>
-        <div style={TITLE_ROW}>
-          <div style={TITLE_LEFT}><i className="ti ti-school" style={TITLE_ICON}/><span style={TITLE_TEXT}>Courses</span></div>
-        </div>
-        <div style={DIVIDER}/>
-        <div style={INNER}>
-          {(entry.courses||[]).length===0
-            ?<div style={{fontSize:14,color:"var(--t3)"}}>No courses recorded</div>
-            :entry.courses.map(c=>{
-              const{letter}=letterFromPct(c.grade);
-              return(
-                <div key={c.id} className="list-item">
-                  <div style={{width:8,height:8,borderRadius:"50%",background:c.color?.border||"var(--t3)",flexShrink:0}}/>
-                  <div style={{flex:1,fontSize:14,color:"var(--t1)"}}>{c.name}</div>
-                  <span className="badge badge-amber" style={{fontSize:12}}>{letter}</span>
-                  <span style={{fontSize:12,color:"var(--t3)",marginLeft:8}}>{c.credits??4} cr</span>
-                </div>
-              );
-            })
-          }
-        </div>
-      </div>
-
-      <div style={BOX}>
-        <div style={TITLE_ROW}>
-          <div style={TITLE_LEFT}><i className="ti ti-clipboard-list" style={TITLE_ICON}/><span style={TITLE_TEXT}>Assignments — {doneCount}/{(entry.assignments||[]).length} done</span></div>
-        </div>
-        <div style={DIVIDER}/>
-        <div style={INNER}>
-          {(entry.assignments||[]).length===0
-            ?<div style={{fontSize:14,color:"var(--t3)"}}>No assignments recorded</div>
-            :entry.assignments.map(a=>(
-              <div key={a.id} className="list-item">
-                <div className={`chk${a.status==="done"?" on":""}`} style={{cursor:"default"}}>
-                  {a.status==="done"&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:14,color:"var(--t1)"}}>{a.title}</div>
-                  <div style={{fontSize:12,color:"var(--t3)"}}>{courseNameFor(entry.courses||[],a.courseId)}{a.dueDate&&` · due ${a.dueDate}`}</div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      </div>
-
-      <div style={BOX}>
-        <div style={TITLE_ROW}>
-          <div style={TITLE_LEFT}><i className="ti ti-writing" style={TITLE_ICON}/><span style={TITLE_TEXT}>Exams</span></div>
-        </div>
-        <div style={DIVIDER}/>
-        <div style={INNER}>
-          {(entry.exams||[]).length===0
-            ?<div style={{fontSize:14,color:"var(--t3)"}}>No exams recorded</div>
-            :entry.exams.map(e=>(
-              <div key={e.id} className="list-item">
-                <div style={{flex:1}}>
-                  <div style={{fontSize:14,color:"var(--t1)"}}>{courseNameFor(entry.courses||[],e.courseId)}{e.topics&&<span style={{color:"var(--t3)"}}> — {e.topics}</span>}</div>
-                  <div style={{fontSize:12,color:"var(--t3)"}}>{e.date}</div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── SCHOOL INFO ──────────────────────────────────────────────────────────────
 export function SchoolInfo({data,upd,updP,toast2}){
   const schools=data.schools||[];
-  const termStatuses=computeTermStatuses(data.terms,iso());
+  const termStatuses=computeTermStatuses(data.terms);
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
   const currentSchoolId=currentTerm?.schoolId||null;
   const {confirm,modal}=useConfirm();
   const [expandedSchoolId,setExpandedSchoolId]=useState(currentSchoolId);
   useEffect(()=>{if(currentSchoolId&&expandedSchoolId===null)setExpandedSchoolId(currentSchoolId);},[currentSchoolId]); // eslint-disable-line
-
-  // Close-term archiving + past-term browsing — moved here from the standalone History tab
-  // (removed from the nav entirely, components/App.jsx) since it's really about the SAME terms
-  // this page already tracks, not a separate concern. The archiving mechanism itself predates the
-  // multi-school/multi-term system below and still isn't linked to a specific data.terms[] entry —
-  // it just snapshots whatever's currently in data.courses/assignments/exams under a name the
-  // student types — so this stays its own flat "close current term" action rather than a per-term-
-  // row button; qName now defaults from `currentTerm.name` (real data this page already has)
-  // instead of the old legacy getQ() lookup History.jsx used, but is still just a starting
-  // suggestion, not a hard link.
-  const[viewing,setViewing]=useState(null);
-  const[closing,setClosing]=useState(false);
-  const[qName,setQName]=useState(()=>currentTerm?.name||"");
-  const hist=[...(data.history||[])].sort((a,b)=>new Date(b.closedAt)-new Date(a.closedAt));
-
-  async function closeQuarter(){
-    const name=qName.trim();
-    if(!name)return;
-    const ok=await confirm(`Archive "${name}" with ${data.courses.length} course${data.courses.length!==1?"s":""} and ${data.assignments.length} assignment${data.assignments.length!==1?"s":""}? Your active Courses, Assignments, and Exams will move to History and be cleared so you can start the next term fresh.`);
-    if(!ok)return;
-    const snapshot={
-      id:Date.now(),
-      name,
-      closedAt:iso(),
-      courses:data.courses,
-      assignments:data.assignments,
-      exams:data.exams,
-      gpa:calcGPA(data.courses),
-    };
-    upd({
-      history:[...(data.history||[]),snapshot],
-      courses:[],assignments:[],exams:[],
-      briefCache:null,briefPeriod:null,
-    });
-    setClosing(false);
-    setQName("");
-    toast2(`"${snapshot.name}" archived to History! Ready for a new term.`);
-  }
-
-  if(viewing){
-    const h=hist.find(x=>x.id===viewing);
-    if(h)return <HistoryDetail entry={h} onBack={()=>setViewing(null)}/>;
-    setViewing(null);
-  }
 
   // Same card styling used throughout Academics/Today/Preferences — for real visual consistency
   // rather than the ad-hoc custom card styling this tab started with.
@@ -320,7 +167,10 @@ export function SchoolInfo({data,upd,updP,toast2}){
     checkOverlapAndProceed(schoolId,newStart,newEnd,null,()=>{
       const patch={};
       if(!existing)patch.schools=[...schools,{id:schoolId,name:newSchool,address:"",schoolType:newType}];
-      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null}];
+      // status:"upcoming" — real request: "user set the term name, dates... and default shall be
+      // 'Upcoming'." A brand-new term never starts Current on its own; that's always an explicit
+      // choice made afterward via "Change Status" below.
+      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming"}];
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);
@@ -328,15 +178,55 @@ export function SchoolInfo({data,upd,updP,toast2}){
     });
   }
 
+  // Manual term-status control — real request: "remove the function to close current term...
+  // instead we need a function to set a term to Active. That requires: add a field to manage the
+  // term states: Current, Upcoming, Archive... ONLY ONE can be set to Current." Changing status
+  // never touches a term's own courses/assignments/exams/etc — every consumer already scopes by
+  // termId, so nothing here moves or clears any data, ever ("data model of each term is not
+  // affected by changing the status... just keep a full set of its isolated data as in that
+  // moment"). Promoting a different term to Current is the one transition with a real side effect
+  // (only one term can hold it), so it's the only one that confirms first; Upcoming/Archive can be
+  // set freely since there's no "only one" rule for those.
+  const [showStatusModal,setShowStatusModal]=useState(false);
+  async function setTermStatus(term,newStatus){
+    if(term.status===newStatus)return;
+    if(newStatus==="current"){
+      const oldCurrent=termStatuses.find(t=>t.status==="current"&&t.id!==term.id);
+      if(oldCurrent){
+        const ok=await confirm(`Set "${term.name}" as your Current term? "${oldCurrent.name}" (currently Current) will be changed to Archive.`,{confirmLabel:"Set as Current",confirmIcon:"ti-check"});
+        if(!ok)return;
+        upd({terms:data.terms.map(t=>{
+          if(t.id===term.id)return{...t,status:"current"};
+          if(t.id===oldCurrent.id)return{...t,status:"archived"};
+          return t;
+        })});
+        toast2(`"${term.name}" is now your Current term.`);
+        return;
+      }
+    }
+    upd({terms:data.terms.map(t=>t.id===term.id?{...t,status:newStatus}:t)});
+    toast2(`"${term.name}" set to ${newStatus==="archived"?"Archive":newStatus==="current"?"Current":"Upcoming"}.`);
+  }
+
   const statusColor=s=>s==="current"?"var(--amber)":s==="upcoming"?"var(--blue)":"var(--t3)";
+  const statusLabel=s=>s==="current"?"Current":s==="upcoming"?"Upcoming":"Archive";
 
   return(
     <div className="fade">
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h2>School Info</h2>
-        <button className="btn btn-action btn-sm" onClick={openAddTerm}>
-          <i className="ti ti-plus"/> Add term
-        </button>
+        <div style={{display:"flex",gap:8}}>
+          {data.terms?.length>0&&(
+            <button className="tt tt-below tt-right btn btn-ghost btn-sm"
+              data-tt="Set which term is Current, Upcoming, or Archive. Only one term can be Current at a time."
+              onClick={()=>setShowStatusModal(true)}>
+              <i className="ti ti-adjustments"/> Change Status
+            </button>
+          )}
+          <button className="btn btn-action btn-sm" onClick={openAddTerm}>
+            <i className="ti ti-plus"/> Add term
+          </button>
+        </div>
       </div>
 
       {schoolIds.length===0&&(
@@ -350,7 +240,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
         const terms=bySchool[schoolId].sort((a,b)=>a.start.localeCompare(b.start));
         const isCurrent=schoolId===currentSchoolId;
         const isExpanded=expandedSchoolId===schoolId;
-        const completedCount=terms.filter(t=>t.status==="completed").length;
+        const archivedCount=terms.filter(t=>t.status==="archived").length;
         if(!isExpanded){
           return(
             <button key={schoolId} onClick={()=>setExpandedSchoolId(schoolId)}
@@ -358,7 +248,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
                 display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",border:"none"}}>
               <span style={{fontSize:14,color:"var(--t2)"}}>
                 <i className="ti ti-chevron-right" style={{marginRight:6}}/>{school?.name||"(unknown school)"} · {terms.length} term{terms.length!==1?"s":""}
-                {completedCount>0&&`, ${completedCount} completed`}
+                {archivedCount>0&&`, ${archivedCount} archived`}
               </span>
               <i className="ti ti-history" style={{color:"var(--t3)"}}/>
             </button>
@@ -382,7 +272,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
                     <div style={{width:10,height:10,borderRadius:"50%",background:statusColor(t.status)}}/>
                     <span style={{...TITLE_TEXT,color:"var(--t1)",fontSize:16,textTransform:"none",letterSpacing:"normal",fontWeight:500}}>{t.name}</span>
                     <span className="badge" style={{background:"transparent",border:`1px solid ${statusColor(t.status)}`,color:statusColor(t.status),fontSize:10,textTransform:"uppercase"}}>
-                      {t.status}
+                      {statusLabel(t.status)}
                     </span>
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
@@ -407,7 +297,6 @@ export function SchoolInfo({data,upd,updP,toast2}){
                   <div style={{fontSize:14,fontWeight:600,color:"var(--t1)"}}>{t.start||"?"} – {t.end||"?"}</div>
                   <div style={{fontSize:13,color:"var(--t3)",marginTop:4}}>
                     {t.type==="quarter"?"Quarter":"Semester"}
-                    {t.status==="upcoming"&&" · starts once the current term ends"}
                   </div>
                 </div>
               </div>
@@ -416,61 +305,45 @@ export function SchoolInfo({data,upd,updP,toast2}){
         );
       })}
 
-      <div style={BOX}>
-        <div style={TITLE_ROW}>
-          <div style={TITLE_LEFT}><i className="ti ti-archive" style={TITLE_ICON}/><span style={TITLE_TEXT}>Current term</span></div>
-        </div>
-        <div style={DIVIDER}/>
-        <div style={INNER}>
-          <p style={{fontSize:14,marginBottom:14,lineHeight:1.6}}>
-            When your quarter or semester ends, close it out to archive your courses, assignments, exams, and final GPA — then your active lists reset for the next term.
-          </p>
-          {!closing?(
-            <button className="btn btn-action" onClick={()=>setClosing(true)} disabled={!data.courses.length&&!data.assignments.length}>
-              <i className="ti ti-archive"/> Close current term
-            </button>
-          ):(
-            <div>
-              <div style={{marginBottom:10}}>
-                <label>Term name</label>
-                <input value={qName} onChange={e=>setQName(e.target.value)} placeholder="e.g. Spring 2026"/>
-              </div>
-              <div className="row">
-                <button className="btn btn-action" style={{flex:1}} onClick={closeQuarter} disabled={!qName.trim()}>
-                  <i className="ti ti-check"/> Archive &amp; start fresh
-                </button>
-                <button className="btn btn-ghost" onClick={()=>setClosing(false)}>Cancel</button>
-              </div>
+      {/* "Change Status" modal — real request: "add a button near '+Term' - 'Change Status' - this
+          button allow user to edit each one of the term's status. ONLY ONE can be set to
+          'Current'." Replaces the old "Close current term" card entirely; see setTermStatus above
+          for the actual mechanics (auto-confirm + auto-demote only when promoting to Current). */}
+      {showStatusModal&&(
+        <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
+          display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+          onClick={()=>setShowStatusModal(false)}>
+          <div style={{background:"var(--card)",borderRadius:14,padding:"20px 24px",maxWidth:460,width:"100%",
+            maxHeight:"85vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(0,0,0,0.5)"}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:16,fontWeight:600}}>Change term status</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowStatusModal(false)}><i className="ti ti-x"/></button>
             </div>
-          )}
-          {!data.courses.length&&!data.assignments.length&&!closing&&(
-            <div style={{fontSize:12,color:"var(--t3)",marginTop:10}}>Nothing active to archive yet — add some from the Courses tab first.</div>
-          )}
-        </div>
-      </div>
-
-      <div style={BOX}>
-        <div style={TITLE_ROW}>
-          <div style={TITLE_LEFT}><i className="ti ti-history" style={TITLE_ICON}/><span style={TITLE_TEXT}>Archived terms — {hist.length}</span></div>
-        </div>
-        <div style={DIVIDER}/>
-        <div style={INNER}>
-          {hist.length===0
-            ?<div style={{fontSize:14,color:"var(--t3)",textAlign:"center",padding:"20px 0"}}>No archived terms yet</div>
-            :hist.map(h=>(
-              <div key={h.id} className="list-item" style={{cursor:"pointer"}} onClick={()=>setViewing(h.id)}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:"var(--blue)",flexShrink:0}}/>
-                <div style={{flex:1}}>
-                  <div className="list-item-title">{h.name}</div>
-                  <div className="list-item-sub">{(h.courses||[]).length} course{(h.courses||[]).length!==1?"s":""} · archived {h.closedAt}</div>
+            <p style={{fontSize:12,color:"var(--t3)",marginBottom:16,lineHeight:1.5}}>
+              Only one term can be Current. Setting a different term Current will change today's
+              Current term to Archive — your courses, assignments, and data for every term stay
+              exactly as they are; only the status label changes.
+            </p>
+            {termStatuses.map(t=>(
+              <div key={t.id} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--b1)"}}>
+                <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:8}}>{t.name}</div>
+                <div style={{display:"flex",gap:6}}>
+                  {["current","upcoming","archived"].map(s=>(
+                    <button key={s} onClick={()=>setTermStatus(t,s)}
+                      style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",
+                        border:`1px solid ${t.status===s?statusColor(s):"var(--b1)"}`,
+                        background:t.status===s?statusColor(s):"var(--card2)",
+                        color:t.status===s?"#0a1420":"var(--t2)"}}>
+                      {statusLabel(s)}
+                    </button>
+                  ))}
                 </div>
-                {h.gpa!==null&&h.gpa!==undefined&&<span className="badge badge-amber">{h.gpa.toFixed(2)} GPA</span>}
-                <i className="ti ti-chevron-right" style={{fontSize:14,color:"var(--t3)"}}/>
               </div>
-            ))
-          }
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {showAddTerm&&(
         <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.55)",
