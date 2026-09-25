@@ -1602,6 +1602,17 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               Upload a syllabus (or class schedule) PDF — classes, assignments, exams, and grading weights are all extracted from whatever's in the document. Existing courses and deadlines are never duplicated.
             </p>
 
+            {/* Real request: "upload syllabus to create academic plan shall not be activated if no
+                term created." Every course a sync creates is tagged termId:viewingTermId (see
+                syncSyl below) — with no Current term, that's null, producing exactly the orphaned-
+                course state repairTermLinkageIfNeeded exists to heal elsewhere. Blocking upload
+                here instead is the direct fix: nothing to attach a syllabus to until a term exists. */}
+            {!currentTerm?(
+              <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"20px 0"}}>
+                No term set up yet — add one in School Info before uploading a syllabus.
+              </div>
+            ):(<>
+
             {/* Last sync marker — persists across reloads */}
             {data.lastSyllabusSync&&(
               <div style={{
@@ -1720,6 +1731,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 </button>
               </div>
             </details>
+            </>)}
           </div>
           </div>
         </div>

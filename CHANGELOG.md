@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.88.3 — 2026-09-25
+
+**Update Syllabus is blocked until a term exists**
+
+Real request: "upload syllabus to create academic plan shall not be activated if no term created."
+
+- Academics → Courses → **Update Syllabus** (PDF upload, the raw-extraction diagnostic, and "Add
+  class manually") now shows "No term set up yet — add one in School Info before uploading a
+  syllabus" instead of its normal content when there's no Current term. Every course a sync or
+  manual add creates is tagged with the Current term's id — with no Current term that id is null,
+  which is exactly the orphaned-course state `repairTermLinkageIfNeeded` exists to heal elsewhere;
+  blocking the upload at the source is the direct fix. Re-activates immediately once a term is set
+  Current.
+
+Verified live both directions: with no term, the upload UI is fully replaced by the notice; after
+adding and setting a term Current, PDF upload / diagnostic / manual-add all render normally again.
+Build clean, 281/281 tests pass.
+
 ## v2.88.2 — 2026-09-25
 
 **Fix: deleted term no longer reappears; Courses page reverted to single-term view**
