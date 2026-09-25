@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { computeTermStatuses, datesOverlap, canDeleteTerm } from "@/lib/data";
+import { computeTermStatuses, datesOverlap } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -91,15 +91,50 @@ export function SchoolInfo({data,upd,updP,toast2}){
     });
   }
 
-  // canDeleteTerm (lib/data/terms.js) has the actual rule (upcoming-only, blocked if courses are
-  // attached) — kept there rather than inline so it's unit-testable without mocking confirm/toast.
-  async function deleteTerm(t){
-    const check=canDeleteTerm(t,data.courses);
-    if(!check.deletable){toast2(`Can't delete "${t.name}" — ${check.reason}`,true);return;}
-    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})? This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
+  // Resets one term's own academic data back to empty — same "clear this term only" concept
+  // Courses' own "Reset academic data" already has (viewingTermId-scoped there), just reachable
+  // per-term here in School Info instead of only for whichever term Courses happens to be
+  // viewing. Real request: "reset data (with confirmation) > it will erase all academic data back
+  // to clear as newly created term." Never touches any OTHER term's data, profile, or habit logs.
+  async function resetTermData(t){
+    const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
+    const courseCount=termCourseIds.size;
+    const assignmentCount=data.assignments.filter(a=>termCourseIds.has(a.courseId)).length;
+    const examCount=data.exams.filter(e=>termCourseIds.has(e.courseId)).length;
+    if(!courseCount&&!assignmentCount&&!examCount){toast2(`"${t.name}" has no academic data to reset — it's already empty.`);return;}
+    const ok=await confirm(`Reset "${t.name}" back to empty? This permanently erases ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} for this term only — like it was just created. Other terms are never touched.`,{confirmLabel:"Reset",confirmIcon:"ti-eraser"});
     if(!ok)return;
-    upd({terms:data.terms.filter(x=>x.id!==t.id)});
-    toast2("Term deleted");
+    upd({
+      courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
+      assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
+      exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
+      ...(t.status==="current"?{briefCache:null,briefPeriod:null}:{}),
+    });
+    toast2(`"${t.name}" reset — back to a clean, newly-created term.`);
+  }
+
+  // Deletes a term entirely — real request: "delete button - allow user to delete this term
+  // entirely with confirmation," confirmed as "will remove the entire data model of this term."
+  // Unlike the old upcoming-only/no-attached-courses restriction this replaces, this is available
+  // for any term regardless of status, and cascades: its own courses/assignments/exams go with
+  // it — status changes never copy data anywhere else (see "Change Status" above), so nothing of
+  // this term survives a real delete.
+  async function deleteTermEntirely(t){
+    const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
+    const courseCount=termCourseIds.size;
+    const assignmentCount=data.assignments.filter(a=>termCourseIds.has(a.courseId)).length;
+    const examCount=data.exams.filter(e=>termCourseIds.has(e.courseId)).length;
+    const dataWarning=courseCount?` This also permanently deletes ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} attached to it.`:"";
+    const currentWarning=t.status==="current"?" This is your Current term — no term will be Current until you set another one via Change Status.":"";
+    const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning}${currentWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
+    if(!ok)return;
+    upd({
+      terms:data.terms.filter(x=>x.id!==t.id),
+      courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
+      assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
+      exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
+    });
+    toast2(`"${t.name}" deleted.`);
   }
 
   const bySchool={};
@@ -276,15 +311,19 @@ export function SchoolInfo({data,upd,updP,toast2}){
                     </span>
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
-                    {t.status==="upcoming"&&(
-                      <button className="tt" data-tt="Delete this term" onClick={()=>deleteTerm(t)}
-                        style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
-                          border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--red)",cursor:"pointer",
-                          display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-                        <i className="ti ti-trash" style={{fontSize:13}}/>
-                      </button>
-                    )}
-                    <button className="tt" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
+                    <button className="tt" data-tt="Reset this term's data — erase all courses, assignments, and exams back to empty" onClick={()=>resetTermData(t)}
+                      style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                        border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--amber)",cursor:"pointer",
+                        display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                      <i className="ti ti-eraser" style={{fontSize:13}}/>
+                    </button>
+                    <button className="tt" data-tt="Delete this term entirely — its courses, assignments, and exams go with it" onClick={()=>deleteTermEntirely(t)}
+                      style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
+                        border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--red)",cursor:"pointer",
+                        display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                      <i className="ti ti-trash" style={{fontSize:13}}/>
+                    </button>
+                    <button className="tt tt-below" data-tt="Edit name/type/dates" onClick={()=>startEditTerm(t)}
                       style={{width:26,height:26,borderRadius:"50%",flexShrink:0,
                         border:"1px solid var(--b1)",background:"var(--card2)",color:"var(--t2)",cursor:"pointer",
                         display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>

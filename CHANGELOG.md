@@ -1,5 +1,27 @@
 # StudyOS Changelog
 
+## v2.88.1 — 2026-09-25
+
+**School Info: per-term Reset data and Delete term, next to Edit**
+
+Real request: "add now [to the] term (at the section near the 'edit' button): 1) reset data (with
+confirmation) > it will erase all academic data back to clear as newly created term, 2) delete
+button - allow user to delete this term entirely with confirmation." Confirmed: "the Delete: will
+remove the entire data model of this term."
+
+- **Reset data** (eraser icon) — erases a specific term's courses/assignments/exams back to empty,
+  as if it were just created. Only that term is touched; other terms, profile, and habit logs are
+  never affected. Mirrors Courses' own existing "Reset academic data," now reachable per-term
+  directly from School Info.
+- **Delete** (trash icon) — removes the term record itself, cascading to delete its own courses/
+  assignments/exams with it (its whole data model, confirmed). Replaces the old delete button that
+  only worked on upcoming terms with no courses attached — this one works on any term regardless of
+  status, with a confirmation that clearly states how much data it's taking with it, and warns
+  separately if you're deleting your Current term.
+
+Verified live: Reset correctly detects an already-empty term and skips the confirmation; Delete's
+confirmation dialog renders the right warnings for a real term. Build clean, 273/273 tests pass.
+
 ## v2.88.0 — 2026-09-25
 
 **Term status is now something you set — Change Status replaces Close current term**
