@@ -229,6 +229,20 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   the old magic number. Separately (not a bug): this specific PDF has no individual per-assignment
   HW/lab dates at all — it explicitly defers those to a separate live "homepage" calendar page not
   included in the upload; nothing in extraction can recover dates that aren't in the document.
+  **Follow-up, v2.88.14, from trying the fix on the real file:** (1) Quizzes now classify as
+  **exams**, not assignments — reversed on direct request ("it classified 'Quiz' as Homework, shall
+  be an exam"); the extraction prompt's rule and `lib/syllabus.js`'s deterministic safety net
+  (`reclassifyQuizzesAsExams`, promoting quiz-titled items from assignments → exams) both flipped
+  direction, with a shorter `prepDays` (2-3) than a Midterm/Final gets. Re-confirmed via the
+  full-text grep that labs/HW genuinely aren't in this PDF (see above) — not re-litigated, just
+  double-checked on request. (2) Found and fixed a real, unrelated bug while investigating "save
+  didn't work": `toast2()` only ever holds one toast, and `refreshQuarterPlan()` fired it twice in a
+  row — the real success message, then a term-end/last-deadline mismatch nudge — so the second call
+  silently clobbered the first before it rendered, styled as a persistent red error with zero
+  success confirmation. **Any code path that wants to show more than one thing after an action must
+  fold it into a single `toast2()` call (structured `{title,sub,lines,footer}`), never fire a
+  second one — the second always wins, silently.** Fixed here; worth checking for the same pattern
+  elsewhere if a similar "did it actually work?" report comes up again.
 - **Known next step, explicitly requested, not yet built: term-switching (viewing).** See the
   studyPlan/completionLog/pomodoroLogs isolation gap and the "Known next step" note in the
   Multi-school/multi-term section above — this is the real prerequisite/design question before
