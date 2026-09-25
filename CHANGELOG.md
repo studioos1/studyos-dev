@@ -1,5 +1,38 @@
 # StudyOS Changelog
 
+## v2.88.16 — 2026-09-25
+
+**Extraction completeness: deterministic source cross-check + AI's own gap self-report, before saving**
+
+Real ask: "If we are not parsing and uploading the PDF 100% properly this entire app can be
+trashed... this entire app can be trashed... we shall update the upload/save process to result
+with setting EVERYTHING assigned to student in the syllabus." Two layers added, both free (no
+second AI call — that tradeoff was offered and explicitly declined in favor of keeping upload cost
+at one AI call):
+
+- **Deterministic completeness signal (`scanForDatedItemSignals`, `lib/syllabus.js`):** scans the
+  raw source text actually sent to the AI for a date sitting near graded-item language
+  (quiz/exam/homework/due/%/etc.), resolves it to an ISO date, and cross-references it against
+  every date that actually got extracted. Anything mentioned but not covered surfaces as a `warn`
+  issue in `ExtractionVerifyModal` (and the "Show Raw AI Extraction" diagnostic) naming the actual
+  date and a text snippet — capped at 5 with a "+N more" summary, matching the app's existing
+  pattern for multi-item warnings. This is the recall-side complement to v2.88.15's same-date
+  hallucination guard (that one catches "invented too much"; this one catches "silently dropped
+  something real"). Approximate by design — a regex heuristic, not real language understanding —
+  so every message is worded as "worth checking", never a confirmed miss. Verified against real
+  syllabus phrasing (spaced the way the real ~40k-char document actually spaces its sections) to
+  produce zero false positives on a correct extraction.
+- **AI self-report (extraction prompt rule 10, all 3 upload flows):** the model now works through
+  the document's own section headers as an explicit checklist and returns `extractionNotes` — a
+  plain-language note for any graded category it recognized but couldn't find individual real
+  dates for (e.g. "Labs — no individual dates stated, syllabus points to a separate course-website
+  calendar"). Shown as its own neutral info block in `ExtractionVerifyModal`, the onboarding
+  syllabus-import screen, and the raw-extraction diagnostic — distinct from the error/warning
+  issues above, since this isn't a problem, it's the AI being transparent about a real gap in the
+  source document rather than the student having to infer it from an empty list.
+
+294/294 tests pass (10 new). Build clean.
+
 ## v2.88.15 — 2026-09-25
 
 **Extraction: never invent a due date; block a fabricated same-date item series before saving**

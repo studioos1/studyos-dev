@@ -14,7 +14,7 @@ import {
 import { CI } from "@/lib/api";
 import { PDF, MAX_SYLLABUS_CHARS } from "@/lib/pdf";
 import { sparkleBurst } from "@/lib/sparkle";
-import { reclassifyQuizzesAsExams } from "@/lib/syllabus";
+import { reclassifyQuizzesAsExams, checkSyllabusExtraction } from "@/lib/syllabus";
 import { DS, CC } from "@/lib/constants";
 import {
   useConfirm,
@@ -26,6 +26,7 @@ import {
   InfoModal,
   SyncResultModal,
   ExtractionVerifyModal,
+  ExtractionIssues,
   DelBtn,
   DiffBadge,
   PdfDrop,
@@ -453,8 +454,9 @@ CRITICAL RULES:
 7. Also extract the class meeting schedule if stated (often in a "Format:" line, e.g. "Lecture: Mon/Wed/Fri, 10:00–10:50 AM, Center Hall 101"). Return days as an array of 0-6 (0=Sunday, 1=Monday, ... 6=Saturday), and times in 24-hour HH:MM format. If a discussion/lab section is also listed, include it as a second entry in meetingTimes. If no meeting schedule is stated anywhere in the syllabus, return an empty meetingTimes array — do not guess or invent one.
 8. The "exams" list covers every in-class/timed assessment: Midterm(s), Final Exam, AND any Quiz (weekly reading quiz, in-class pop quiz, lecture quiz, lab-section quiz, etc.) — even a short, low-weight one. Only take-home coursework (problem sets, homework, labs, projects) belongs in "assignments". Give a quiz a short prepDays (2-3), not a Midterm/Final's longer one — it's a low-stakes, low-prep check, not a major exam.
 9. NEVER invent or guess a due date. Rules 1/3/4 above ("extract every dated item", "count them", "return that many entries") apply ONLY to items whose real due date is actually written in the source text — they are not license to fabricate one. If the syllabus describes a recurring assignment type in general terms (e.g. "Labs are due weekly on Tuesdays — see the course website for the exact schedule") without ever stating a real calendar date for any individual instance, omit that whole category rather than guessing dates for it — return fewer items, or none for that category, rather than a fabricated schedule. A hard tell that you're about to invent dates: giving several differently-numbered items (Homework 1, Homework 2, Lab 3, ...) the exact same due date — a real weekly series is never all due on one day. If you notice that pattern in your own answer before responding, delete those entries instead of returning them.
+10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Labs — no individual dates stated, syllabus points to a separate course-website calendar for the schedule"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array.
 
-Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight (yours should look like this in structure, with real data from the syllabus):
+Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight, and extractionNotes explains the one category with no real per-item dates in the source (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
@@ -472,13 +474,13 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
   {"title":"Final Exam","date":"2026-12-09","topics":"All chapters","prepDays":7,"weight":30}
-]}]}
+],"extractionNotes":["Labs — no individual dates stated in this document, only a generic weekly pattern; points to the course homepage for the real schedule"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
 SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(t){
         const p=JSON.parse(t.replace(/```json|```/g,"").trim());
-        setRawExtractResult({parsed:p,fileNames});
+        setRawExtractResult({parsed:p,fileNames,sourceText:texts.join("\n")});
       }
     }catch(e){setRawExtractResult({error:e.message,fileNames});}
     setRawExtracting(false);
@@ -504,8 +506,9 @@ CRITICAL RULES:
 7. Also extract the class meeting schedule if stated (often in a "Format:" line, e.g. "Lecture: Mon/Wed/Fri, 10:00–10:50 AM, Center Hall 101"). Return days as an array of 0-6 (0=Sunday, 1=Monday, ... 6=Saturday), and times in 24-hour HH:MM format. If a discussion/lab section is also listed, include it as a second entry in meetingTimes. If no meeting schedule is stated anywhere in the syllabus, return an empty meetingTimes array — do not guess or invent one.
 8. The "exams" list covers every in-class/timed assessment: Midterm(s), Final Exam, AND any Quiz (weekly reading quiz, in-class pop quiz, lecture quiz, lab-section quiz, etc.) — even a short, low-weight one. Only take-home coursework (problem sets, homework, labs, projects) belongs in "assignments". Give a quiz a short prepDays (2-3), not a Midterm/Final's longer one — it's a low-stakes, low-prep check, not a major exam.
 9. NEVER invent or guess a due date. Rules 1/3/4 above ("extract every dated item", "count them", "return that many entries") apply ONLY to items whose real due date is actually written in the source text — they are not license to fabricate one. If the syllabus describes a recurring assignment type in general terms (e.g. "Labs are due weekly on Tuesdays — see the course website for the exact schedule") without ever stating a real calendar date for any individual instance, omit that whole category rather than guessing dates for it — return fewer items, or none for that category, rather than a fabricated schedule. A hard tell that you're about to invent dates: giving several differently-numbered items (Homework 1, Homework 2, Lab 3, ...) the exact same due date — a real weekly series is never all due on one day. If you notice that pattern in your own answer before responding, delete those entries instead of returning them.
+10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Labs — no individual dates stated, syllabus points to a separate course-website calendar for the schedule"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array.
 
-Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight (yours should look like this in structure, with real data from the syllabus):
+Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight, and extractionNotes explains the one category with no real per-item dates in the source (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
@@ -523,7 +526,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
   {"title":"Final Exam","date":"2026-12-09","topics":"All chapters","prepDays":7,"weight":30}
-]}]}
+],"extractionNotes":["Labs — no individual dates stated in this document, only a generic weekly pattern; points to the course homepage for the real schedule"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
 SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
@@ -534,7 +537,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         if(moved>0)console.log(`StudyOS: reclassified ${moved} quiz-titled item(s) from assignments to exams (safety check, not an error)`);
         // Pause here — show the student what was found before anything is saved. finalizeSync()
         // (below) does the actual save, once they confirm (with any corrections) or cancel.
-        setPendingVerify({parsed:p,fileNames});
+        // sourceText carried through for ExtractionVerifyModal's completeness cross-check
+        // (checkSyllabusExtraction's scanForDatedItemSignals) — the same raw text sent to the AI.
+        setPendingVerify({parsed:p,fileNames,sourceText:texts.join("\n")});
       }
     }catch(e){setSyncResult({error:e.message,fileNames});}
     setSyncing(false);
@@ -1662,11 +1667,16 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   const courses=p.courses||[];
                   const totalA=courses.reduce((s,c)=>s+(c.assignments?.length||0),0);
                   const totalE=courses.reduce((s,c)=>s+(c.exams?.length||0),0);
+                  // Same deterministic sanity checks ExtractionVerifyModal runs before a real
+                  // save — shown here too since this diagnostic is the tool the student's meant
+                  // to reach for first when checking whether an upload looks right.
+                  const{issues:diagIssues}=checkSyllabusExtraction(p,{courses:data.courses,sourceText:rawExtractResult.sourceText});
                   return(
                     <>
                       <div style={{fontSize:14,marginBottom:10,color:"var(--t1)"}}>
                         <strong>{courses.length}</strong> courses, <strong>{totalA}</strong> assignments, <strong>{totalE}</strong> exams
                       </div>
+                      {diagIssues.length>0&&<ExtractionIssues issues={diagIssues}/>}
                       {courses.map((c,ci)=>(
                         <div key={ci} style={{marginBottom:10,paddingBottom:10,borderBottom:ci<courses.length-1?"1px solid var(--b1)":"none"}}>
                           <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>{c.courseName} — {(c.assignments?.length||0)} assignments, {(c.exams?.length||0)} exams</div>
@@ -1675,6 +1685,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                               EXAM: {e.date} — {e.title} {e.weight!=null?`(${e.weight}%)`:""}
                             </div>
                           ))}
+                          {(c.extractionNotes||[]).length>0&&(
+                            <div style={{marginTop:6,paddingLeft:10,borderLeft:"2px solid var(--amber)"}}>
+                              {c.extractionNotes.map((n,ni)=>(
+                                <div key={ni} style={{fontSize:12,color:"var(--amber)"}}>ℹ {n}</div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <details style={{marginTop:8}}>
@@ -1750,6 +1767,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           termEnd={data.profile?.termEnd}
           existingAssignments={data.assignments}
           existingExams={data.exams}
+          sourceText={pendingVerify.sourceText}
           onConfirm={correctedParsed=>finalizeSync(correctedParsed,pendingVerify.fileNames)}
           onCancel={()=>{setPendingVerify(null);setSylPdfs([]);}}
         />

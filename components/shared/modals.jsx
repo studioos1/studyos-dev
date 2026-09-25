@@ -12,11 +12,18 @@ import { SideDrawer, DrawerHeader } from "./SideDrawer";
 // item (e.g. a quiz the AI called an exam) or wrong date/weight, rather than discovering it
 // later in a cluttered calendar. A single "Looks good, save all" button confirms everything as-is
 // for the common case; per-row editing is only needed when something's actually wrong.
-export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],onConfirm,onCancel}){
+export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],sourceText,onConfirm,onCancel}){
   const [saving,setSaving]=useState(false);
   // Deterministic sanity check on the raw AI output — surfaces misreads (a heading taken for a
   // course, a wrong-year date) up front so the student can re-upload instead of hand-fixing rows.
-  const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd});
+  // sourceText (the raw PDF text actually sent to the AI) enables the completeness cross-check —
+  // optional so this still works from any caller that hasn't wired it through.
+  const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd,sourceText});
+  // The AI's own completeness self-report (extraction prompt rule 10) — categories it recognized
+  // but couldn't find real per-item dates for. Shown separately from `issues` above: this isn't a
+  // problem with the extraction, it's the AI being transparent about a real gap in the source
+  // document, so it gets its own neutral info block rather than looking like an error/warning.
+  const extractionNotes=(parsed.courses||[]).flatMap(c=>(c.extractionNotes||[]).map(n=>({course:c.courseName,note:n})));
   // Flatten into one editable list, tagging each row with its course + a stable local key. Each
   // row is also checked against what's already saved (findProbableDuplicate, lib/syllabus.js) —
   // re-uploading the same or a revised syllabus is common, and a real duplicate was slipping
@@ -97,6 +104,17 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
           {issues.length>0&&(
             <div style={{marginTop:16}}>
               <ExtractionIssues issues={issues} onReupload={onCancel}/>
+            </div>
+          )}
+          {extractionNotes.length>0&&(
+            <div style={{marginTop:16,background:"var(--card2)",borderRadius:9,padding:"11px 13px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>
+                <i className="ti ti-info-circle" style={{fontSize:15}}/>
+                What the AI couldn't find individual dates for
+              </div>
+              <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"var(--t3)",lineHeight:1.6}}>
+                {extractionNotes.map((n,i)=><li key={i}>{totalCourses>1?`${n.course}: `:""}{n.note}</li>)}
+              </ul>
             </div>
           )}
           {dupCount>0&&(
