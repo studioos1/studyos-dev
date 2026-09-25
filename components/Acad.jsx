@@ -14,7 +14,7 @@ import {
 import { CI } from "@/lib/api";
 import { PDF, MAX_SYLLABUS_CHARS } from "@/lib/pdf";
 import { sparkleBurst } from "@/lib/sparkle";
-import { reclassifyMisplacedQuizzes } from "@/lib/syllabus";
+import { reclassifyQuizzesAsExams } from "@/lib/syllabus";
 import { DS, CC } from "@/lib/constants";
 import {
   useConfirm,
@@ -451,15 +451,14 @@ CRITICAL RULES:
 5. Also extract the grading weight (% of final grade) for each assignment/exam from the syllabus's grading breakdown section (e.g. "Midterm 1 25% | Midterm 2 25% | Final 30%"). If no weight is stated for an item, use null.
 6. Use the exact course code as it appears in the syllabus (e.g. "DSC 10", "MATH 180A") for courseName — do not add descriptive titles or CRNs to it, so it matches consistently across separate extractions.
 7. Also extract the class meeting schedule if stated (often in a "Format:" line, e.g. "Lecture: Mon/Wed/Fri, 10:00–10:50 AM, Center Hall 101"). Return days as an array of 0-6 (0=Sunday, 1=Monday, ... 6=Saturday), and times in 24-hour HH:MM format. If a discussion/lab section is also listed, include it as a second entry in meetingTimes. If no meeting schedule is stated anywhere in the syllabus, return an empty meetingTimes array — do not guess or invent one.
-8. The "exams" list is ONLY for Midterm(s) and the Final Exam — items with those exact words (or unambiguous synonyms like "Midterm Exam", "Final") in their title. Weekly reading quizzes, in-class pop quizzes, lecture quizzes, and any other small recurring "Quiz" item belong in "assignments", NEVER in "exams" — even though they are graded and have a due date. When in doubt whether something is a quiz or a midterm, it is a quiz — put it in assignments.
+8. The "exams" list covers every in-class/timed assessment: Midterm(s), Final Exam, AND any Quiz (weekly reading quiz, in-class pop quiz, lecture quiz, lab-section quiz, etc.) — even a short, low-weight one. Only take-home coursework (problem sets, homework, labs, projects) belongs in "assignments". Give a quiz a short prepDays (2-3), not a Midterm/Final's longer one — it's a low-stakes, low-prep check, not a major exam.
 
-Example of a CORRECT response shape for a course with 8 weekly assignments and 3 exams (yours should look like this in structure, with real data from the syllabus):
+Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
 ],"assignments":[
   {"title":"Problem Set 1","dueDate":"2026-09-25","estimatedHours":2,"weight":3},
-  {"title":"Reading Quiz 1","dueDate":"2026-09-28","estimatedHours":0.5,"weight":2},
   {"title":"Problem Set 2","dueDate":"2026-10-02","estimatedHours":2,"weight":3},
   {"title":"Problem Set 3","dueDate":"2026-10-09","estimatedHours":2,"weight":3},
   {"title":"Problem Set 4","dueDate":"2026-10-16","estimatedHours":2,"weight":3},
@@ -468,6 +467,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
   {"title":"Problem Set 7","dueDate":"2026-11-13","estimatedHours":2,"weight":3},
   {"title":"Problem Set 8","dueDate":"2026-12-04","estimatedHours":2,"weight":3}
 ],"exams":[
+  {"title":"Reading Quiz 1","date":"2026-09-28","topics":"Ch 1","prepDays":2,"weight":2},
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
   {"title":"Final Exam","date":"2026-12-09","topics":"All chapters","prepDays":7,"weight":30}
@@ -501,15 +501,14 @@ CRITICAL RULES:
 5. Also extract the grading weight (% of final grade) for each assignment/exam from the syllabus's grading breakdown section (e.g. "Midterm 1 25% | Midterm 2 25% | Final 30%"). If no weight is stated for an item, use null.
 6. Use the exact course code as it appears in the syllabus (e.g. "DSC 10", "MATH 180A") for courseName — do not add descriptive titles or CRNs to it, so it matches consistently across separate extractions.
 7. Also extract the class meeting schedule if stated (often in a "Format:" line, e.g. "Lecture: Mon/Wed/Fri, 10:00–10:50 AM, Center Hall 101"). Return days as an array of 0-6 (0=Sunday, 1=Monday, ... 6=Saturday), and times in 24-hour HH:MM format. If a discussion/lab section is also listed, include it as a second entry in meetingTimes. If no meeting schedule is stated anywhere in the syllabus, return an empty meetingTimes array — do not guess or invent one.
-8. The "exams" list is ONLY for Midterm(s) and the Final Exam — items with those exact words (or unambiguous synonyms like "Midterm Exam", "Final") in their title. Weekly reading quizzes, in-class pop quizzes, lecture quizzes, and any other small recurring "Quiz" item belong in "assignments", NEVER in "exams" — even though they are graded and have a due date. When in doubt whether something is a quiz or a midterm, it is a quiz — put it in assignments.
+8. The "exams" list covers every in-class/timed assessment: Midterm(s), Final Exam, AND any Quiz (weekly reading quiz, in-class pop quiz, lecture quiz, lab-section quiz, etc.) — even a short, low-weight one. Only take-home coursework (problem sets, homework, labs, projects) belongs in "assignments". Give a quiz a short prepDays (2-3), not a Midterm/Final's longer one — it's a low-stakes, low-prep check, not a major exam.
 
-Example of a CORRECT response shape for a course with 8 weekly assignments and 3 exams (yours should look like this in structure, with real data from the syllabus):
+Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
 ],"assignments":[
   {"title":"Problem Set 1","dueDate":"2026-09-25","estimatedHours":2,"weight":3},
-  {"title":"Reading Quiz 1","dueDate":"2026-09-28","estimatedHours":0.5,"weight":2},
   {"title":"Problem Set 2","dueDate":"2026-10-02","estimatedHours":2,"weight":3},
   {"title":"Problem Set 3","dueDate":"2026-10-09","estimatedHours":2,"weight":3},
   {"title":"Problem Set 4","dueDate":"2026-10-16","estimatedHours":2,"weight":3},
@@ -518,6 +517,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 3
   {"title":"Problem Set 7","dueDate":"2026-11-13","estimatedHours":2,"weight":3},
   {"title":"Problem Set 8","dueDate":"2026-12-04","estimatedHours":2,"weight":3}
 ],"exams":[
+  {"title":"Reading Quiz 1","date":"2026-09-28","topics":"Ch 1","prepDays":2,"weight":2},
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
   {"title":"Final Exam","date":"2026-12-09","topics":"All chapters","prepDays":7,"weight":30}
@@ -527,9 +527,9 @@ Now extract the real data from the syllabi below, following that same exhaustive
 SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(t){
         const parsed=JSON.parse(t.replace(/```json|```/g,"").trim());
-        const{courses:reclassified,moved}=reclassifyMisplacedQuizzes(parsed.courses);
+        const{courses:reclassified,moved}=reclassifyQuizzesAsExams(parsed.courses);
         const p={...parsed,courses:reclassified};
-        if(moved>0)console.log(`StudyOS: reclassified ${moved} quiz-titled item(s) from exams to assignments (safety check, not an error)`);
+        if(moved>0)console.log(`StudyOS: reclassified ${moved} quiz-titled item(s) from assignments to exams (safety check, not an error)`);
         // Pause here — show the student what was found before anything is saved. finalizeSync()
         // (below) does the actual save, once they confirm (with any corrections) or cancel.
         setPendingVerify({parsed:p,fileNames});

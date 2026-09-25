@@ -1,5 +1,48 @@
 # StudyOS Changelog
 
+## v2.88.14 — 2026-09-25
+
+**Fix: quizzes now classify as exams; "Save & Replan" toast no longer masks a successful save**
+
+Real feedback after trying v2.88.13 on the actual DSC 10 file, three issues:
+
+1. **"it classified 'Quiz' as Homework, shall be an exam."** The extraction prompt (all 3 upload
+   flows) previously treated "exams" as Midterm(s)/Final only, deliberately demoting any
+   Quiz-titled item into "assignments" — a design choice from earlier in the project, now
+   reversed on direct request. Quizzes are graded, timed, in-class assessments (same category as
+   Midterms/Finals), not take-home coursework — they now classify as exams, with a shorter
+   `prepDays` (2-3) than a Midterm/Final gets. `lib/syllabus.js`'s deterministic safety net
+   (previously `reclassifyMisplacedQuizzes`, demoting quiz-titled exams → assignments) is now
+   `reclassifyQuizzesAsExams`, promoting the opposite direction — same purpose, correctness
+   guaranteed in code rather than left purely to the prompt. The "too many exams" sanity check in
+   `checkSyllabusExtraction` also assumed a high exam count meant quizzes were mislabeled; that
+   assumption is now backwards (a normal quiz-heavy course easily clears the old >6 threshold), so
+   it's now a generous >15 ceiling worded as a general sanity check, not an accusation.
+
+2. **"it did not extract all labs and all HW — please double check."** Re-verified by grepping the
+   full extracted text of the real PDF for every Lab/Homework/Problem-Set mention: the document
+   states outright, twice — "Lab assignments will usually be due on Tuesdays... refer to the
+   homepage of this website for the most up-to-date schedule" and the identical sentence for
+   Homeworks on Thursdays. There are no individually-dated Lab N / Homework N / Problem Set N
+   entries anywhere in this PDF — only the generic weekly pattern already extracted. This is a
+   real content gap in the source document, not an extraction miss; the per-item dates live on a
+   separate course-website "homepage" page that wasn't part of this upload.
+
+3. **"when I clicked on save, it did not [save]."** It always had — `finalizeSync` (the actual
+   save) has no dependency on this at all. The real bug: `refreshQuarterPlan()` (fired right after,
+   via "Plan Now") calls `toast2()` twice in a row — once with the real "Re-planned N days — all
+   scheduled 🎯" success message, then immediately with a term-end/last-deadline mismatch nudge.
+   `toast2()` only ever holds ONE toast (by design, see its own comment in `App.jsx`), so the
+   second call silently replaced the first before it ever rendered — and that second call was
+   styled as a persistent RED error with no success confirmation anywhere, reading exactly like a
+   failure. Fixed by folding the nudge into whichever toast actually fires (success or shortfall)
+   as an additional line, in amber ("needs attention"), never a separate call that can clobber the
+   real result.
+
+283/283 tests pass (2 new, covering `reclassifyQuizzesAsExams`'s promote direction and the raised
+exam-count sanity threshold). Build clean. Verified live against the real `DSC 10 updated.pdf` via
+the actual Update Syllabus diagnostic, not just unit tests.
+
 ## v2.88.13 — 2026-09-25
 
 **Fix: syllabus sync was truncating longer PDFs before reaching exams/grades, critical**

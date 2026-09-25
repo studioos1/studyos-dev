@@ -392,10 +392,24 @@ function App(){
       // shortfall summary never answered on its own.
       const totalBlocks=Object.values(placedByDate).reduce((s,b)=>s+b.length,0);
       const forcedItems=result.summaryItems.filter(it=>it.forced);
+      // Nudge if the typed term-end doesn't match the real last deadline — planning is fine either
+      // way (anchored on the deadline), but Finals Week / holidays / term status still use the date.
+      // Folded into whichever toast fires below, never its own separate toast2() call: toast2()
+      // only ever holds ONE toast (see its own comment above), so firing this as a second call
+      // right after the real result toast used to silently replace it — not add to it — the
+      // instant both ran in the same tick, so the student never actually saw the "re-planned
+      // successfully" confirmation, only this date nudge, styled as a persistent red error with no
+      // sign the plan (which had, in fact, already saved) had completed at all. Real, confirmed
+      // report from exactly this shape of case: "when I clicked save, it did not save" — it always
+      // had; only the confirmation was ever shown to say so.
+      const w=termRange.termEndWarning;
+      const termEndNote=w?`Term end is set ${w.gapDays} day${w.gapDays!==1?"s":""} ${w.direction} your last deadline (${w.lastDeadline}) — planning is fine either way, it's anchored on the deadline — double check School Info if that gap isn't intentional.`:null;
       if(result.shortfalls.length===0){
-        toast2(forcedItems.length
+        const msg=forcedItems.length
           ?`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. ⭐ ${forcedItems.length===1?`"${forcedItems[0].title}" is`:`All ${forcedItems.length} prioritised items are`} fully scheduled. 🎯`
-          :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
+          :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`;
+        if(termEndNote)toast2({title:msg,sub:termEndNote},true,"warning");
+        else toast2(msg);
       }else{
         const forcedShort=result.shortfalls.filter(it=>it.forced);
         const otherShort=result.shortfalls.filter(it=>!it.forced);
@@ -411,14 +425,14 @@ function App(){
             forcedShort.length&&otherShort.length?`+${otherShort.length} other item${otherShort.length!==1?"s":""} also short.`:null,
           ].filter(Boolean).join(" "),
           lines,
-          footer:`${result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:""}Check Courses → Study Preferences.`,
+          footer:[
+            result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:"",
+            "Check Courses → Study Preferences.",
+            termEndNote,
+          ].filter(Boolean).join(" "),
         },true,"warning");
         setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
-      // Nudge if the typed term-end doesn't match the real last deadline — planning is fine either
-      // way (anchored on the deadline), but Finals Week / holidays / term status still use the date.
-      const w=termRange.termEndWarning;
-      if(w)toast2(`Planned through your last deadline (${w.lastDeadline}). Your term end is set ${w.gapDays} day${w.gapDays!==1?"s":""} ${w.direction} that — fix it in School Info if it's wrong.`,true);
     }catch(err){
       console.error("StudyOS: refreshQuarterPlan() failed —",err);
       toast2("Couldn't refresh the plan ("+(err?.message||"unknown error")+")",true);
