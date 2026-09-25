@@ -1,5 +1,25 @@
 # StudyOS Changelog
 
+## v2.88.11 — 2026-09-25
+
+**Week-picker arrow actually moved off the edge this time**
+
+Real request: "the arrow is still at the original place - please fix the location as asked: move
+it slightly left to keep small space from the right edge."
+
+v2.88.10's plain right-padding didn't actually move the arrow — Chrome reserves a fixed-width
+native arrow gutter regardless of padding; padding only pushes the (centered) text further from
+it, confirmed by the student's own real-browser report. Back to a custom SVG arrow via
+`appearance:none`, but this time as ONE `background` shorthand string (color + image + no-repeat +
+position all in a single value) instead of separate `background`/`backgroundImage`/
+`backgroundRepeat`/`backgroundPosition` style keys — the split-property version is what produced
+v2.88.9's duplicate-arrow bug (a shorthand/longhand race between separate style-object writes).
+
+Verified this time by reading the actual computed style in the running page, not just a
+screenshot: exactly one `<select>` on the page, `imageCount: 1`, `background-repeat: no-repeat`,
+`background-position: calc(100% - 10px) 50%` — one arrow, 10px in from the right edge, nothing
+duplicated. Build clean, 281/281 tests pass.
+
 ## v2.88.10 — 2026-09-25
 
 **Fix: week-picker arrow duplication from the previous custom-chevron attempt**

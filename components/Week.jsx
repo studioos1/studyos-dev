@@ -396,19 +396,25 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
                 onClick={()=>setSelWeekIdx(i=>Math.max(0,i-1))} disabled={atFirst}>
                 <i className="ti ti-chevron-left"/>
               </button>
-              {/* Real request: the native dropdown arrow sat flush against the box's right edge —
-                  wanted moved in slightly, nothing more. A prior attempt swapped in a custom SVG
-                  chevron via appearance:none + background-image, which rendered as multiple
-                  stray arrows across the box on the student's real browser (didn't reproduce in
-                  this session's own testing, so evidently a real cross-browser risk not worth
-                  taking for a one-line spacing tweak). Reverted to the plain native <select>
-                  arrow — just with more right padding pushing it in from the edge. */}
+              {/* Real request: the native dropdown arrow sits flush against the box's right edge
+                  — move it in slightly, nothing more. Plain right-padding (tried first) doesn't
+                  actually move it: Chrome reserves a fixed-width native arrow gutter regardless
+                  of padding, it only pushes the (centered) text further from it. A custom SVG
+                  arrow via appearance:none was tried next, but split across separate
+                  background/backgroundImage/backgroundRepeat/backgroundPosition style keys — that
+                  produced multiple stray arrows on a real browser (React sets each as its own
+                  style-object write; background's shorthand-implied reset raced the later
+                  longhand writes intended to override it). This time the exact same technique is
+                  expressed as ONE background shorthand string — color, image, no-repeat and
+                  position all in a single value — so there's no separate shorthand/longhand pair
+                  left to race at all. */}
               <select value={clampedIdx} onChange={e=>setSelWeekIdx(+e.target.value)}
-                style={{fontSize:13,padding:"6px 20px 6px 8px",width:300,textAlign:"center",fontFamily:"inherit",
-                  background:isCurrentWeek?"var(--amber-bg)":"var(--card2)",
+                style={{fontSize:13,padding:"6px 24px 6px 8px",width:300,textAlign:"center",fontFamily:"inherit",
+                  background:`${isCurrentWeek?"var(--amber-bg)":"var(--card2)"} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='${encodeURIComponent(isCurrentWeek?"#cf9a48":"#6a8aaa")}' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center`,
                   color:isCurrentWeek?"var(--amber)":"var(--t1)",
                   fontWeight:isCurrentWeek?600:400,
-                  border:"1px solid var(--b1)",borderRadius:7,cursor:"pointer"}}>
+                  border:"1px solid var(--b1)",borderRadius:7,cursor:"pointer",
+                  appearance:"none",WebkitAppearance:"none",MozAppearance:"none"}}>
                 {termWeeks.map((w,i)=>(
                   <option key={w.index} value={i}>
                     {w.start.getTime()===todaySunday.getTime()?"This week · ":""}Week {w.index} of {termWeeks.length} · {fmtWeekRange(w.start)}
