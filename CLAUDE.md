@@ -10,14 +10,26 @@ not a one-time snapshot.
 A personal AI-powered study assistant, built for Itay (a UCSD Data Science student) by his parent
 Avishai, who is the sole developer and product decision-maker. Single-user, runs locally.
 
-**Stack:** Node.js/Express + React (Babel CDN — no build step) + JSON-file data store + Anthropic
-API proxied server-side. Runs via `npm start` on `localhost:3000`, working directory `~/studyos`.
+**Stack:** Next.js (Turbopack) + React, client components ("use client") — a real build step now,
+not the original Babel-CDN/no-build setup. Backend is Supabase (Auth + Postgres, RLS-scoped
+per-user data, `supabase/schema.sql`), replacing the original JSON-file store — `lib/data/store.js`
+is the one place that talks to it (`load()`/`save()`). Anthropic API proxied server-side. Runs via
+`npm start` on `localhost:3000`, working directory `~/studyos`. **Build/restart ordering matters
+and has burned real time twice in one session:** `npm run build` must run and complete BEFORE
+`lsof -ti :3000 | xargs kill -9 && nohup npm start &` — restarting from a build made before your
+latest edit (or, just as easily, editing `lib/version.js` for a version bump AFTER the last build)
+means the server silently serves stale code while every version number and log looks fine. Confirm
+the fix actually shipped by checking the server process's start *time* is after the build (`ps -o
+pid,lstart -p $(lsof -ti :3000 -sTCP:LISTEN)` vs `ls -la .next/BUILD_ID`), not just that the build
+succeeded — and killing by `lsof -ti :3000`, not a name-pattern `pkill`, which has separately failed
+to find the actual `npm start`/`next-server` process more than once.
 
 **Working style:** brainstorm briefly in plain language → confirm exact behavior/edge cases →
-isolated tests → real-server smoke tests (never claim correctness from syntax validation alone) →
-version bump + CHANGELOG entry + zip package for every meaningful change. Avishai gives direct,
-specific feedback and actively cross-checks stated behavior against actual code — he catches
-inconsistencies precisely, so don't hand-wave.
+isolated tests (`npx vitest run`) → real-server smoke tests (never claim correctness from syntax
+validation alone) → version bump + CHANGELOG entry → commit (scratch file + `git commit -F`) on a
+feature branch → push, every meaningful change — no zip packaging, that was the pre-Next.js
+workflow. Avishai gives direct, specific feedback and actively cross-checks stated behavior against
+actual code — he catches inconsistencies precisely, so don't hand-wave.
 
 **Explicit standing preference:** "avoid inconsistency of AI and use as possible deterministic
 method" — prefer deterministic logic over AI calls wherever the two could achieve the same result.
@@ -51,25 +63,70 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 - **Completion guarantee:** `preflightRiskCheck()` does whole-horizon feasibility simulation before
   committing to a plan. Shortfalls are always surfaced explicitly (never silently dropped).
 
-### Multi-school / multi-term system (added late in the session)
-- `data.schools[]` / `data.terms[]` are the real source of truth for term history.
+### Multi-school / multi-term system
+- `data.schools[]` / `data.terms[]` (`lib/data/terms.js`) are the real source of truth for term
+  history. Current work lives on branch `feature/term-status-manual` (stacked, unmerged PR bundle
+  with the B-07 + planner work — see git log, not yet deployed).
+- **Term status is a STORED, user-set field now — `"current" | "upcoming" | "archived"` —
+  NOT derived from dates.** This is a deliberate reversal of the original design (below is what it
+  used to be, kept as a warning against reintroducing it): status used to be 100% date-computed via
+  `computeTermStatuses()`, on purpose, so it couldn't drift out of sync. Real request that reversed
+  it: "remove the function to close current term... instead we need a function to set a term to
+  Active... ONLY ONE can be set to Current." The student now explicitly sets which term is Current
+  via School Info's inline status editor (see below); `computeTermStatuses()` today just reads each
+  term's stored `status`, defaulting a term with none to `"upcoming"` (`migrateTermStatusIfNeeded`
+  backfills existing accounts once). Changing status never touches a term's own
+  courses/assignments/exams — every consumer scopes by `termId`, so a term's data just sits exactly
+  as it was regardless of status.
+- **School Info's status editor is inline, not a popup** (`components/SchoolInfo.jsx`) — clicking
+  "Change Status" toggles edit mode on the term cards already on the page: each shows its status in
+  color plus the other two as gray clickable pills, staged locally (`draftStatuses`) until "Save
+  States" commits them. Picking Current on one term auto-demotes whichever term was Current in the
+  draft to Archive — enforced live, no confirm popup (a popup-based version was explicitly removed
+  per request). A Current term **cannot be deleted directly** — `deleteTermEntirely` blocks it with
+  a toast telling the student to change status first, no confirm dialog even opens.
 - **Mirror pattern:** `profile.termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar`
   stay in place as fields, auto-synced to whichever term is "current" via
-  `syncActiveTermToProfilePatch()`. Every existing consumer of those profile fields (the planner,
-  `getTermRange()`, `isFin()`/`isHol()`, WeekGrid) works unchanged — they just always reflect the
-  active term now.
-- Term status (`Completed` / `Current` / `Upcoming`) is **always derived from dates**, never
-  stored — `computeTermStatuses()`. A term becomes Current the moment the previous one's end date
-  passes, even before its own start date arrives.
+  `syncActiveTermToProfilePatch()` — which must actively CLEAR those fields when no term is
+  Current, not just leave them stale (real shipped bug: deleting the last term left the header
+  still showing it). Every existing consumer of those profile fields (the planner, `getTermRange()`,
+  `isFin()`/`isHol()`, WeekGrid) works unchanged — they just always reflect the active term now.
 - **`termScopedForPlanning(data)` is critical and easy to forget.** It filters
   courses/assignments/exams to just the current term before anything planning-related touches
   them. Without it, the planner and calendar display would consider *every* course ever created,
-  including years-old completed terms — this was a real, shipped bug (fixed in v2.32.0/v2.34.0).
+  including years-old archived terms — this was a real, shipped bug (fixed in v2.32.0/v2.34.0).
   Apply it at every point data enters term-sensitive logic: both `planHorizon()` call sites,
   inside `buildBlocks()` itself (not at each caller), and at the top of `Today`.
 - One-time legacy migration (`migrateLegacyTermIfNeeded`) synthesizes a school+term from old
   single-term profile fields on first load, and backfills `termId` onto any existing untagged
-  course — without the backfill, real existing data silently vanishes from term-filtered views.
+  course. **Guarded by a permanent `termsInitialized` flag** (set the moment an account first gets
+  a real term, backfilled onto existing accounts) — without it, this migration re-fires the moment
+  `terms[]` goes empty again (e.g. after deleting the last term) and resynthesizes a "new" term
+  from whatever stale profile fields haven't been cleared yet, resurrecting a term the student just
+  deleted. This was a real, shipped, two-layer bug — don't remove the guard.
+- **`studyPlan`/`completionLog`/`pomodoroLogs` are NOT termId-tagged — flat, date-keyed stores
+  shared across every term.** This is the biggest open gap for the term-switching feature below: a
+  term only "owns" a date range, not a real data partition. `scrubTermSchedule()`
+  (`components/SchoolInfo.jsx`) is the one place that reconciles this — used by Reset/Delete term
+  AND by term creation (so a brand-new term doesn't inherit a stale plan sitting on its dates from
+  whatever was Current before) — it drops `studyPlan` blocks and log entries by date range
+  (matching the owning term's start/end), not by any real per-term partition. Calendar's own
+  week/month *navigation* range (`components/Week.jsx`) reads the term's raw typed start/end
+  (`getTermRange`) directly — NOT `planningRange()`, which is deadline-anchored (last real
+  assignment/exam due date, not the typed term-end) and exists purely so a mistyped Term End can't
+  give the AI planner a pointless empty tail to schedule into. Conflating those two ranges was a
+  real, shipped bug: a freshly-synced term with only its first few items entered had its entire
+  calendar chopped down to just those couple of weeks.
+- **Known next step, explicitly requested but not yet built: switching which term's data is
+  VIEWED.** Real request from earlier in this session: "later, we shall allow user to switch
+  between terms and display EXACTLY as left" — deliberately deferred once already ("yes lets wait
+  with the view-switching"). Given the studyPlan/log isolation gap above, this needs either (a) real
+  per-term partitioning of studyPlan/completionLog/pomodoroLogs (the structurally correct fix, more
+  work), or (b) a viewing-scope layer that filters/derives a term-specific view from the existing
+  flat stores using `scrubTermSchedule`-style date-range + courseId logic (faster, keeps today's
+  data shape). Acad.jsx briefly had an in-tab term switcher from an earlier pass in this area and
+  it was explicitly removed ("revert to the original page design") — re-adding term-switching UI
+  should be a deliberate, scoped feature, not a repeat of that.
 
 ### Today tab
 - `realDayBlocks(data, dateStr)` is the single source of truth for "what does the real plan say
@@ -156,6 +213,24 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Known backlog (not yet built)
 
+- **Open, actively being investigated: syllabus-sync extraction miss on the real account's Fall
+  2026 DSC 10.** Real report: "the doc we uploaded for DSC10 include only few HW, no tests and
+  most of the weeks has only the class time." Confirmed live so far, not yet root-caused: the sync
+  record shows the uploaded file was named `DSC 10 updated.pdf`, synced with exactly 4 items added
+  — all first-week administrative tasks (Join Campuswire, Check Gradescope Access, Syllabus Check,
+  Welcome Survey), all due the same date, no weight, no exams. The course's own difficulty/hours
+  DID get correctly web-researched (`CI()` in the sync flow, `components/Acad.jsx` around
+  `syncSyl`) — this isn't that gap. Two live possibilities not yet distinguished: (1) the source
+  PDF genuinely only contains those first-week logistics items (the "updated" in the filename
+  suggests a short administrative update doc, not the full syllabus) — in which case there's
+  nothing to fix, the student needs to upload the real syllabus; or (2) the AI extraction is
+  missing real content that IS in the PDF. The built-in "Show Raw AI Extraction" diagnostic
+  (Update Syllabus tab, re-upload same file, nothing saved) is the tool to tell these apart —
+  hasn't been run yet since the original PDF file isn't available in this session. Start there.
+- **Known next step, explicitly requested, not yet built: term-switching (viewing).** See the
+  studyPlan/completionLog/pomodoroLogs isolation gap and the "Known next step" note in the
+  Multi-school/multi-term section above — this is the real prerequisite/design question before
+  building the switcher UI itself.
 - ~~`webDifficultySignal()`~~ — done (B-01): `/api/course-info` now runs real web search per new
   course (not per item — the old per-item stub was removed), self-reports a confidence level
   (low/medium/high) + rationale since real grade-distribution data is usually login-gated, and
@@ -233,7 +308,17 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 2. Before any UI/logic change: check current behavior in code first, don't assume.
 3. After any change: syntax-validate, isolated-test the core logic where feasible, then a real
    server smoke test (`npm start` + `curl`) — "the file parses" is not "it works."
-4. Version bump (`APP_VERSION` in `app.js`) + CHANGELOG.md entry + repackage, every time.
+4. Version bump (`APP_VERSION` in `lib/version.js`, not `app.js`) + CHANGELOG.md entry, every time
+   — see the Stack section above for the build-before-restart ordering that has to go with this.
 5. If a fix doesn't match what was asked (this happened more than once this session with a UI
    layout request) — re-read the actual reference/screenshot literally rather than iterating on
    assumptions. Ask directly if genuinely ambiguous rather than guessing again.
+6. **For any visual/CSS fix, verify against the actual computed state before calling it done —
+   `getComputedStyle`/DOM inspection, or precise measurement (e.g. canvas `measureText` for
+   text-fit questions) — not just a screenshot that happens to look right in one browser session.**
+   A one-line request ("move a select's native dropdown arrow off the edge") took 4 shipped
+   versions to actually land because early attempts guessed at browser rendering behavior (does
+   padding move a native `<select>` arrow? does a split `background`/`backgroundImage`/
+   `backgroundRepeat` style object render as one image, or race and duplicate?) and shipped on a
+   screenshot instead of checking computed state first. The one attempt that measured first worked
+   in a single pass.
