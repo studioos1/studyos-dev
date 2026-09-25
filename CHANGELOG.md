@@ -1,5 +1,45 @@
 # StudyOS Changelog
 
+## v2.88.15 — 2026-09-25
+
+**Extraction: never invent a due date; block a fabricated same-date item series before saving**
+
+Real report: "only loaded 6 homework assignments and all are due on 10/29. this is wrong." Could
+not reproduce this exact shape live (5 direct-API test runs across all 3 DSC10-related files in
+Downloads — the real syllabus, its original pre-update version, and a "from GPT" meta/analysis
+document — consistently returned either the correct 4-5 real admin items or a `null` date for
+categories the source never actually dates, never a fabricated uniform schedule). But the root
+cause is real and visible directly in the prompt: rules 1/3/4 ("extract EVERY dated item... you
+must return 8 separate entries... make sure your output has that many") apply blanket pressure to
+produce N dated entries regardless of whether N real dates actually exist in the source — exactly
+the situation this DSC10 syllabus is in for its weekly labs/homework (confirmed, again, by grepping
+the full extracted text: it states outright, twice, that those dates live on a separate
+course-website page not included in the upload). That's a real hallucination risk even if this
+specific attempt to reproduce it came back clean — LLM outputs aren't fully deterministic, and the
+report is real user-observed behavior on a real file.
+
+Fixed two ways, prompt + deterministic backstop (belt and suspenders, since the prompt alone was
+already relied on for this and evidently isn't 100% reliable):
+- **Prompt (all 3 upload flows):** new rule 9 makes explicit that rules 1/3/4 apply ONLY to items
+  whose real due date is actually written in the source — never license to fabricate one. If a
+  recurring category is described only in general terms ("due weekly, see the course website for
+  the exact schedule") with no individual dates ever stated, the model should omit that category
+  entirely rather than invent a schedule. Names the specific failure shape directly: several
+  differently-numbered items (Homework 1, Homework 2, ...) sharing one identical date is called out
+  as the tell that a schedule is being guessed, not read.
+- **Deterministic backstop (`checkSyllabusExtraction`, `lib/syllabus.js`):** new check groups items
+  by "base title" (numbers stripped) + exact due date; 3+ items sharing both is flagged as an
+  **error** — surfaced as a hard red "This extraction looks wrong" banner with a re-upload button in
+  `ExtractionVerifyModal`, *before* anything can be saved. This is the "verify it's reasonable" step
+  — real numbered series (Homework 1/2/3 on genuinely different weekly dates) don't trigger it; a
+  real one-off cluster of distinctly-named items sharing one date (the legitimate first-week admin
+  tasks) doesn't either, since their titles don't share a common numbered base.
+
+Labs/homework dates for the real DSC10 file remain correctly unextracted — re-confirmed, not a
+regression: the source document genuinely never states them.
+
+286/286 tests pass (5 new, covering the new check's true-positive/true-negative cases). Build clean.
+
 ## v2.88.14 — 2026-09-25
 
 **Fix: quizzes now classify as exams; "Save & Replan" toast no longer masks a successful save**
