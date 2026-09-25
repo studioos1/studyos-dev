@@ -105,17 +105,27 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // assignments/exams get cleared below) — the exact same approach this session already proved
   // out for the close-term studyPlan leak. pomodoroLogs carries no course reference at all, so
   // it's matched by the term's own date range as a fallback.
+  // Real request (term creation): "I created a new term and it shows study plan. The logic of
+  // creating new term is based on one simple foundation - create a NEW FRESH ISOLATED data
+  // model." studyPlan/completionLog/pomodoroLogs aren't termId-tagged — they're flat, date-keyed
+  // stores shared across every term — so a block used to only get scrubbed here when its courseId
+  // matched termCourseIds. That leaves a real gap for anything with NO course match: a brand-new
+  // term has zero courses (termCourseIds is empty), so the old courseId-only filter was a total
+  // no-op for studyPlan, and any block that happened to fall on one of its dates (left over from
+  // whatever was Current before) bled straight through as if it belonged to the new term. Blocks
+  // are now ALSO dropped by date range, exactly like completionLog/pomodoroLogs already were,
+  // so "this date range belongs to this term" holds consistently for all three stores.
   function scrubTermSchedule(t,termCourseIds){
+    const inRange=d=>d&&t.start&&t.end&&d>=t.start&&d<=t.end;
     const weeks={};
     Object.entries(data.studyPlan?.weeks||{}).forEach(([weekStart,week])=>{
       const days={};
       Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-        const kept=(blocks||[]).filter(b=>!(b.courseId!=null&&termCourseIds.has(b.courseId)));
+        const kept=(blocks||[]).filter(b=>!(b.courseId!=null&&termCourseIds.has(b.courseId))&&!inRange(dateStr));
         if(kept.length)days[dateStr]=kept;
       });
       if(Object.keys(days).length)weeks[weekStart]={...week,days};
     });
-    const inRange=d=>d&&t.start&&t.end&&d>=t.start&&d<=t.end;
     return{
       studyPlan:{weeks},
       completionLog:(data.completionLog||[]).filter(e=>!(termCourseIds.has(e.courseId)||inRange(e.actualCompletedAt?.slice(0,10)))),
@@ -243,11 +253,24 @@ export function SchoolInfo({data,upd,updP,toast2}){
       // status:"upcoming" — real request: "user set the term name, dates... and default shall be
       // 'Upcoming'." A brand-new term never starts Current on its own; that's always an explicit
       // choice made afterward via "Change Status" below.
-      patch.terms=[...(data.terms||[]),{id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming"}];
+      const newTerm={id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming"};
+      patch.terms=[...(data.terms||[]),newTerm];
       // Permanently marks this account as having entered the real terms system, so
       // migrateLegacyTermIfNeeded can never resurrect a deleted term from stale profile fields
       // later — see the comment on that guard in lib/data/terms.js.
       patch.termsInitialized=true;
+      // Real request: "create a NEW FRESH ISOLATED data model" — a brand-new term has zero
+      // courses of its own (empty Set below), so this purely date-scrubs any leftover
+      // studyPlan/completionLog/pomodoroLogs sitting on dates inside the new term's range —
+      // e.g. from whatever term was Current when that schedule was generated — so the term
+      // genuinely starts empty rather than inheriting someone else's plan the moment its dates
+      // happen to be looked at. Skipped for the one case where that range is a DELIBERATE
+      // overlap with the real Current term (checkOverlapAndProceed already warned and the
+      // student chose "Continue anyway") — scrubbing there would silently wipe the active
+      // term's own real, in-use schedule for the shared dates, which is a materially bigger and
+      // less obvious loss than the stale-leftover-plan bug this exists to fix.
+      const overlapsCurrent=currentTerm&&datesOverlap(newTerm.start,newTerm.end,currentTerm.start,currentTerm.end);
+      if(!overlapsCurrent)Object.assign(patch,scrubTermSchedule(newTerm,new Set()));
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);

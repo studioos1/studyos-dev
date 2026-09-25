@@ -1,5 +1,32 @@
 # StudyOS Changelog
 
+## v2.88.7 — 2026-09-25
+
+**New terms start with a genuinely fresh, isolated schedule**
+
+Real request: "I created a new term and it shows study plan. The logic of creating new term is
+based on one simple foundation - create a NEW FRESH ISOLATED data model."
+
+- Root cause: `studyPlan`/`completionLog`/`pomodoroLogs` aren't termId-tagged — they're flat,
+  date-keyed stores shared across every term. `scrubTermSchedule` (used by Reset data/Delete term,
+  v2.88.1) only dropped `studyPlan` blocks whose `courseId` matched the term's own courses. A
+  brand-new term has zero courses, so that filter was a complete no-op for it — any block sitting
+  on one of its dates (left over from whatever was Current when it was generated) bled straight
+  through as if it belonged to the new term.
+- `scrubTermSchedule` now ALSO drops `studyPlan` blocks purely by date range, exactly like
+  `completionLog`/`pomodoroLogs` already did — "this date range belongs to this term" now holds
+  consistently across all three stores.
+- Creating a term (**Add term**) now runs this same scrub over its own date range at creation
+  time, so it starts genuinely empty rather than only getting cleaned up later via Reset/Delete.
+  Skipped for the one case where the new term's dates deliberately overlap the real Current term
+  (the existing overlap warning was already accepted) — scrubbing there would silently wipe the
+  active term's own real schedule instead of just the intended leftover data.
+
+Verified live: found the account's real Fall 2026 term (0 courses, Current) still showing 177
+AI-planned blocks for courses it never owned — genuine leftover data from before this fix existed;
+cleared it via Calendar's "Clear plan," confirmed Today/Calendar now correctly show nothing
+scheduled. Build clean, 281/281 tests pass.
+
 ## v2.88.6 — 2026-09-25
 
 **Current term can't be deleted directly — change status first**
