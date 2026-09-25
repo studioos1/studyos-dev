@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.88.9 — 2026-09-25
+
+**Calendar week-picker chevron no longer touches the edge**
+
+Real request: "the week selection in the calendar view has a small arrow on the right for a drop
+down selection - this arrow is touching the right border of the week's box - please move it
+slightly away from the edge and keep there some space."
+
+- The week picker is a native `<select>`, whose built-in dropdown arrow Chrome renders flush
+  against the box edge regardless of padding. Replaced it with our own small chevron (matching the
+  two other custom dropdown chevrons already in this file), drawn with real space between it and
+  the border — the native arrow is suppressed (`appearance:none`) rather than padded around, since
+  padding alone can't reliably move it. Left padding widened to match, so the centered week label
+  stays visually centered against the new icon gutter.
+
+Purely visual — the control is still the same native `<select>`, same click-to-open behavior, same
+amber highlight for the current week. Build clean, 281/281 tests pass.
+
 ## v2.88.8 — 2026-09-25
 
 **Calendar now browses the whole term, not just its early deadlines**
