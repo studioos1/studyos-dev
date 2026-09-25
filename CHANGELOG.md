@@ -1,5 +1,70 @@
 # StudyOS Changelog
 
+## v2.88.18 — 2026-09-25
+
+**Fix: "Reset academic data" now clears this term's calendar too, not just Courses**
+
+Real report: "after 'reset academic' data of this term - the calendar still show study plans...
+Reset academic data shall erase all data under 'Courses' and the entire study plan of this term."
+
+Root cause: two separate, parallel implementations of "reset this term's academic data" existed —
+School Info's own per-term Reset (`resetTermData`, correct: already scrubbed studyPlan/
+completionLog/pomodoroLogs via a shared `scrubTermSchedule` helper) and Academics' "Reset academic
+data" (`resetAcademic`, Courses → Update Syllabus — cleared only courses/assignments/exams, never
+touched the calendar at all). The two silently drifted apart; a stale comment in School Info's own
+code had even (incorrectly) assumed Academics' version already handled this.
+
+Fixed by moving `scrubTermSchedule` out of `SchoolInfo.jsx` into the shared `lib/data/terms.js`
+(exported, now the one place this logic can live — matching the project's own stated principle),
+and having `resetAcademic` use it too. Deliberately narrower than School Info's Reset here, on
+direct confirmation: only the `studyPlan` half is applied — `completionLog`/`pomodoroLogs` are left
+alone, preserving this function's own existing, explicit promise that History and habit logs
+(gym/check-ins/focus sessions) are never touched by it. The two reset actions remain intentionally
+different in scope; only the calendar-clearing gap was a real bug.
+
+312/312 tests pass (7 new, covering `scrubTermSchedule` directly for the first time — it previously
+had no tests of its own, only inline in a component). Build clean.
+
+## v2.88.17 — 2026-09-25
+
+**Extraction: deterministic weekly-pattern date generation (e.g. "Labs due every Tuesday")**
+
+Working through the extractionNotes gap list one at a time (real ask, closing gaps deterministically
+where possible): the first two — Lab Assignments and Homework Assignments — aren't actually
+unknowable. The syllabus states "usually due Tuesdays" / "usually due Thursdays" outright; that's a
+real stated pattern, not a guess, genuinely different from the case rule 9 protects against
+(inventing a plausible individual date with no textual basis). The weekday is known; only the exact
+term-week count wasn't given explicitly. That's a job for deterministic date math over the
+student's own real term calendar, not for the AI to either fabricate or silently drop — the same
+principle this app already applies everywhere else a date gets derived (`planningRange`,
+`scrubTermSchedule`, etc.).
+
+- **`expandRecurringSeries` (`lib/syllabus.js`):** takes a generic `{title, dayOfWeek, weightTotal}`
+  pattern (no course-specific logic anywhere) and a term's real `{termStart, lastDeadline}` bounds,
+  and generates one dated instance per matching weekday. Two defensible, documented, generalized
+  defaults: skip the first occurrence if it falls within 6 days of term start (nothing can be due
+  before the course has released material for it), and stop strictly before the course's own last
+  real deadline (nothing routine is normally due on/after finals) — falling back to a generous ~17
+  week ceiling only when no deadline is known at all. Weight splits evenly across generated
+  instances. Sanity-checked against DSC10's real Fall 2026 dates: Lab 1 → Oct 6, Homework 1 → Oct 1
+  (both correctly skip the term-start week), 9 labs / 10 homeworks, all landing before the Dec 5
+  final — a genuinely plausible real schedule from zero course-specific tuning.
+- **`applyRecurringSeries`:** the courses[]-level merge (same shape-in/shape-out pattern as
+  `reclassifyQuizzesAsExams`) — expands each course's AI-reported `recurringSeries` entries and
+  folds the generated items into that course's `assignments`, anchoring the end bound to that
+  course's own last exam date when available.
+- **Extraction prompt rule 11 (all 3 upload flows, including `Onboard.parseSyl` — which had never
+  gotten the v2.88.14 quiz-reclassification fix either; closed that gap too while touching this
+  code, so all three entry points into the same pipeline stay in sync instead of silently
+  drifting):** the AI now returns a stated weekly pattern as a `recurringSeries` entry — never as
+  guessed individual dates, never dropped into `extractionNotes` either.
+- **UI:** generated rows carry a `↻ generated` badge in `ExtractionVerifyModal` (tooltip explains
+  why, prompts a double-check) — never silently indistinguishable from an explicitly-dated item.
+  The raw-extraction diagnostic shows the pattern itself plus a live count preview, without
+  expanding it — that view stays truthful to "what the AI actually returned."
+
+306/306 tests pass (14 new). Build clean.
+
 ## v2.88.16 — 2026-09-25
 
 **Extraction completeness: deterministic source cross-check + AI's own gap self-report, before saving**

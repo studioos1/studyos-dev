@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { computeTermStatuses, datesOverlap } from "@/lib/data";
+import { computeTermStatuses, datesOverlap, scrubTermSchedule } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -91,48 +91,16 @@ export function SchoolInfo({data,upd,updP,toast2}){
     });
   }
 
-  // Resets one term's own academic data back to empty — same "clear this term only" concept
-  // Courses' own "Reset academic data" already has (viewingTermId-scoped there), just reachable
-  // per-term here in School Info instead of only for whichever term Courses happens to be
-  // viewing. Real request: "reset data (with confirmation) > it will erase all academic data back
-  // to clear as newly created term." Never touches any OTHER term's data, profile, or habit logs.
+  // Resets one term's own academic data back to empty — same "clear this term only" concept as
+  // Courses' own "Reset academic data" (Acad.jsx), just reachable per-term here in School Info
+  // instead of only for whichever term Courses happens to be viewing. Real request: "reset data
+  // (with confirmation) > it will erase all academic data back to clear as newly created term."
+  // Never touches any OTHER term's data, profile, or habit logs.
   //
-  // Also scrubs data.studyPlan/completionLog/pomodoroLogs of anything belonging to this term's
-  // courses — real reported bug: "I deleted all terms, and still showing term [schedule]... the
-  // delete function should REMOVE the isolated data model of that term." studyPlan/completionLog
-  // carry no termId of their own (a known, deferred gap — see the "proper DB design" discussion),
-  // so blocks/completions are matched by courseId instead, computed HERE (before courses/
-  // assignments/exams get cleared below) — the exact same approach this session already proved
-  // out for the close-term studyPlan leak. pomodoroLogs carries no course reference at all, so
-  // it's matched by the term's own date range as a fallback.
-  // Real request (term creation): "I created a new term and it shows study plan. The logic of
-  // creating new term is based on one simple foundation - create a NEW FRESH ISOLATED data
-  // model." studyPlan/completionLog/pomodoroLogs aren't termId-tagged — they're flat, date-keyed
-  // stores shared across every term — so a block used to only get scrubbed here when its courseId
-  // matched termCourseIds. That leaves a real gap for anything with NO course match: a brand-new
-  // term has zero courses (termCourseIds is empty), so the old courseId-only filter was a total
-  // no-op for studyPlan, and any block that happened to fall on one of its dates (left over from
-  // whatever was Current before) bled straight through as if it belonged to the new term. Blocks
-  // are now ALSO dropped by date range, exactly like completionLog/pomodoroLogs already were,
-  // so "this date range belongs to this term" holds consistently for all three stores.
-  function scrubTermSchedule(t,termCourseIds){
-    const inRange=d=>d&&t.start&&t.end&&d>=t.start&&d<=t.end;
-    const weeks={};
-    Object.entries(data.studyPlan?.weeks||{}).forEach(([weekStart,week])=>{
-      const days={};
-      Object.entries(week.days||{}).forEach(([dateStr,blocks])=>{
-        const kept=(blocks||[]).filter(b=>!(b.courseId!=null&&termCourseIds.has(b.courseId))&&!inRange(dateStr));
-        if(kept.length)days[dateStr]=kept;
-      });
-      if(Object.keys(days).length)weeks[weekStart]={...week,days};
-    });
-    return{
-      studyPlan:{weeks},
-      completionLog:(data.completionLog||[]).filter(e=>!(termCourseIds.has(e.courseId)||inRange(e.actualCompletedAt?.slice(0,10)))),
-      pomodoroLogs:(data.pomodoroLogs||[]).filter(p=>!inRange(p.date)),
-    };
-  }
-
+  // Also scrubs data.studyPlan/completionLog/pomodoroLogs via the shared scrubTermSchedule
+  // (lib/data/terms.js — see its own comment for why this needs date-range matching, not just
+  // courseId) — real reported bug: "I deleted all terms, and still showing term [schedule]... the
+  // delete function should REMOVE the isolated data model of that term."
   async function resetTermData(t){
     const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
     const courseCount=termCourseIds.size;
@@ -145,7 +113,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      ...scrubTermSchedule(t,termCourseIds),
+      ...scrubTermSchedule(data,t,termCourseIds),
       ...(t.status==="current"?{briefCache:null,briefPeriod:null}:{}),
     });
     toast2(`"${t.name}" reset — back to a clean, newly-created term.`);
@@ -180,7 +148,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      ...scrubTermSchedule(t,termCourseIds),
+      ...scrubTermSchedule(data,t,termCourseIds),
     });
     toast2(`"${t.name}" deleted.`);
   }
@@ -270,7 +238,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       // term's own real, in-use schedule for the shared dates, which is a materially bigger and
       // less obvious loss than the stale-leftover-plan bug this exists to fix.
       const overlapsCurrent=currentTerm&&datesOverlap(newTerm.start,newTerm.end,currentTerm.start,currentTerm.end);
-      if(!overlapsCurrent)Object.assign(patch,scrubTermSchedule(newTerm,new Set()));
+      if(!overlapsCurrent)Object.assign(patch,scrubTermSchedule(data,newTerm,new Set()));
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);

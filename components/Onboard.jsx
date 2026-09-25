@@ -6,7 +6,7 @@ import { iso, f12, t2m, m2t } from "@/lib/time";
 import { DS, DF, CC, FOCUS_MIN_OPTIONS, BREAK_MIN_OPTIONS, GYM_DUR_OPTIONS } from "@/lib/constants";
 import { GYM0, getActiveTermAndSchool, uid } from "@/lib/data";
 import { fetchCollegeCalendar, applyCollegeCalendarResult } from "@/lib/colleges";
-import { checkScheduleExtraction, checkSyllabusExtraction } from "@/lib/syllabus";
+import { checkScheduleExtraction, checkSyllabusExtraction, reclassifyQuizzesAsExams, applyRecurringSeries } from "@/lib/syllabus";
 import { Sp, SecHead, CollegeAutocomplete, PdfDrop, DelBtn, DayPick, ExtractionIssues } from "@/components/shared";
 
 // ── ONBOARDING ───────────────────────────────────────────────────────────────
@@ -127,9 +127,10 @@ CRITICAL RULES:
 7. Also extract the class meeting schedule if stated (often in a "Format:" line, e.g. "Lecture: Mon/Wed/Fri, 10:00–10:50 AM, Center Hall 101"). Return days as an array of 0-6 (0=Sunday, 1=Monday, ... 6=Saturday), and times in 24-hour HH:MM format. If a discussion/lab section is also listed, include it as a second entry in meetingTimes. If no meeting schedule is stated anywhere in the syllabus, return an empty meetingTimes array — do not guess or invent one.
 8. The "exams" list covers every in-class/timed assessment: Midterm(s), Final Exam, AND any Quiz (weekly reading quiz, in-class pop quiz, lecture quiz, lab-section quiz, etc.) — even a short, low-weight one. Only take-home coursework (problem sets, homework, labs, projects) belongs in "assignments". Give a quiz a short prepDays (2-3), not a Midterm/Final's longer one — it's a low-stakes, low-prep check, not a major exam.
 9. NEVER invent or guess a due date. Rules 1/3/4 above ("extract every dated item", "count them", "return that many entries") apply ONLY to items whose real due date is actually written in the source text — they are not license to fabricate one. If the syllabus describes a recurring assignment type in general terms (e.g. "Labs are due weekly on Tuesdays — see the course website for the exact schedule") without ever stating a real calendar date for any individual instance, omit that whole category rather than guessing dates for it — return fewer items, or none for that category, rather than a fabricated schedule. A hard tell that you're about to invent dates: giving several differently-numbered items (Homework 1, Homework 2, Lab 3, ...) the exact same due date — a real weekly series is never all due on one day. If you notice that pattern in your own answer before responding, delete those entries instead of returning them.
-10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Labs — no individual dates stated, syllabus points to a separate course-website calendar for the schedule"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array.
+10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Midterm Project — mentioned but no due date stated anywhere in this document"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array. A category with an explicit recurring weekly day-of-week pattern (e.g. "due every Tuesday") is NOT an extractionNotes case — see rule 11.
+11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
 
-Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight, and extractionNotes explains the one category with no real per-item dates in the source (yours should look like this in structure, with real data from the syllabus):
+Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
@@ -147,14 +148,20 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
   {"title":"Final Exam","date":"2026-12-09","topics":"All chapters","prepDays":7,"weight":30}
-],"extractionNotes":["Labs — no individual dates stated in this document, only a generic weekly pattern; points to the course homepage for the real schedule"]}]}
+],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
 SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
       if(r){
         const parsed=JSON.parse(r.replace(/```json|```/g,"").trim());
-        setPSyl(parsed);
-        setSylIssues(checkSyllabusExtraction(parsed,{courses:data.courses,termStart:p.termStart,termEnd:p.termEnd,sourceText:texts.join("\n")}).issues);
+        // Same deterministic post-processing as Acad's syncSyl — this is a second, independent
+        // entry point into the same extraction pipeline, so it needs the same fixes, not a
+        // parallel copy that silently drifts out of sync with them.
+        const{courses:reclassified}=reclassifyQuizzesAsExams(parsed.courses);
+        const{courses:withRecurring}=applyRecurringSeries(reclassified,{termStart:p.termStart,termEnd:p.termEnd});
+        const fixed={...parsed,courses:withRecurring};
+        setPSyl(fixed);
+        setSylIssues(checkSyllabusExtraction(fixed,{courses:data.courses,termStart:p.termStart,termEnd:p.termEnd,sourceText:texts.join("\n")}).issues);
       }
     }catch{toast2("Couldn't parse",true);}
     setParsing(false);

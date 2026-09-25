@@ -37,7 +37,7 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
       const course=courses.find(x=>x.name===c.courseName);
       (c.assignments||[]).forEach((a,ai)=>{
         const dup=course?findProbableDuplicate(existingAssignments,course.id,a.title,a.dueDate,"dueDate"):null;
-        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null});
+        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null,generated:!!a.generated});
       });
       (c.exams||[]).forEach((e,ei)=>{
         const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date"):null;
@@ -158,7 +158,18 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
                       </select>
                     </td>
                     <td style={{padding:"7px 8px"}}>
-                      <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)} style={{fontSize:13,padding:"4px 6px",width:"100%"}}/>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)} style={{fontSize:13,padding:"4px 6px",width:"100%"}}/>
+                        {/* Generated from a stated weekly recurring pattern (rule 11 /
+                            expandRecurringSeries), not a date the AI read directly off the page —
+                            real distinction the student should see before trusting the date. */}
+                        {r.generated&&(
+                          <span className="tt" data-tt="Generated from a stated weekly pattern (e.g. 'due every Tuesday') — not an explicit date in the document. Double-check it, especially the first/last few."
+                            style={{flexShrink:0,fontSize:10,padding:"2px 6px",borderRadius:5,background:"var(--blue-bg)",color:"var(--blue)",whiteSpace:"nowrap"}}>
+                            ↻ generated
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{padding:"7px 8px"}}>
                       <input type="date" value={r.date||""} onChange={e=>updateRow(r.key,"date",e.target.value)} style={{fontSize:12,padding:"4px 6px"}}/>
