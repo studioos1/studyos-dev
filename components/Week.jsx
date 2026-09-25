@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
-import { GYM0 } from "@/lib/data";
-import { planningRange } from "@/lib/planningRange";
+import { GYM0, getTermRange } from "@/lib/data";
 import { weekHasBeenPlanned, realDayBlocks, weekStartOf, buildBlocks, tc, saveBlockToDay, deleteBlockFromDay, logCompletion } from "@/lib/calendar";
 import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal, DayAgenda } from "@/components/shared";
 import { PlanDrawer } from "@/components/PlanDrawer";
@@ -75,10 +74,18 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
     toast2(`Study plan cleared from today forward${toKeep>0?` — kept ${toKeep} edited block${toKeep!==1?"s":""}.`:"."} History was kept. Hit Replan to regenerate.`);
   }
 
-  // Sunday-start week list for the active term. Anchored on the real deadlines, not the typed
-  // term-end (see lib/planningRange.js) — so a mis-typed Term End can't hide a late final or
-  // tack on empty trailing weeks.
-  const termRange=planningRange(data);
+  // Sunday-start week list for the active term. Real request: "once user create new term...
+  // the calendar shall be set for all the weeks of the term" — this drives calendar BROWSING
+  // (which weeks/months are listed, which days are clickable at all), so it uses the term's own
+  // typed start/end dates directly (getTermRange), not planningRange()'s deadline-anchored
+  // horizon. Those are two different concerns that used to share one range by mistake: a
+  // freshly-synced term with only its first few items entered (a real, reported bug — 4 early
+  // admin-task due dates, no exams yet) had its ENTIRE calendar chopped down to just those few
+  // days, with days genuinely inside the term unreachable. planningRange's deadline-anchoring is
+  // still exactly right for the actual AI planning horizon (refreshQuarterPlan in App.jsx) —
+  // avoiding a long empty tail after the last final when Term End was mistyped — it just never
+  // belonged here.
+  const termRange=getTermRange(data.profile);
   const termWeeks=(()=>{
     if(!termRange)return[];
     const out=[];

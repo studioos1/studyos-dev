@@ -1,5 +1,30 @@
 # StudyOS Changelog
 
+## v2.88.8 — 2026-09-25
+
+**Calendar now browses the whole term, not just its early deadlines**
+
+Real request: "I see only two weeks in this term. The correct behaviour is - once user create new
+term as 'Fall 2026' with its date, the calendar shall be set for all the weeks of the term. in
+fact I see now only two weeks."
+
+- Root cause: Calendar's week/month navigator (`termWeeks`/`monthsList` in `components/Week.jsx`)
+  was built from `planningRange()` — a range deliberately anchored on the term's *last real
+  deadline*, not its typed end date, so a mistyped Term End can't stretch the AI planner's actual
+  scheduling horizon into a pointless empty tail. That's the right range for the planner
+  (`refreshQuarterPlan`), but Calendar's own week list and "which days are even clickable" used the
+  same truncated range by mistake — a freshly-synced term with only its first few admin-task due
+  dates entered (no exams yet) had its ENTIRE calendar chopped down to just those couple of weeks,
+  with every later week genuinely inside the term unreachable.
+- Calendar navigation now uses the term's own typed start/end dates (`getTermRange`) directly,
+  independent of how many deadlines have been entered so far. The deadline-anchored planning
+  horizon is untouched — it still governs where the AI actually places study blocks.
+
+Verified live: the account's real Fall 2026 term (assignments due through Sep 29 only, no exams)
+went from "Week 1 of 2" to the correct **"Week 1 of 13"**, spanning the term's actual Sep 24 – Dec
+15 dates; paged forward and confirmed Week 2 renders correctly with real due-date markers. Build
+clean, 281/281 tests pass.
+
 ## v2.88.7 — 2026-09-25
 
 **New terms start with a genuinely fresh, isolated schedule**
