@@ -1,5 +1,23 @@
 # StudyOS Changelog
 
+## v2.88.12 — 2026-09-25
+
+**Fix: week-picker label was clipping its trailing year**
+
+Real request: "This week display has now a new char at the end before the arrow: ',' - Please
+REMOVE this and DO NOT DO ANY OTHER CHANGE."
+
+v2.88.11's extra right padding (8px → 24px, added for the arrow's breathing room) ate into the
+fixed-width box's available space — confirmed via the live DOM that the underlying label text
+always correctly included the year ("...Sep 26, 2026"); the native `<select>` was just clipping it
+with no ellipsis, leaving the comma as the last visible character. Measured the exact width needed
+via canvas text-measurement against the longest real label ("This week · Week N of 13 · Mon DD –
+Mon DD, YYYY") rather than guessing again, and widened the box by precisely that amount.
+
+Nothing else touched — same arrow, same colors, same behavior. Verified via the DOM (`fits: true`,
+7px of margin) and a screenshot showing the full "Sep 20 – Sep 26, 2026" label. Build clean,
+281/281 tests pass.
+
 ## v2.88.11 — 2026-09-25
 
 **Week-picker arrow actually moved off the edge this time**

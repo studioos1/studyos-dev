@@ -408,8 +408,17 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
                   expressed as ONE background shorthand string — color, image, no-repeat and
                   position all in a single value — so there's no separate shorthand/longhand pair
                   left to race at all. */}
+              {/* Real request: the extra right padding added above for the arrow's breathing
+                  room (8px → 24px) ate into this fixed-width box's available space, clipping the
+                  label's trailing year with no ellipsis — "Sep 26, 2026" rendering as "Sep 26,".
+                  Width measured precisely via canvas text-measurement against the longest actual
+                  label ("This week · Week N of 13 · Mon DD – Mon DD, YYYY") rather than guessed —
+                  that label needs 338px total (text + padding + border) at this font; 345 covers
+                  it with a small buffer against sub-pixel rendering differences. Confirmed via the
+                  live DOM that the underlying label text always had the year — this was a
+                  rendering clip, not a string bug. */}
               <select value={clampedIdx} onChange={e=>setSelWeekIdx(+e.target.value)}
-                style={{fontSize:13,padding:"6px 24px 6px 8px",width:300,textAlign:"center",fontFamily:"inherit",
+                style={{fontSize:13,padding:"6px 24px 6px 8px",width:345,textAlign:"center",fontFamily:"inherit",
                   background:`${isCurrentWeek?"var(--amber-bg)":"var(--card2)"} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='${encodeURIComponent(isCurrentWeek?"#cf9a48":"#6a8aaa")}' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center`,
                   color:isCurrentWeek?"var(--amber)":"var(--t1)",
                   fontWeight:isCurrentWeek?600:400,
