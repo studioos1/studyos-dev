@@ -243,6 +243,35 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   fold it into a single `toast2()` call (structured `{title,sub,lines,footer}`), never fire a
   second one — the second always wins, silently.** Fixed here; worth checking for the same pattern
   elsewhere if a similar "did it actually work?" report comes up again.
+  **v2.88.15/16, from the same thread, escalated to "if this isn't 100% right the whole app can be
+  trashed":** could not reproduce a reported "6 homework, all one fabricated date" live (5 direct
+  API test runs across every DSC10-related file in Downloads), but treated the underlying risk as
+  real anyway — a single AI pass over a PDF is never a literal completeness guarantee, so the fix
+  isn't "try to hit 100%", it's "make a gap impossible to miss silently". Two deterministic
+  safety nets now run on every syllabus extraction, both **free** (no second AI call — offered and
+  explicitly declined by the student in favor of keeping upload cost at one call per sync):
+  (1) **hallucination guard** (`checkSyllabusExtraction`, precision side) — flags 3+ items sharing
+  one base title (e.g. "Homework N") AND the identical due date, the signature of a guessed
+  schedule rather than real per-item dates; (2) **completeness signal**
+  (`scanForDatedItemSignals`, recall side) — regex-scans the raw source text for a date near
+  graded-item language, cross-references it against what actually got extracted, flags anything
+  mentioned but not covered. Both are approximate by design (regex heuristics, not language
+  understanding) and worded as "worth checking", never a confirmed miss — verified against real
+  syllabus phrasing (correctly spaced, since condensing sections together creates false window
+  overlaps that don't happen in the real ~40k-char document) to produce zero false positives on a
+  correct extraction. Alongside these, the extraction prompt (rule 10, all 3 upload flows) now
+  makes the AI self-report: work through the document's own section headers as a checklist, return
+  `extractionNotes` naming every graded category it recognized but found no individual date for,
+  with why. Live-verified against the real DSC10 PDF: correctly named all 9 undated categories
+  (Labs, Homework, Midterm/Final Project, Pretest, Discussion groupwork, Pod meetings, SETs, Extra
+  credit) with specific reasons — and, notably, **stopped guessing a date for the Pretest** (an
+  earlier run had silently placed it on 9/29 with no real textual basis; this one correctly omits
+  it with an explanatory note instead). All three surface in `ExtractionVerifyModal`, the
+  onboarding syllabus screen, and the raw-extraction diagnostic — errors/warnings and the AI's own
+  notes get visually distinct blocks (problem vs. transparency), never merged into one.
+  **Established pattern going forward for any future extraction-quality concern:** don't reach for
+  a second AI pass by default — first ask whether a deterministic, generalized (non-course-
+  specific) cross-check against the raw source text can catch the same failure class for free.
 - **Known next step, explicitly requested, not yet built: term-switching (viewing).** See the
   studyPlan/completionLog/pomodoroLogs isolation gap and the "Known next step" note in the
   Multi-school/multi-term section above — this is the real prerequisite/design question before
