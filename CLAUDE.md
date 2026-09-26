@@ -428,6 +428,19 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   the human-shared launch code is a static secret with the usual sharing risk. Fine at family/
   small-cohort scale; would need real rate-limiting (which needs a backend route) before this app
   is handling meaningfully more signup traffic.
+- **P2 (low priority) — reconsider the multi-PDF syllabus upload's single-combined-AI-call design.**
+  Multi-file upload itself already works today (both `Onboard.jsx` and `Acad.jsx`'s Update Syllabus
+  tab use `PdfDrop`'s `multi` mode) — every selected PDF's text gets truncated individually to
+  `MAX_SYLLABUS_CHARS` then all concatenated into ONE AI call. Real tradeoffs of that design, not
+  acted on: extraction accuracy risk on later files in a large combined context (LLM attention
+  dilution), all-or-nothing failure (one bad file fails the whole batch), and blended diagnostics
+  (hard to trace a wrong item back to its source file). Alternative (one AI call per file, merged
+  client-side) trades those for N× the fixed prompt cost and a real implementation lift (concurrency,
+  per-file error handling, a merge/dedup step). Not worth building speculatively — this app's actual
+  usage (~4-5 courses' syllabi uploaded together once a term) doesn't stress the current design's
+  weak points. Revisit only if a real batch upload actually comes back incomplete/wrong. Also noted
+  in passing: `Onboard.jsx` caps at 6 files (`sylPdfs.slice(0,6)`); `Acad.jsx`'s Update Syllabus tab
+  has no cap at all — a minor inconsistency, not a bug on its own.
 
 ## Workflow discipline to keep
 
