@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## v2.88.19 — 2026-09-25
+
+**Instructor/TA extraction, Assignments+Exams grouped by class, exam-title calendar tooltips**
+
+Three real requests:
+
+1. **Instructor/TA extraction.** Extraction prompt rule 12 (all 3 upload flows) now pulls the
+   instructor and TA name(s) when the syllabus states them (Course Staff/Instructor/Teaching Team
+   sections) — never guessed if absent. `finalizeSync` populates `professor`/new `ta` field on
+   course creation, and backfills either on an existing course if it's still empty (same pattern
+   already used for schedule backfill) — never overwrites a value already set. Both now show in
+   the course card's info line.
+2. **Assignments/Exams grouped by class, like Study Preferences.** Both tables drop their
+   repeated Class column and group rows under a per-class fold header instead (collapse/expand-all
+   button, same interaction as Study Preferences) — extracted the fold-state logic
+   (`useFoldedClasses`) into one reusable hook shared by all three tabs, each with its own
+   independent, per-tab fold memory. Freed width went to Exams' Topics column specifically (170px
+   → 260px, on request) — real topic text was wrapping to several lines at the old width; Exam
+   title rarely needs more than a couple words, so it stays the flexible column instead.
+3. **Calendar tooltips name the specific test.** Exam-prep study blocks previously read just
+   "DSC 10 exam prep (4d left)" — no way to tell which exam from the tooltip alone, unlike
+   homework blocks which already named the assignment. All 3 exam-prep label sites in
+   `lib/planner/schedule.js` now include the exam's own title: "DSC 10 — Quiz 1 exam prep (4d
+   left)". Deliberately uses the same `courseName — title` separator homework labels already use,
+   so the existing `dedupeCourseFromTaskLabel` (Today's Focus Time row) keeps working unchanged.
+
+313/313 tests pass (2 new, locking in the exam-title label behavior). Build clean.
+
 ## v2.88.18 — 2026-09-25
 
 **Fix: "Reset academic data" now clears this term's calendar too, not just Courses**

@@ -95,6 +95,34 @@ function ResearchPreview({course,info,onApplyAndReplan,onDiscard,planning}){
   );
 }
 
+// Shared per-tab "which classes are folded" state — Study Preferences, Assignments, and Exams all
+// group their table by class with the same collapse/expand pattern (Class column removed; every
+// row's class is implied by its group). Each tab remembers its own folded set independently (a
+// distinct sessionStorage key per tab) so folding one tab's classes doesn't affect another's. A
+// transient viewing preference, not account data: sessionStorage keeps it while switching tabs in
+// this session, but a fresh visit (reload, new session) always starts fully expanded rather than
+// risking a stale folded state the student doesn't remember setting.
+function useFoldedClasses(storageKey){
+  const [folded,setFolded]=useState(()=>{
+    try{return new Set(JSON.parse(sessionStorage.getItem(storageKey)||"[]"));}catch{return new Set();}
+  });
+  function persist(next){try{sessionStorage.setItem(storageKey,JSON.stringify([...next]));}catch{}}
+  function toggle(courseId){
+    setFolded(prev=>{
+      const next=new Set(prev);
+      if(next.has(courseId))next.delete(courseId);else next.add(courseId);
+      persist(next);
+      return next;
+    });
+  }
+  function setAll(courseIds,shouldFold){
+    const next=shouldFold?new Set(courseIds):new Set();
+    persist(next);
+    setFolded(next);
+  }
+  return{folded,toggle,setAll};
+}
+
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
 export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg,helpJump}){
   const {confirm,modal}=useConfirm();
@@ -141,29 +169,10 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const [diffSortBy,setDiffSortBy]=useState("due");
   const [diffBaseline,setDiffBaseline]=useState(null); // JSON snapshot of {userValue,userHours} at last load/save
 
-  // Study Preferences table is grouped by class with foldable sections (Class column removed —
-  // every row's class is implied by its group). Fold state is a transient viewing preference, not
-  // account data: sessionStorage keeps it while switching between tabs in this session, but a
-  // fresh visit (reload, new session) always starts fully expanded rather than risking a stale
-  // folded state the student doesn't remember setting.
-  const FOLD_KEY="studyos_difftab_folded";
-  const [foldedClasses,setFoldedClasses]=useState(()=>{
-    try{return new Set(JSON.parse(sessionStorage.getItem(FOLD_KEY)||"[]"));}catch{return new Set();}
-  });
-  function persistFolded(next){try{sessionStorage.setItem(FOLD_KEY,JSON.stringify([...next]));}catch{}}
-  function toggleFold(courseId){
-    setFoldedClasses(prev=>{
-      const next=new Set(prev);
-      if(next.has(courseId))next.delete(courseId);else next.add(courseId);
-      persistFolded(next);
-      return next;
-    });
-  }
-  function setAllFolded(courseIds,folded){
-    const next=folded?new Set(courseIds):new Set();
-    persistFolded(next);
-    setFoldedClasses(next);
-  }
+  // See useFoldedClasses above — one independent fold-state instance per grouped-by-class tab.
+  const diffFold=useFoldedClasses("studyos_difftab_folded");
+  const assignFold=useFoldedClasses("studyos_assigntab_folded");
+  const examFold=useFoldedClasses("studyos_examtab_folded");
 
   // Computes Low/Mid/High + suggested hours for every active assignment/exam — but only for items
   // that have NEVER had an estimate computed at all (estimatorValue==null). As of this version,
@@ -385,9 +394,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const missing=termAssignments.filter(a=>!a.dueDate&&a.status!=="done");
   function sortAssignments(list){
     return [...list].sort((a,b)=>{
-      const an=courseNameFor(data.courses,a.courseId),bn=courseNameFor(data.courses,b.courseId);
       const ad=a.dueDate&&a.dueDate.length===10,bd=b.dueDate&&b.dueDate.length===10;
-      if(assignSort==="class")return an.localeCompare(bn)||(ad?a.dueDate:"9999").localeCompare(bd?b.dueDate:"9999");
       if(assignSort==="weight")return(b.weight??-1)-(a.weight??-1);
       // "due" default
       if(!ad&&!bd)return 0;if(!ad)return 1;if(!bd)return -1;
@@ -397,6 +404,41 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const active=sortAssignments(termAssignments.filter(a=>a.status!=="done"));
   const done=sortAssignments(termAssignments.filter(a=>a.status==="done"));
   const total=termAssignments.length;
+
+  // Groups an already-sorted flat list by courseId, preserving each course's first-appearance
+  // order — since the list is pre-sorted (by due/weight), the group containing the most-urgent/
+  // highest-weight item naturally appears first, matching Study Preferences' own group-ordering
+  // without a second sort pass. Shared by Assignments and Exams — neither has its own Class
+  // column anymore (every row's class is implied by its group instead).
+  function groupByCourse(list){
+    const byCourse=new Map();
+    list.forEach(item=>{
+      if(!byCourse.has(item.courseId))byCourse.set(item.courseId,{courseId:item.courseId,courseName:courseNameFor(data.courses,item.courseId),items:[]});
+      byCourse.get(item.courseId).items.push(item);
+    });
+    return[...byCourse.values()].map(g=>{
+      const course=termCourses.find(c=>c.id===g.courseId);
+      return{...g,color:course?.color?.border||"var(--t3)"};
+    });
+  }
+  const assignGroups=groupByCourse(active);
+  const assignGroupIds=assignGroups.map(g=>g.courseId);
+  const assignAllFolded=assignGroupIds.length>0&&assignGroupIds.every(id=>assignFold.folded.has(id));
+  const doneAssignGroups=groupByCourse(done);
+
+  function sortExams(list){
+    return[...list].sort((a,b)=>{
+      if(examSort==="weight")return(b.weight??-1)-(a.weight??-1);
+      if(examSort==="prep")return(b.prepDays??0)-(a.prepDays??0);
+      return(a.date||"9999").localeCompare(b.date||"9999"); // "due" default
+    });
+  }
+  const upcomingExams=sortExams(termExams.filter(e=>!e.date||e.date>=iso()));
+  const completedExams=sortExams(termExams.filter(e=>e.date&&e.date<iso()));
+  const upcomingExamGroups=groupByCourse(upcomingExams);
+  const completedExamGroups=groupByCourse(completedExams);
+  const examGroupIds=upcomingExamGroups.map(g=>g.courseId);
+  const examAllFolded=examGroupIds.length>0&&examGroupIds.every(id=>examFold.folded.has(id));
 
   function startEdit(a){
     setEditId(a.id);
@@ -468,9 +510,10 @@ CRITICAL RULES:
 9. NEVER invent or guess a due date. Rules 1/3/4 above ("extract every dated item", "count them", "return that many entries") apply ONLY to items whose real due date is actually written in the source text — they are not license to fabricate one. If the syllabus describes a recurring assignment type in general terms (e.g. "Labs are due weekly on Tuesdays — see the course website for the exact schedule") without ever stating a real calendar date for any individual instance, omit that whole category rather than guessing dates for it — return fewer items, or none for that category, rather than a fabricated schedule. A hard tell that you're about to invent dates: giving several differently-numbered items (Homework 1, Homework 2, Lab 3, ...) the exact same due date — a real weekly series is never all due on one day. If you notice that pattern in your own answer before responding, delete those entries instead of returning them.
 10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Midterm Project — mentioned but no due date stated anywhere in this document"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array. A category with an explicit recurring weekly day-of-week pattern (e.g. "due every Tuesday") is NOT an extractionNotes case — see rule 11.
 11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
+12. Also extract the instructor and any teaching assistant(s), if the syllabus states them (commonly near the top, in a "Course Staff", "Instructor(s)", "Teaching Team", or "Contacts" section) — "instructor" (the primary instructor's name, or null if not stated) and "ta" (name(s) of TA(s)/tutors, comma-separated if multiple, or null if not stated) on the course object, alongside courseName. Never guess a name that isn't explicitly written in the document.
 
 Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
-{"courses":[{"courseName":"DSC 10","meetingTimes":[
+{"courses":[{"courseName":"DSC 10","instructor":"Dr. Jane Smith","ta":"Alex Chen, Priya Patel","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
 ],"assignments":[
@@ -521,9 +564,10 @@ CRITICAL RULES:
 9. NEVER invent or guess a due date. Rules 1/3/4 above ("extract every dated item", "count them", "return that many entries") apply ONLY to items whose real due date is actually written in the source text — they are not license to fabricate one. If the syllabus describes a recurring assignment type in general terms (e.g. "Labs are due weekly on Tuesdays — see the course website for the exact schedule") without ever stating a real calendar date for any individual instance, omit that whole category rather than guessing dates for it — return fewer items, or none for that category, rather than a fabricated schedule. A hard tell that you're about to invent dates: giving several differently-numbered items (Homework 1, Homework 2, Lab 3, ...) the exact same due date — a real weekly series is never all due on one day. If you notice that pattern in your own answer before responding, delete those entries instead of returning them.
 10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Midterm Project — mentioned but no due date stated anywhere in this document"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array. A category with an explicit recurring weekly day-of-week pattern (e.g. "due every Tuesday") is NOT an extractionNotes case — see rule 11.
 11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
+12. Also extract the instructor and any teaching assistant(s), if the syllabus states them (commonly near the top, in a "Course Staff", "Instructor(s)", "Teaching Team", or "Contacts" section) — "instructor" (the primary instructor's name, or null if not stated) and "ta" (name(s) of TA(s)/tutors, comma-separated if multiple, or null if not stated) on the course object, alongside courseName. Never guess a name that isn't explicitly written in the document.
 
 Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
-{"courses":[{"courseName":"DSC 10","meetingTimes":[
+{"courses":[{"courseName":"DSC 10","instructor":"Dr. Jane Smith","ta":"Alex Chen, Priya Patel","meetingTimes":[
   {"days":[1,3,5],"startTime":"10:00","endTime":"10:50","location":"Center Hall 101","type":"Lecture"},
   {"days":[2],"startTime":"17:00","endTime":"17:50","location":"York Hall 2622","type":"Discussion Section"}
 ],"assignments":[
@@ -601,7 +645,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           days:primary?.days||[],
           startTime:primary?.startTime||"09:00",
           endTime:primary?.endTime||"10:00",
-          professor:"",room:primary?.location||"",units:4,
+          professor:c.instructor||"",ta:c.ta||"",room:primary?.location||"",units:4,
           difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",
           weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,
           description:info.description||"",tips:info.tips||[],
@@ -611,12 +655,19 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         workingCourses=[...workingCourses,course];
         newCourses.push(course);
         coursesCreated++;
-      }else if((!course.days||course.days.length===0)&&primary){
-        // Course already exists but has no schedule data yet (e.g. was created from an
-        // earlier syllabus-only sync before this meeting-time extraction existed) — backfill
-        // it now rather than leaving the gap, without touching any other field on the course.
-        workingCourses=workingCourses.map(x=>x.id===course.id?{...x,days:primary.days||[],startTime:primary.startTime||x.startTime,endTime:primary.endTime||x.endTime,room:x.room||primary.location||""}:x);
-        course=workingCourses.find(x=>x.id===course.id);
+      }else{
+        // Course already exists — backfill anything it's still missing from an earlier, less
+        // complete sync (schedule, instructor, TA), without touching any field it already has.
+        const patch={};
+        if((!course.days||course.days.length===0)&&primary){
+          patch.days=primary.days||[];patch.startTime=primary.startTime||course.startTime;patch.endTime=primary.endTime||course.endTime;patch.room=course.room||primary.location||"";
+        }
+        if(!course.professor&&c.instructor)patch.professor=c.instructor;
+        if(!course.ta&&c.ta)patch.ta=c.ta;
+        if(Object.keys(patch).length){
+          workingCourses=workingCourses.map(x=>x.id===course.id?{...x,...patch}:x);
+          course=workingCourses.find(x=>x.id===course.id);
+        }
       }
       itemsByCourse[c.courseName]={assignments:0,exams:0};
       for(const[i,a]of(c.assignments||[]).entries()){
@@ -676,11 +727,13 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
   // One set of column widths shared by the Active and Completed assignment tables so their
   // columns line up exactly (both sit in the same 20px-inset card). table-layout:fixed makes
   // these authoritative. The Assignment column has no width, so it absorbs all the slack and the
-  // action icons sit flush right instead of floating in a wide empty column.
+  // action icons sit flush right instead of floating in a wide empty column. Class column removed
+  // — the table is now grouped by class (fold header per group, like Study Preferences), so it
+  // was pure repetition; removing it both cuts real clutter and gives the flexible title column
+  // that much more room before horizontal scroll ever kicks in.
   const ASSIGN_COLS=(
     <colgroup>
       <col style={{width:36}}/>{/* status box */}
-      <col style={{width:118}}/>{/* class */}
       <col/>{/* assignment title */}
       <col style={{width:104}}/>{/* due */}
       <col style={{width:70}}/>{/* weight */}
@@ -689,29 +742,21 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     </colgroup>
   );
 
-  // Same table-layout:fixed pattern as ASSIGN_COLS above, and for the same reason: without it
-  // (as the Exams table previously was), auto layout leaves leftover width unclaimed instead of
-  // giving it to the one column that should flex — Exam title is the unconstrained <col/> here
-  // (sits left of Topics, per feedback), same role "assignment title" plays in ASSIGN_COLS.
-  // Both cells get overflow-wrap below as a second, independent guard against a single long
-  // unbroken token bleeding into a neighboring cell.
-  //
-  // Regression fixed here: an earlier pass widened Topics to 220px but left the table's minWidth
-  // at 680 — the six FIXED columns alone already summed to 734px, so the "flexible" Exam column
-  // had negative space to work with and collapsed to ~0, forcing every character of its own text
-  // onto its own line (the "overlapped, many lines" bug). Topics brought back down to a more
-  // reasonable 170px, and minWidth raised to 850 — comfortably above the 684px fixed-column sum,
-  // giving Exam a genuine ~166px minimum, matching the ~130px margin ASSIGN_COLS gives its own
-  // flexible column at its minWidth.
+  // Same table-layout:fixed pattern as ASSIGN_COLS above, and for the same reason: without it,
+  // auto layout leaves leftover width unclaimed instead of giving it to the columns that should
+  // flex/grow. Class column removed here too (grouped by class now, same as Assignments) — the
+  // width it freed went to Topics specifically, on request, since real topic text ("Cumulative;
+  // material through Week 4, held during enrolled lecture slot") was wrapping to several lines at
+  // the old 170px; Exam title rarely needs more than a couple words ("Midterm Exam", "Quiz 3") so
+  // it stays the flexible <col/> rather than the one that gets the extra room.
   const EXAM_COLS=(
     <colgroup>
-      <col style={{width:118}}/>{/* class */}
       <col/>{/* exam title */}
-      <col style={{width:170}}/>{/* topics */}
-      <col style={{width:104}}/>{/* due */}
-      <col style={{width:70}}/>{/* weight */}
-      <col style={{width:132}}/>{/* grade */}
-      <col style={{width:90}}/>{/* actions */}
+      <col style={{width:260}}/>{/* topics */}
+      <col style={{width:100}}/>{/* due */}
+      <col style={{width:65}}/>{/* weight */}
+      <col style={{width:120}}/>{/* grade */}
+      <col style={{width:85}}/>{/* actions */}
     </colgroup>
   );
 
@@ -840,17 +885,26 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <i className="ti ti-clipboard-list" style={TITLE_ICON}/>
                 <span style={TITLE_TEXT}>Active — {active.length} remaining</span>
               </div>
-              {/* "+" button to toggle add form */}
-              <button
-                className="tt" data-tt="Add new assignment"
-                onClick={()=>{setShowAddAssign(v=>!v);cancelEdit();}}
-                style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
-                  background:showAddAssign?"var(--amber)":"var(--card2)",
-                  color:showAddAssign?"#1a0e00":"var(--t2)",
-                  fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
-                  transition:"all 0.15s",flexShrink:0}}>
-                {showAddAssign?"×":"+"}
-              </button>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                {assignGroupIds.length>0&&(
+                  <button className="tt" data-tt={assignAllFolded?"Expand all classes":"Collapse all classes"} onClick={()=>assignFold.setAll(assignGroupIds,!assignAllFolded)}
+                    style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                      color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                    <i className={`ti ${assignAllFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{fontSize:14}}/>
+                  </button>
+                )}
+                {/* "+" button to toggle add form */}
+                <button
+                  className="tt" data-tt="Add new assignment"
+                  onClick={()=>{setShowAddAssign(v=>!v);cancelEdit();}}
+                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
+                    background:showAddAssign?"var(--amber)":"var(--card2)",
+                    color:showAddAssign?"#1a0e00":"var(--t2)",
+                    fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
+                    transition:"all 0.15s",flexShrink:0}}>
+                  {showAddAssign?"×":"+"}
+                </button>
+              </div>
             </div>
             <div style={DIVIDER}/>
             <div style={INNER}>
@@ -895,12 +949,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
               {active.length>0&&(
                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:680,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                <table style={{width:"100%",minWidth:560,borderCollapse:"collapse",tableLayout:"fixed"}}>
                   {ASSIGN_COLS}
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
                       <th></th>
-                      <TableHead label="Class" col="class" sortBy={assignSort} setSortBy={setAssignSort}/>
                       <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Assignment</th>
                       <TableHead label="Due" col="due" sortBy={assignSort} setSortBy={setAssignSort}/>
                       <TableHead label="Weight" col="weight" sortBy={assignSort} setSortBy={setAssignSort}/>
@@ -909,13 +962,29 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     </tr>
                   </thead>
                   <tbody>
-              {active.map((a,i,arr)=>{
+              {assignGroups.map(g=>{
+                const folded=assignFold.folded.has(g.courseId);
+                return(
+                  <Fragment key={g.courseId}>
+                    <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
+                      onClick={()=>assignFold.toggle(g.courseId)}>
+                      <td colSpan={6} style={{padding:"8px 8px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                          <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                          <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
+                          <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
+                          <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
+                        </div>
+                      </td>
+                    </tr>
+              {!folded&&g.items.map((a,i,arr)=>{
                 const d=(a.dueDate&&a.dueDate.length===10)?du(a.dueDate):null;
                 const isEditing=editId===a.id;
 
                 if(isEditing) return(
                   <tr key={a.id}>
-                    <td colSpan={7} style={{padding:0}}>
+                    <td colSpan={6} style={{padding:0}}>
                     <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",
                       margin:"6px 0"}}>
                     <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {a.title}</div>
@@ -963,7 +1032,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                         onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--t3)";e.currentTarget.style.background="var(--card2)";e.currentTarget.style.color="transparent";e.currentTarget.textContent="";}}
                       />
                     </td>
-                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{courseNameFor(data.courses,a.courseId)}</td>
                     <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)"}}>{a.title}</td>
                     <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                       {d===null?(
@@ -1011,6 +1079,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   </tr>
                 );
               })}
+                  </Fragment>
+                );
+              })}
                   </tbody>
                 </table>
                </div>
@@ -1032,10 +1103,26 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
               <div style={{padding:"4px 20px 14px 20px"}}>
                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:680,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                <table style={{width:"100%",minWidth:560,borderCollapse:"collapse",tableLayout:"fixed"}}>
                   {ASSIGN_COLS}
                   <tbody>
-                {done.map((a,i,arr)=>(
+                {doneAssignGroups.map(g=>{
+                  const folded=assignFold.folded.has(g.courseId);
+                  return(
+                    <Fragment key={g.courseId}>
+                      <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
+                        onClick={()=>assignFold.toggle(g.courseId)}>
+                        <td colSpan={6} style={{padding:"8px 8px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                            <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
+                            <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                            <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
+                            <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
+                            <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                {!folded&&g.items.map((a,i,arr)=>(
                   <tr key={a.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
                     <td style={{padding:"9px 8px"}}>
                       <div style={{width:20,height:20,borderRadius:6,background:"var(--green)",
@@ -1043,7 +1130,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                         <i className="ti ti-check" style={{fontSize:12,color:"#052e16",fontWeight:700}}/>
                       </div>
                     </td>
-                    <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{courseNameFor(data.courses,a.courseId)}</td>
                     <td style={{padding:"9px 8px",fontSize:14,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis"}}>{a.title}</td>
                     <td style={{padding:"9px 8px",fontSize:12,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.dueDate?new Date(a.dueDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—"}</td>
                     <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.weight!=null?a.weight+"%":"—"}</td>
@@ -1070,6 +1156,9 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     </td>
                   </tr>
                 ))}
+                    </Fragment>
+                  );
+                })}
                   </tbody>
                 </table>
                </div>
@@ -1088,14 +1177,23 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <i className="ti ti-file-text" style={TITLE_ICON}/>
                 <span style={TITLE_TEXT}>Exams</span>
               </div>
-              <button className="tt" data-tt="Add new exam" onClick={()=>{setShowAddExam(v=>!v);cancelEditExam();}}
-                style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
-                  background:showAddExam?"var(--amber)":"var(--card2)",
-                  color:showAddExam?"#1a0e00":"var(--t2)",
-                  fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
-                  transition:"all 0.15s",flexShrink:0}}>
-                {showAddExam?"×":"+"}
-              </button>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                {examGroupIds.length>0&&(
+                  <button className="tt" data-tt={examAllFolded?"Expand all classes":"Collapse all classes"} onClick={()=>examFold.setAll(examGroupIds,!examAllFolded)}
+                    style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
+                      color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                    <i className={`ti ${examAllFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{fontSize:14}}/>
+                  </button>
+                )}
+                <button className="tt" data-tt="Add new exam" onClick={()=>{setShowAddExam(v=>!v);cancelEditExam();}}
+                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
+                    background:showAddExam?"var(--amber)":"var(--card2)",
+                    color:showAddExam?"#1a0e00":"var(--t2)",
+                    fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
+                    transition:"all 0.15s",flexShrink:0}}>
+                  {showAddExam?"×":"+"}
+                </button>
+              </div>
             </div>
             <div style={DIVIDER}/>
             <div style={INNER}>
@@ -1135,15 +1233,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               )}
 
               {(()=>{
-                const today=iso();
-                const sortExams=list=>[...list].sort((a,b)=>{
-                  if(examSort==="class")return courseNameFor(data.courses,a.courseId).localeCompare(courseNameFor(data.courses,b.courseId))||(a.date||"").localeCompare(b.date||"");
-                  if(examSort==="weight")return(b.weight??-1)-(a.weight??-1);
-                  if(examSort==="prep")return(b.prepDays??0)-(a.prepDays??0);
-                  return(a.date||"9999").localeCompare(b.date||"9999"); // "due" default
-                });
-                const upcoming=sortExams(termExams.filter(e=>!e.date||e.date>=today));
-                const completed=sortExams(termExams.filter(e=>e.date&&e.date<today));
 
                 function ExamRow(e,i,arr,isPast){
                   const hasDate=e.date&&e.date.length===10;
@@ -1153,7 +1242,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
                   if(isEditing) return(
                     <tr key={e.id}>
-                      <td colSpan={7} style={{padding:0}}>
+                      <td colSpan={6} style={{padding:0}}>
                       <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",margin:"6px 0"}}>
                         <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {courseNameFor(data.courses,e.courseId)}</div>
                         <div style={{marginBottom:8}}>
@@ -1184,7 +1273,6 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
                   return(
                     <tr key={e.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none",opacity:isPast?0.55:1}}>
-                      <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{courseNameFor(data.courses,e.courseId)}</td>
                       <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)",overflowWrap:"break-word"}}>{e.title||"Exam"}</td>
                       <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",overflowWrap:"break-word"}}>{e.topics||"—"}</td>
                       <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
@@ -1230,40 +1318,62 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   );
                 }
 
+                function GroupedExamRows(groups,isPast,fold){
+                  return groups.map(g=>{
+                    const folded=fold.folded.has(g.courseId);
+                    return(
+                      <Fragment key={g.courseId}>
+                        <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
+                          onClick={()=>fold.toggle(g.courseId)}>
+                          <td colSpan={6} style={{padding:"8px 8px"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                              <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
+                              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                              <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
+                              <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
+                              <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {!folded&&g.items.map((e,i,arr)=>ExamRow(e,i,arr,isPast))}
+                      </Fragment>
+                    );
+                  });
+                }
+
                 return(
                   <>
-                    {upcoming.length>0&&(
+                    {upcomingExamGroups.length>0&&(
                       <>
                         <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,marginTop:4}}>Upcoming</div>
                         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",marginBottom:20}}>
-                        <table style={{width:"100%",minWidth:850,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                        <table style={{width:"100%",minWidth:780,borderCollapse:"collapse",tableLayout:"fixed"}}>
                           {EXAM_COLS}
                           <thead>
                             <tr style={{borderBottom:"1px solid var(--b1)"}}>
-                              <TableHead label="Class" col="class" sortBy={examSort} setSortBy={setExamSort}/>
                               <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Exam</th>
                               <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Topics</th>
                               <TableHead label="Due" col="due" sortBy={examSort} setSortBy={setExamSort}/>
                               <TableHead label="Weight" col="weight" sortBy={examSort} setSortBy={setExamSort}/>
                               <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Grade</th>
-                              <th style={{width:90}}></th>
+                              <th style={{width:85}}></th>
                             </tr>
                           </thead>
                           <tbody>
-                            {upcoming.map((e,i,arr)=>ExamRow(e,i,arr,false))}
+                            {GroupedExamRows(upcomingExamGroups,false,examFold)}
                           </tbody>
                         </table>
                         </div>
                       </>
                     )}
-                    {completed.length>0&&(
+                    {completedExamGroups.length>0&&(
                       <>
                         <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Completed</div>
                         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                        <table style={{width:"100%",minWidth:850,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                        <table style={{width:"100%",minWidth:780,borderCollapse:"collapse",tableLayout:"fixed"}}>
                           {EXAM_COLS}
                           <tbody>
-                            {completed.map((e,i,arr)=>ExamRow(e,i,arr,true))}
+                            {GroupedExamRows(completedExamGroups,true,examFold)}
                           </tbody>
                         </table>
                         </div>
@@ -1309,6 +1419,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     </>
                   )}
                   {c.professor&&<span style={{color:"var(--t3)"}}> · {c.professor}</span>}
+                  {c.ta&&<span style={{color:"var(--t3)"}}> · TA: {c.ta}</span>}
                 </div>
                 <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",marginBottom:c.description||c.tips?.length?10:0}}>
                   <DiffBadge score={c.difficulty} label={c.difficultyLabel}/>
@@ -1439,7 +1550,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           return{...g,items,color:course?.color?.border||"var(--t3)"};
         }).sort((a,b)=>itemCmp(a.items[0],b.items[0]));
         const allCourseIds=groups.map(g=>g.courseId);
-        const allFolded=allCourseIds.length>0&&allCourseIds.every(id=>foldedClasses.has(id));
+        const allFolded=allCourseIds.length>0&&allCourseIds.every(id=>diffFold.folded.has(id));
 
         return(
         <div>
@@ -1463,7 +1574,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   {planning?<Sp sz={13}/>:<i className="ti ti-sparkles" style={{fontSize:14}}/>}
                 </button>
                 {allCourseIds.length>0&&(
-                  <button className="tt" data-tt={allFolded?"Expand all classes":"Collapse all classes"} onClick={()=>setAllFolded(allCourseIds,!allFolded)}
+                  <button className="tt" data-tt={allFolded?"Expand all classes":"Collapse all classes"} onClick={()=>diffFold.setAll(allCourseIds,!allFolded)}
                     style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",background:"var(--card2)",
                       color:"var(--t2)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
                     <i className={`ti ${allFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{fontSize:14}}/>
@@ -1510,12 +1621,12 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     </thead>
                     <tbody>
                       {groups.map(g=>{
-                        const folded=foldedClasses.has(g.courseId);
+                        const folded=diffFold.folded.has(g.courseId);
                         const nextDue=g.items.map(it=>it.dueDate).filter(Boolean).sort()[0];
                         return(
                           <Fragment key={g.courseId}>
                             <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
-                              onClick={()=>toggleFold(g.courseId)}>
+                              onClick={()=>diffFold.toggle(g.courseId)}>
                               <td colSpan={8} style={{padding:"8px 8px"}}>
                                 <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
                                   <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
