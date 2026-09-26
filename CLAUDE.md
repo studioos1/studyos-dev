@@ -154,57 +154,62 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   practice (only affected an old mock/test term's calendar, not real academic data) — going forward
   from v2.88.20 this exact overwriting can never happen again.
 
-- **Term-switching (v2.88.21)** — the header dropdown (`components/App.jsx`, next to the STUDYOS
-  logo) is the ONE place to change which term Academics + Calendar display: a badge showing the
-  viewed term's name, color-coded by status (green=Current, blue=Upcoming, muted=Archived), opening
-  a panel listing every term. Picking one is a pure, instant, no-refetch display switch — real
-  request: "switch between terms and display EXACTLY as left." It does NOT change which term is
-  Current (School Info's "Change Status" is still the only thing that does that) — this was the
-  genuine ambiguity worth resolving up front, since the two are easy to conflate.
-  - **Three-tier permission model**, per term status (real request: "Current means we send messages
-    and dynamically notify users. Upcoming is for planning - so user can edit the academics, and
-    preferences, run study plans and review on the screen... Archive - Read Only"):
-    | | Current | Upcoming | Archived |
-    |---|---|---|---|
-    | View courses/assignments/exams/plan | ✅ | ✅ | ✅ |
-    | Edit courses/assignments/exams, preferences, syllabus sync | ✅ | ✅ | ❌ |
-    | Run/generate study plan, review on screen | ✅ | ✅ | ❌ |
-    | Dynamic notifications, habit logging (Pomodoro/gym/check-ins) | ✅ | ❌ | ❌ |
-  - **Mechanism** (`lib/data/terms.js`): `projectTermForPlanning(data,term,school)` re-projects
-    courses/assignments/exams (generalized `termScopedForPlanning(data,term)`, optional 2nd arg) and
-    profile/studyPlan/quarterPlan onto an arbitrary term instead of always Current — `termAsProfile`
-    builds the profile-shaped object `getTermRange`/`isFin`/`isHol`/`getQ` already expected, so none
-    of them needed to change. For Current this is provably a no-op (`===data`); it only actually
-    diverges for a non-current term. Writing a (re)generated plan back the other way is
-    `applyTermScopedPatch`'s new optional 3rd arg, `targetTermId` — routes a scoped-key write into
-    that term's own copy without touching Current's live flat mirror. `components/App.jsx` composes
-    both into `viewedData`/`updViewed`, passed to Week/Acad in place of raw `data`/`upd`; Today,
-    notifications, and habit-logging keep using raw `data`/`upd` unconditionally — those are
-    Current-only, live-behavior concepts with no meaning for a term that isn't actually active.
-    `refreshQuarterPlan`'s core logic was split into a parametrized `runQuarterPlan(term,data,upd)`
-    with two zero-arg wrappers — `refreshQuarterPlan` (viewed term, for Week/Acad) and
-    `refreshQuarterPlanCurrent` (always the real Current term, for Today's error-recovery button and
-    Settings' "Save & Replan") — because those two surfaces must never follow the header dropdown:
-    without the split, idly viewing an Upcoming term while clicking "Save & Replan" in Settings would
-    have silently replanned THAT term while Today (still showing Current) never reflected the
-    "success" it just reported.
-  - **Archived = read-only** is enforced by `updViewedOrBlock` (`App.jsx`) — one guard in front of
-    `updViewed`, passed as the `upd` prop to Acad/Week instead of `updViewed` directly, refusing any
-    write with a toast while the viewed term is archived. One central choke point rather than gating
-    every individual edit control across both files; Acad.jsx additionally disables/hides its most
-    visible entry points (Add Course/Assignment/Exam, Upload Syllabus, Reset Academic Data, Save
-    Difficulty) and shows a persistent banner, for UX — the guard is the actual correctness backstop
-    either way, verified live by attempting a course delete and a Replan against an archived term
-    (both correctly blocked, no data touched).
+- **Term-switching (v2.88.21, corrected in v2.88.22)** — the header dropdown (`components/App.jsx`,
+  next to the STUDYOS logo) is the ONE place to change which term Academics + Calendar display: the
+  term name (enlarged) plus a separate colored status TAG next to it (green=Current, blue=Upcoming,
+  muted=Archived), opening a panel listing every term. Picking one is a pure, instant, no-refetch
+  display switch — real request: "switch between terms and display EXACTLY as left." It does NOT
+  change which term is Current (School Info's "Change Status" is still the only thing that does
+  that) — genuinely easy to conflate, worth calling out explicitly.
+  - **Deliberately ORTHOGONAL to term status** — v2.88.21 shipped a three-tier permission model
+    (Current=live, Upcoming=editable, Archived=read-only) gating the viewer itself, and it was wrong:
+    real correction after hands-on testing: "Term switching SHOULD BE ORTHOGONAL to the terms'
+    status... REMOVE any connection to the Status when switching. It's independent tag and NOT
+    related at all to the functionality of the viewer." Switching to ANY term — current, upcoming, or
+    archived — now behaves identically: full view + edit + run-a-plan, always. Status is display-only
+    in the viewer (the header tag, the dropdown row's colored label) and continues to matter ONLY for
+    what it always governed before this feature existed — which term Today, notifications, and habit
+    logging (Pomodoro/gym/check-ins) follow, and the mirror pattern that keeps their flat fields in
+    sync. This reversal actually simplified the code: `projectTermForPlanning`/`applyTermScopedPatch`
+    were already status-agnostic by design (they operate on whatever term object is passed in); the
+    v2.88.21 `updViewedOrBlock` guard and Acad.jsx's `readOnly`-gated UI were an extra layer bolted on
+    top that broke that, and removing them was a net deletion, not a rebuild.
+  - **Mechanism** (`lib/data/terms.js`, unchanged since v2.88.21): `projectTermForPlanning(data,term,
+    school)` re-projects courses/assignments/exams (generalized `termScopedForPlanning(data,term)`,
+    optional 2nd arg) and profile/studyPlan/quarterPlan onto an arbitrary term instead of always
+    Current — `termAsProfile` builds the profile-shaped object `getTermRange`/`isFin`/`isHol`/`getQ`
+    already expected, so none of them needed to change. For Current this is provably a no-op; it only
+    actually diverges for a non-current term — and now runs UNCONDITIONALLY (no more "only if
+    non-current" branch in `App.jsx`, since the branch and the no-op proof made it redundant once
+    status stopped mattering). Writing a (re)generated plan back the other way is
+    `applyTermScopedPatch`'s optional 3rd arg, `targetTermId` — routes a scoped-key write into that
+    term's own copy without touching Current's live flat mirror; also called unconditionally now.
+    `components/App.jsx` composes both into `viewedData`/`updViewed`, passed to Week/Acad in place of
+    raw `data`/`upd`; Today, notifications, and habit-logging keep using raw `data`/`upd`
+    unconditionally regardless of what the dropdown shows. `refreshQuarterPlan`'s core logic is a
+    parametrized `runQuarterPlan(term,data,upd)` with two zero-arg wrappers — `refreshQuarterPlan`
+    (viewed term, for Week/Acad) and `refreshQuarterPlanCurrent` (always the real Current term, for
+    Today's error-recovery button and Settings' "Save & Replan") — so idly viewing a different term
+    elsewhere can't cause Settings' Replan button to silently plan the wrong one; Today (still on
+    Current) would never reflect that "success."
   - Acad.jsx briefly had an in-tab term switcher from an earlier pass and it was explicitly removed
     ("remove what added before at the header 'Courses' + drop down... revert to the original page
     design") — that was about living in the wrong place (duplicated per-tab), not a rejection of the
     concept; this is the single global home it always belonged in.
-  - Verified live against the real account: dropdown lists both real terms with correct color
-    coding; switching to the archived term re-projects Courses/Calendar to show ITS OWN isolated
-    data (different courses, empty/different calendar) with the read-only banner and blocked
-    delete/Replan attempts; switching back to Current instantly restores its full, real, populated
-    calendar with zero cross-contamination in either direction.
+  - **Real data-quality finding surfaced by testing this feature, not a bug in it**: switching to the
+    real, currently-relevant term ("UCSD Fall 2026" — one real course, DSC10) showed a study plan
+    contaminated with blocks from unrelated courses (MMW 122, MATH 180A) going back weeks. Traced via
+    a direct DB read (not guesswork): that term's own isolated `studyPlan` had genuinely been seeded,
+    at v2.88.20's one-time migration, from old shared flat-store data that already mixed multiple
+    terms/courses together from BEFORE real isolation existed — the exact "known limitation" flagged
+    when that migration shipped, previously (and wrongly) assessed as low-stakes because testing had
+    only caught it on an old mock term. It hits the real term too. Not auto-fixed — the student clears
+    it themselves (Calendar → Clear Plan → Replan on that term), same as any stale plan.
+  - Verified live against the real account: header shows the enlarged term name + status tag either
+    way; switching between the two real terms re-projects Courses/Calendar to each one's own data
+    with editing fully available on both regardless of status; switching back and forth shows zero
+    cross-contamination in the routing itself (the contamination found was pre-existing, inside that
+    term's own stored data, not a live leak between terms).
 
 ### Today tab
 - `realDayBlocks(data, dateStr)` is the single source of truth for "what does the real plan say

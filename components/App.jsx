@@ -12,7 +12,6 @@ import {
   ED,
   load,
   save,
-  getQ,
   isHol,
   isFin,
   termScopedForPlanning,
@@ -214,42 +213,37 @@ function App(){
 
   // Term-viewer: which term the Academics + Calendar tabs currently DISPLAY — separate from which
   // term is Current (School Info's "Change Status", the only thing that changes live behavior:
-  // notifications, habit logging). Real request: "the way to allow user switch between term will be
-  // simply in ONE place only - on the top header... clear the data model of the term we use to
-  // display... bring the entire academic data... and populate it in display." With real per-term
-  // isolation already in place (v2.88.20), "clear + fetch from DB" collapses to just "read a
-  // different term's own already-loaded copy" — see projectTermForPlanning. null = "follow whichever
-  // term is current", the default/only behavior everywhere before this feature existed.
+  // notifications, habit logging, Today). Real request: "the way to allow user switch between term
+  // will be simply in ONE place only - on the top header." Deliberately ORTHOGONAL to term status
+  // (real correction after testing: "Term switching SHOULD BE ORTHOGONAL to the terms' status...
+  // REMOVE any connection to the Status when switching. It's independent tag and NOT related at all
+  // to the functionality of the viewer.") — switching to ANY term, current/upcoming/archived alike,
+  // behaves identically: view + edit + run a plan, always. Status is display-only here (the header
+  // tag, color-coded) and continues to matter ONLY for the pre-existing, unrelated things it always
+  // governed — which term Today/notifications/habit-logging follow (currentTerm/data/upd below,
+  // untouched) and the mirror pattern that keeps their flat fields in sync.
+  // null = "follow whichever term is current", the default/only behavior before this feature existed.
   const [viewingTermId,setViewingTermId]=useState(null);
   const terms=data?computeTermStatuses(data.terms):[];
   const {term:currentTerm,school:currentSchool}=data?getActiveTermAndSchool(data):{term:null,school:null};
   const viewedTerm=terms.find(t=>t.id===viewingTermId)||currentTerm; // falls back to Current if unset, or if the viewed term got deleted out from under it
   const viewedSchool=viewedTerm?(data?.schools||[]).find(s=>s.id===viewedTerm.schoolId)||null:null;
-  const isViewingNonCurrent=!!(viewedTerm&&currentTerm&&viewedTerm.id!==currentTerm.id);
   // Read side: courses/assignments/exams/studyPlan/quarterPlan/profile all reprojected onto the
-  // viewed term (a no-op — literally `data` itself — while viewing Current). Pass this, not `data`,
-  // into anything that should reflect "the term being looked at" (Week's calendar, the plan
-  // refresh functions below). Today/notifications/habit-logging intentionally keep using raw `data`
-  // everywhere else — those are Current-only, live-behavior concepts with no meaning for a term
-  // that isn't actually active.
-  const viewedData=isViewingNonCurrent?projectTermForPlanning(data,viewedTerm,viewedSchool):data;
+  // viewed term — ALWAYS, not just for a non-current one (projectTermForPlanning is provably a
+  // no-op when viewedTerm actually is current, so this never changes Current's own behavior; it just
+  // stops treating "is it current" as a special case). Pass this, not `data`, into anything that
+  // should reflect "the term being looked at" (Week's calendar, the plan refresh functions below).
+  // Today/notifications/habit-logging intentionally keep using raw `data` everywhere else — see
+  // above, unaffected by which term this dropdown happens to be showing.
+  const viewedData=projectTermForPlanning(data,viewedTerm,viewedSchool);
   // Write side: routes a scoped-key write (a plan being (re)generated) into the VIEWED term's own
-  // isolated copy when it isn't Current, instead of upd()'s normal "always Current" routing —
-  // Current's live flat data is never touched by this. Non-scoped writes (course/assignment/exam
-  // edits — never term-isolated to begin with, see TERM_SCOPED_KEYS) already work unchanged via
-  // plain upd() regardless of which term is being viewed, so this wrapper only matters for planning.
+  // isolated copy — applyTermScopedPatch's targetTermId already only actually diverts anything when
+  // the target ISN'T current (mirrors straight into the flat fields exactly as plain upd() would
+  // when it is), so always passing viewedTerm.id here is the same "no special case" simplification
+  // as viewedData above. Non-scoped writes (course/assignment/exam edits — never term-isolated to
+  // begin with) already work unchanged via plain upd() regardless of which term is being viewed.
   function updViewed(p){
-    if(!isViewingNonCurrent){upd(p);return;}
-    setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm.id);save(n);return n;});
-  }
-  // Archived terms are read-only, full stop (real rule: "Archive - Read Only"). One central guard
-  // in front of updViewed — passed as the `upd` prop to Acad/Week instead of updViewed directly —
-  // rather than gating every individual edit control across both of those files; catches course/
-  // assignment/exam CRUD, syllabus sync, Reset Academic Data, and calendar block edits alike, since
-  // all of them ultimately go through whichever `upd` function they were handed.
-  function updViewedOrBlock(p){
-    if(viewedTerm?.status==="archived"){toast2(`${viewedTerm.name} is archived — read-only. Switch to Current or Upcoming to make changes.`,true);return;}
-    updViewed(p);
+    setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm?.id);save(n);return n;});
   }
   // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
   // stakes. `e:true` used to mean both "persist + show ×" AND "color it red" at once — but red is
@@ -383,9 +377,8 @@ function App(){
   //    with Today's still-Current display never reflecting the "success" toast it just saw.
   async function runQuarterPlan(targetTerm,targetData,targetUpd){
     // Plans for whichever term is being VIEWED (targetData/targetTerm — the term-viewer's header
-    // dropdown), not necessarily Current. For Current this is byte-for-byte the same data/writes as
-    // before (targetData===data, updViewed===upd) — see the viewingTermId block above.
-    if(targetTerm?.status==="archived"){toast2(`${targetTerm.name} is archived — read-only.`,true);return;}
+    // dropdown), not necessarily Current — orthogonal to status on purpose, so this runs the same
+    // way for any term regardless of current/upcoming/archived (see the viewingTermId block above).
     // End-of-plan is anchored on the last real deadline, not the term-end date the student typed
     // (see lib/planningRange.js) — a mis-typed term-end can't stretch a pointless empty tail or
     // hide real deadlines.
@@ -528,8 +521,7 @@ function App(){
   // 7 days — no cross-week demand awareness (an item partly covered by an adjacent week isn't
   // known here), but still real priority-driven placement, not the old memoryless per-day ramp.
   async function refreshWeekPlan(weekStart){
-    // See refreshQuarterPlan's opening comment — same viewedData/viewedTerm/updViewed pattern.
-    if(viewedTerm?.status==="archived"){toast2(`${viewedTerm.name} is archived — read-only.`,true);return;}
+    // See runQuarterPlan's opening comment — same viewedData/viewedTerm/updViewed pattern, orthogonal to status.
     const existingWeek=viewedData.studyPlan?.weeks?.[weekStart];
     const today=iso();
     const dateStrs=[];
@@ -675,7 +667,11 @@ function App(){
   if(!session)return <Login/>;
   if(!data)return null;
 
-  const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
+  const p=data.profile,td=iso();
+  // Finals/Holiday reflect whichever term the header dropdown is showing — via viewedData.profile
+  // (always the viewed term's own dates/calendar, see projectTermForPlanning), not gated to "only
+  // if it's Current" — orthogonal to status like the rest of the viewer, same reasoning.
+  const fin=isFin(td,viewedData.profile),hol=isHol(td,viewedData.profile);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
   const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
   const notifLog=data.notifications||[];
@@ -744,25 +740,31 @@ function App(){
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
           {/* Term-viewer badge/dropdown — the ONE place to switch which term the Academics +
               Calendar tabs display (real request: "on the top header where we display the term
-              (drop down)... use the color code to highlight Current vs. other"). Status color:
-              green=Current, blue=Upcoming, muted=Archived. Finals/Holiday suffix only applies while
-              actually viewing Current — those are live "today" indicators, not properties of a term
-              you're just browsing. Selecting a different term is a pure display switch (no save/
-              discard prompt — nothing is destroyed; see viewingTermId's own comment above) and does
-              NOT change which term is Current (that stays School Info's "Change Status").
-              Acad.jsx briefly had a per-tab version of this and it was reverted ("revert to the
-              original page design") for living in the wrong place, not for the concept — this is
+              (drop down)"). Deliberately ORTHOGONAL to term status (real correction after testing:
+              "Term switching SHOULD BE ORTHOGONAL to the terms' status... REMOVE any connection to
+              the Status when switching. It's independent tag and NOT related at all to the
+              functionality of the viewer") — switching to ANY term behaves identically regardless of
+              current/upcoming/archived; status shows only as the separate colored TAG next to the
+              name, purely informational. Finals/Holiday suffix reflects whichever term is being
+              viewed (its own dates), same "no special case for current" reasoning. Selecting a term
+              is a pure display switch (nothing saved/discarded — see viewingTermId's own comment
+              above) and does NOT change which term is Current (that stays School Info's "Change
+              Status"). Acad.jsx briefly had a per-tab version of this and it was reverted ("revert to
+              the original page design") for living in the wrong place, not for the concept — this is
               the single global home it was always meant to end up in. */}
           {data.onboarded&&terms.length>0&&viewedTerm&&(
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowTermMenu(v=>!v)}
-                className={`badge ${viewedTerm.status==="current"?"badge-green":viewedTerm.status==="upcoming"?"badge-blue":""} topbar-term`}
-                style={{cursor:"pointer",border:"none",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:4,
-                  ...(viewedTerm.status==="archived"?{background:"var(--card2)",color:"var(--t3)"}:{})}}>
-                {viewedTerm.name}
-                {!isViewingNonCurrent&&fin&&" · Finals"}
-                {!isViewingNonCurrent&&hol&&" · Holiday"}
-                <i className="ti ti-chevron-down" style={{fontSize:10,opacity:0.7}}/>
+                style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
+                  display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
+                <span style={{fontSize:16,fontWeight:700,color:"var(--t1)"}}>{viewedTerm.name}</span>
+                <span className={`badge ${viewedTerm.status==="current"?"badge-green":viewedTerm.status==="upcoming"?"badge-blue":""}`}
+                  style={{fontSize:9,padding:"2px 6px",...(viewedTerm.status==="archived"?{background:"var(--card2)",color:"var(--t3)"}:{})}}>
+                  {viewedTerm.status.toUpperCase()}
+                </span>
+                {fin&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>FINALS</span>}
+                {hol&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>HOLIDAY</span>}
+                <i className="ti ti-chevron-down" style={{fontSize:10,opacity:0.7,color:"var(--t3)"}}/>
               </button>
               {showTermMenu&&(
                 <>
@@ -899,8 +901,8 @@ function App(){
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
           :tab==="today"   ?<Today    data={data} upd={upd} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlanCurrent} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
-          :tab==="week"    ?<Week     data={viewedData} upd={updViewedOrBlock} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
-          :tab==="acad"    ?<Acad     data={data} upd={updViewedOrBlock} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
+          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
+          :tab==="acad"    ?<Acad     data={data} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>
