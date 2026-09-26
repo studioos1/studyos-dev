@@ -752,10 +752,12 @@ function App(){
               <button onClick={()=>setShowTermMenu(v=>!v)}
                 style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
                   display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
-                <span className="badge" style={{fontSize:13,fontWeight:700,color:"var(--t1)",background:"var(--card2)"}}>{viewedTerm.name}</span>
-                <span className={`badge ${viewedTerm.status==="current"?"badge-green":viewedTerm.status==="upcoming"?"badge-blue":""}`}
-                  style={{fontSize:9,padding:"2px 6px",...(viewedTerm.status==="archived"?{background:"var(--card2)",color:"var(--t3)"}:{})}}>
-                  {viewedTerm.status.toUpperCase()}
+                <span className="badge" style={{fontSize:12,fontWeight:400,color:"var(--t1)",background:"var(--card2)",gap:6}}>
+                  {viewedTerm.name}
+                  <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.04em",
+                    color:viewedTerm.status==="current"?"var(--green)":viewedTerm.status==="upcoming"?"var(--blue)":"var(--t3)"}}>
+                    {viewedTerm.status.toUpperCase()}
+                  </span>
                 </span>
                 {fin&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>FINALS</span>}
                 {hol&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>HOLIDAY</span>}
