@@ -299,9 +299,14 @@ export function SchoolInfo({data,upd,updP,toast2}){
 
   return(
     <div className="fade">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      {/* Real report: "School info page in mobile view is also condensed: I think the title shall
+          space to display the page title 'School Info' in one line, under line to display the
+          buttons. Only in mobile view." .schoolinfo-header-row stays a row (title left, buttons
+          right) at normal widths; ≤640px it stacks — title full-width on its own line, then the
+          button row below (see globals.css). */}
+      <div className="schoolinfo-header-row">
         <h2>School Info</h2>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {data.terms?.length>0&&(editingStatus?(
             <>
               {hasStatusDraft&&(
@@ -335,15 +340,16 @@ export function SchoolInfo({data,upd,updP,toast2}){
       {schoolIds.map(schoolId=>{
         const school=schools.find(s=>s.id===schoolId);
         // Real request: "keep always the 'current' on top, the other order by end-term date" —
-        // Current is pinned first via effStatus (reflects an in-progress status edit live, not
-        // just the saved value — status is a manual, stored field now, not date-derived, so
-        // Current can't just fall out of a plain date sort), then everything else runs
-        // newest-end-date-first down to oldest, so the display re-sorts live as the student edits
-        // statuses, not only after Save States.
+        // Current pinned first, then everything else newest-end-date-first down to oldest.
+        // Sorts on the REAL stored status (t.status), never the in-progress draft (effStatus) — real
+        // follow-up correction: "it shall display it on the top of the list... implemented without
+        // the recent logic to save or cancel the change. so now each selection of 'Current'
+        // immediately switch it to the top... Lets remove this logic to be active only after
+        // Saving... During Edits - no change in display of terms." Re-sorts naturally once Save
+        // changes actually commits new statuses to data.terms — nothing needed here for that.
         const terms=[...bySchool[schoolId]].sort((a,b)=>{
-          const sa=effStatus(a),sb=effStatus(b);
-          if(sa==="current")return -1;
-          if(sb==="current")return 1;
+          if(a.status==="current")return -1;
+          if(b.status==="current")return 1;
           return (b.end||"").localeCompare(a.end||"");
         });
         const isCurrent=schoolId===currentSchoolId;

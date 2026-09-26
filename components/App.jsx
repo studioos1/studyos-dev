@@ -686,6 +686,70 @@ function App(){
     ...(isAdmin?[{id:"bugs",icon:"ti-bug",label:"Bug Reports"}]:[]),
   ]:[];
 
+  // Term-viewer badge/dropdown — the ONE place to switch which term the Academics + Calendar tabs
+  // display (real request: "on the top header where we display the term (drop down)"). Deliberately
+  // ORTHOGONAL to term status (real correction after testing: "Term switching SHOULD BE ORTHOGONAL
+  // to the terms' status... REMOVE any connection to the Status when switching. It's independent tag
+  // and NOT related at all to the functionality of the viewer") — switching to ANY term behaves
+  // identically regardless of current/upcoming/archived; status shows only as the separate colored
+  // TAG next to the name, purely informational. Finals/Holiday suffix reflects whichever term is
+  // being viewed (its own dates), same "no special case for current" reasoning. Selecting a term is
+  // a pure display switch (nothing saved/discarded — see viewingTermId's own comment above) and does
+  // NOT change which term is Current (that stays School Info's "Change Status"). Acad.jsx briefly
+  // had a per-tab version of this and it was reverted ("revert to the original page design") for
+  // living in the wrong place, not for the concept — this is the single global home it was always
+  // meant to end up in.
+  // A FUNCTION, not a precomputed value — called from two places (the inline desktop/tablet spot
+  // next to "Hey Avishai", and a dedicated mobile-only row under STUDYOS, ≤640px — real report: no
+  // room to show "UCSD Fall 2026 UPCOMING" inline at that width) so each call site gets its own,
+  // independent JSX tree sharing the same showTermMenu/setShowTermMenu state; only one is ever
+  // visible at a time (CSS media queries — see .topbar-term-inline/.topbar-term-row, globals.css).
+  function renderTermBadge(){
+    if(!data.onboarded||!terms.length||!viewedTerm)return null;
+    return(
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setShowTermMenu(v=>!v)}
+          style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
+            display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
+          <span className="badge" style={{fontSize:12,fontWeight:400,color:"var(--t1)",background:"var(--card2)",gap:6}}>
+            {viewedTerm.name}
+            <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.04em",
+              color:viewedTerm.status==="current"?"var(--green)":viewedTerm.status==="upcoming"?"var(--blue)":"var(--t3)"}}>
+              {viewedTerm.status.toUpperCase()}
+            </span>
+          </span>
+          {fin&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>FINALS</span>}
+          {hol&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>HOLIDAY</span>}
+          <i className="ti ti-chevron-down" style={{fontSize:10,opacity:0.7,color:"var(--t3)"}}/>
+        </button>
+        {showTermMenu&&(
+          <>
+            <div onClick={()=>setShowTermMenu(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+            <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:230,
+              background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
+              boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
+              {terms.map(t=>{
+                const color=t.status==="current"?"var(--green)":t.status==="upcoming"?"var(--blue)":"var(--t3)";
+                const isViewed=t.id===viewedTerm.id;
+                return (
+                  <button key={t.id} onClick={()=>{setViewingTermId(t.id);setShowTermMenu(false);}}
+                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,width:"100%",textAlign:"left",
+                      padding:"9px 10px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:13,
+                      background:isViewed?"var(--card2)":"transparent",color:"var(--t1)",cursor:"pointer"}}>
+                    <span>{t.name}</span>
+                    <span style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0}}>
+                      {t.status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return(
     <div style={{fontFamily:"'Inter',sans-serif",minHeight:"100vh",background:"var(--bg)",color:"var(--t1)"}}>
       {/* FIXED HEADER — top bar + nav never scroll, only the content below does */}
@@ -733,62 +797,12 @@ function App(){
           <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,letterSpacing:"0.01em",background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>STUDYOS</span>
           <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
-          {/* Term-viewer badge/dropdown — the ONE place to switch which term the Academics +
-              Calendar tabs display (real request: "on the top header where we display the term
-              (drop down)"). Deliberately ORTHOGONAL to term status (real correction after testing:
-              "Term switching SHOULD BE ORTHOGONAL to the terms' status... REMOVE any connection to
-              the Status when switching. It's independent tag and NOT related at all to the
-              functionality of the viewer") — switching to ANY term behaves identically regardless of
-              current/upcoming/archived; status shows only as the separate colored TAG next to the
-              name, purely informational. Finals/Holiday suffix reflects whichever term is being
-              viewed (its own dates), same "no special case for current" reasoning. Selecting a term
-              is a pure display switch (nothing saved/discarded — see viewingTermId's own comment
-              above) and does NOT change which term is Current (that stays School Info's "Change
-              Status"). Acad.jsx briefly had a per-tab version of this and it was reverted ("revert to
-              the original page design") for living in the wrong place, not for the concept — this is
-              the single global home it was always meant to end up in. */}
-          {data.onboarded&&terms.length>0&&viewedTerm&&(
-            <div style={{position:"relative",marginLeft:10}}>
-              <button onClick={()=>setShowTermMenu(v=>!v)}
-                style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
-                  display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
-                <span className="badge" style={{fontSize:12,fontWeight:400,color:"var(--t1)",background:"var(--card2)",gap:6}}>
-                  {viewedTerm.name}
-                  <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.04em",
-                    color:viewedTerm.status==="current"?"var(--green)":viewedTerm.status==="upcoming"?"var(--blue)":"var(--t3)"}}>
-                    {viewedTerm.status.toUpperCase()}
-                  </span>
-                </span>
-                {fin&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>FINALS</span>}
-                {hol&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>HOLIDAY</span>}
-                <i className="ti ti-chevron-down" style={{fontSize:10,opacity:0.7,color:"var(--t3)"}}/>
-              </button>
-              {showTermMenu&&(
-                <>
-                  <div onClick={()=>setShowTermMenu(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
-                  <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:230,
-                    background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
-                    boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
-                    {terms.map(t=>{
-                      const color=t.status==="current"?"var(--green)":t.status==="upcoming"?"var(--blue)":"var(--t3)";
-                      const isViewed=t.id===viewedTerm.id;
-                      return (
-                        <button key={t.id} onClick={()=>{setViewingTermId(t.id);setShowTermMenu(false);}}
-                          style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,width:"100%",textAlign:"left",
-                            padding:"9px 10px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:13,
-                            background:isViewed?"var(--card2)":"transparent",color:"var(--t1)",cursor:"pointer"}}>
-                          <span>{t.name}</span>
-                          <span style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0}}>
-                            {t.status}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {/* Term-viewer badge/dropdown, inline (desktop/tablet) position — see renderTermBadge()
+              below for the shared markup and full rationale. Hidden ≤640px via .topbar-term-inline
+              (globals.css) in favor of the dedicated mobile row further down: real report — "the
+              header with the new changes does not have enough space to display 'UCSD Fall 2026
+              UPCOMING'... in mobile view we need to display this in one line under 'STUDYOS'." */}
+          <div className="topbar-term-inline">{renderTermBadge()}</div>
           {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
           {/* The "click to report complete" text + × only appear once the nudge is actually
               active — the icon itself (below, in the right-hand icon group) is always there. */}
@@ -873,6 +887,10 @@ function App(){
             </button>
           </div>
         </div>
+        {/* Mobile-only term row — ≤640px, under STUDYOS (see .topbar-term-row/.topbar-term-inline,
+            globals.css and renderTermBadge()'s own comment above). header-spacer-nav grows to match
+            at this breakpoint so page content doesn't sit underneath it. */}
+        <div className="topbar-term-row">{renderTermBadge()}</div>
         {/* NAV — Sub-project: Web-Mobile Enablement item #3 made this scrollable instead of
             clipped once the 8 tabs didn't fit a narrow screen. Below 768px this whole row is
             replaced by the hamburger dropdown above (see .nav-row in globals.css) rather than
