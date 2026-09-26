@@ -124,7 +124,7 @@ function useFoldedClasses(storageKey){
 }
 
 // ── ACADEMICS ────────────────────────────────────────────────────────────────
-export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg,helpJump}){
+export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refreshQuarterPlan,planMsg,helpJump,viewedTerm:viewedTermProp}){
   const {confirm,modal}=useConfirm();
   const [view,setView]=useState("courses");
   // Deep-link target from the Help drawer's "Take me there" (components/shared/HelpDrawer.jsx) —
@@ -144,13 +144,19 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const [editExamId,setEditExamId]=useState(null);
   const termStatuses=computeTermStatuses(data.terms);
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
-  // Real request: "remove what added before at the header 'Courses' + drop down to select term...
-  // revert to the original page design without this addition." This tab always shows/edits the
-  // real Current term now, full stop — no more switching to prep an Upcoming term's syllabus in
-  // advance from here. `viewingTermId` stays as a name (rather than replacing it with
-  // `currentTerm.id` at every one of its many call sites below) purely to keep this a small,
-  // low-risk diff — it's just an alias now, never independent state.
-  const viewingTermId=currentTerm?.id||null;
+  // Which term this tab shows/edits — the global term-viewer's header dropdown (App.jsx), passed
+  // down as `viewedTerm`. Falls back to Current if App.jsx hasn't resolved one yet (e.g. very first
+  // render before data settles) so this never silently shows nothing. `viewingTermId` kept as the
+  // name used by every filter below (unchanged from the earlier single-term version) purely to keep
+  // this a small diff — it's real, App.jsx-driven state now, not the alias it briefly was.
+  const viewedTerm=viewedTermProp||currentTerm;
+  const viewingTermId=viewedTerm?.id||null;
+  // Archived terms are read-only, full stop (real rule: "Archive - Read Only") — App.jsx's
+  // updViewedOrBlock already refuses any write attempted while viewing one (the correctness
+  // backstop, in case a control below is missed), this just drives the UI: banner + disabling the
+  // clearest "start something new" entry points (Add Course, Upload Syllabus, Reset Academic Data,
+  // Add Assignment/Exam) so the student isn't invited to try in the first place.
+  const readOnly=viewedTerm?.status==="archived";
   const [ee,setEe]=useState({course:"",topics:"",date:"",prepDays:7});
   const [sylPdfs,setSylPdfs]=useState([]);
   const [syncing,setSyncing]=useState(false);
@@ -801,17 +807,18 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
     {id:"assignments",l:"Assignments",short:"Assign",warn:missing.length>0},
     {id:"exams",      l:"Exams",      short:"Exams"},
     {id:"grades",     l:"GPA",        short:"GPA"},
-    {id:"difficulty", l:"Difficulty", short:"Diff",warn:diffDirty||data.planStale},
+    {id:"difficulty", l:"Difficulty", short:"Diff",warn:diffDirty||viewedTerm?.planStale},
     {id:"sync",       l:"Update Syllabus",short:"Sync"},
   ];
   const gpa=calcGPA(termCourses);
 
   return(
     <div className="fade">
-      {/* Page header — real request: "remove what added before at the header 'Courses' + drop
-          down to select term. Please revert to the original page design without this addition."
-          No more in-tab term switcher; this tab only ever shows/edits the real Current term
-          (viewingTermId below is just an alias for currentTerm.id now, not switchable state). */}
+      {/* Page header. Which term this tab shows/edits is driven by the GLOBAL term-viewer dropdown
+          in the top app header (App.jsx) now, not a per-tab control here — Acad.jsx briefly had its
+          own in-tab switcher and it was explicitly reverted ("remove what added before at the
+          header 'Courses' + drop down... revert to the original page design") for living in the
+          wrong place, not for the concept itself. See viewedTerm/readOnly above. */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,position:"relative"}}>
           <h2>Courses</h2>
@@ -847,6 +854,17 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           </div>
         </div>
       </div>
+      {/* Persistent read-only notice — shown on every tab (not just Sync's own dedicated message)
+          while viewing an archived term, so a control left clickable elsewhere in this file always
+          has visible context for why it does nothing (App.jsx's updViewedOrBlock is the actual
+          backstop that refuses the write either way). Real rule: "Archive - Read Only." */}
+      {readOnly&&view!=="sync"&&(
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--card2)",
+          color:"var(--t3)",borderRadius:9,fontSize:13,marginBottom:16}}>
+          <i className="ti ti-lock" style={{fontSize:14}}/>
+          {viewedTerm.name} is archived — read-only. Switch to Current or Upcoming (top header) to make changes.
+        </div>
+      )}
       {showCourseHelp&&(
         <InfoModal
           title="Course Difficulty & Hours"
@@ -893,11 +911,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 )}
                 {/* "+" button to toggle add form */}
                 <button
-                  className="tt" data-tt="Add new assignment"
-                  onClick={()=>{setShowAddAssign(v=>!v);cancelEdit();}}
-                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
+                  className="tt" data-tt={readOnly?`${viewedTerm.name} is archived — read-only`:"Add new assignment"}
+                  onClick={()=>{if(readOnly)return;setShowAddAssign(v=>!v);cancelEdit();}} disabled={readOnly}
+                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:readOnly?"default":"pointer",
                     background:showAddAssign?"var(--amber)":"var(--card2)",
-                    color:showAddAssign?"#1a0e00":"var(--t2)",
+                    color:showAddAssign?"#1a0e00":"var(--t2)",opacity:readOnly?0.5:1,
                     fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
                     transition:"all 0.15s",flexShrink:0}}>
                   {showAddAssign?"×":"+"}
@@ -1183,10 +1201,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     <i className={`ti ${examAllFolded?"ti-chevrons-down":"ti-chevrons-up"}`} style={{fontSize:14}}/>
                   </button>
                 )}
-                <button className="tt" data-tt="Add new exam" onClick={()=>{setShowAddExam(v=>!v);cancelEditExam();}}
-                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",
+                <button className="tt" data-tt={readOnly?`${viewedTerm.name} is archived — read-only`:"Add new exam"}
+                  onClick={()=>{if(readOnly)return;setShowAddExam(v=>!v);cancelEditExam();}} disabled={readOnly}
+                  style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:readOnly?"default":"pointer",
                     background:showAddExam?"var(--amber)":"var(--card2)",
-                    color:showAddExam?"#1a0e00":"var(--t2)",
+                    color:showAddExam?"#1a0e00":"var(--t2)",opacity:readOnly?0.5:1,
                     fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",
                     transition:"all 0.15s",flexShrink:0}}>
                   {showAddExam?"×":"+"}
@@ -1559,15 +1578,15 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                 <span style={TITLE_TEXT}>Study Preferences</span>
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <button className="tt" data-tt="Save changes" onClick={saveDifficulty} disabled={diffComputing||!diffDirty}
+                <button className="tt" data-tt={readOnly?`${viewedTerm.name} is archived — read-only`:"Save changes"} onClick={saveDifficulty} disabled={readOnly||diffComputing||!diffDirty}
                   style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",cursor:diffDirty?"pointer":"default",
                     background:diffDirty?"var(--amber-bg)":"var(--card2)",color:diffDirty?"var(--amber)":"var(--t3)",
                     display:"flex",alignItems:"center",justifyContent:"center",padding:0,opacity:diffComputing?0.5:1}}>
                   <i className="ti ti-device-floppy" style={{fontSize:14}}/>
                 </button>
-                <button className="tt" data-tt="Save & Replan — also updates your calendar right away" onClick={saveDifficultyAndReplan} disabled={diffComputing||(!diffDirty&&!data.planStale)||planning}
-                  style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",cursor:(diffDirty||data.planStale)?"pointer":"default",
-                    background:(diffDirty||data.planStale)?"var(--amber-bg)":"var(--card2)",color:(diffDirty||data.planStale)?"var(--amber)":"var(--t3)",
+                <button className="tt" data-tt={readOnly?`${viewedTerm.name} is archived — read-only`:"Save & Replan — also updates your calendar right away"} onClick={saveDifficultyAndReplan} disabled={readOnly||diffComputing||(!diffDirty&&!viewedTerm?.planStale)||planning}
+                  style={{width:28,height:28,borderRadius:"50%",border:"1px solid var(--b1)",cursor:(diffDirty||viewedTerm?.planStale)?"pointer":"default",
+                    background:(diffDirty||viewedTerm?.planStale)?"var(--amber-bg)":"var(--card2)",color:(diffDirty||viewedTerm?.planStale)?"var(--amber)":"var(--t3)",
                     display:"flex",alignItems:"center",justifyContent:"center",padding:0,opacity:diffComputing?0.5:1}}>
                   {planning?<Sp sz={13}/>:<i className="ti ti-sparkles" style={{fontSize:14}}/>}
                 </button>
@@ -1587,7 +1606,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             </div>
             {planning&&planMsg&&<div style={{fontSize:11,color:"var(--t3)",textAlign:"right",padding:"4px 20px 0"}}>{planMsg}</div>}
-            {!planning&&data.planStale&&(
+            {!planning&&viewedTerm?.planStale&&(
               <div style={{fontSize:11,color:"var(--amber)",textAlign:"right",padding:"4px 20px 0",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
                 <i className="ti ti-alert-triangle" style={{fontSize:12}}/>
                 Current plan doesn't reflect your latest saved changes — Save & Replan to apply
@@ -1726,7 +1745,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               <span style={TITLE_TEXT}>Update Syllabus</span>
             </div>
             {(termCourses.length>0||termAssignments.length>0||termExams.length>0)&&(
-              <button className="btn btn-ghost btn-sm" style={{color:"var(--amber)"}} onClick={resetAcademic}>
+              <button className="tt tt-below btn btn-ghost btn-sm" data-tt={readOnly?`${viewedTerm.name} is archived — read-only`:undefined}
+                style={{color:"var(--amber)"}} onClick={resetAcademic} disabled={readOnly}>
                 <i className="ti ti-eraser"/> Reset academic data
               </button>
             )}
@@ -1746,23 +1766,27 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"20px 0"}}>
                 No term set up yet — add one in School Info before uploading a syllabus.
               </div>
+            ):readOnly?(
+              <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"20px 0"}}>
+                {viewedTerm.name} is archived — read-only. Switch to Current or Upcoming (top header) to upload or update a syllabus.
+              </div>
             ):(<>
 
             {/* Last sync marker — persists across reloads */}
-            {data.lastSyllabusSync&&(
+            {viewedTerm?.lastSyllabusSync&&(
               <div style={{
                 display:"flex",alignItems:"flex-start",gap:10,
                 padding:"10px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:14
               }}>
                 <i className="ti ti-circle-check" style={{color:"var(--green)",fontSize:16,flexShrink:0,marginTop:1}}/>
                 <div style={{fontSize:13,color:"#fff",lineHeight:1.6}}>
-                  <div>Last synced: <strong>{new Date(data.lastSyllabusSync.at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</strong></div>
+                  <div>Last synced: <strong>{new Date(viewedTerm?.lastSyllabusSync.at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</strong></div>
                   <div style={{color:"var(--t2)",marginTop:2}}>
-                    {data.lastSyllabusSync.files?.join(", ")||"unknown file"} — {data.lastSyllabusSync.added} new item{data.lastSyllabusSync.added===1?"":"s"} added
+                    {viewedTerm?.lastSyllabusSync.files?.join(", ")||"unknown file"} — {viewedTerm?.lastSyllabusSync.added} new item{viewedTerm?.lastSyllabusSync.added===1?"":"s"} added
                   </div>
-                  {data.lastSyllabusSync.coursesFound?.length>0&&(
+                  {viewedTerm?.lastSyllabusSync.coursesFound?.length>0&&(
                     <div style={{color:"var(--t3)",marginTop:2,fontSize:12}}>
-                      Courses found: {data.lastSyllabusSync.coursesFound.join(", ")}
+                      Courses found: {viewedTerm?.lastSyllabusSync.coursesFound.join(", ")}
                     </div>
                   )}
                 </div>
@@ -1885,7 +1909,7 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                     setNcCourse({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
-                  disabled={!ncCourse.name||(ncCourse.format!=="async"&&!ncCourse.days.length)}>
+                  disabled={readOnly||!ncCourse.name||(ncCourse.format!=="async"&&!ncCourse.days.length)}>
                   <i className="ti ti-plus"/> Add class
                 </button>
               </div>

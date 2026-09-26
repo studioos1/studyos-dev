@@ -154,16 +154,57 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   practice (only affected an old mock/test term's calendar, not real academic data) — going forward
   from v2.88.20 this exact overwriting can never happen again.
 
-- **Term-switching (VIEWING a non-current term without making it current) remains explicitly
-  deferred, on request** — real request from this same session: "later, we shall allow user to
-  switch between terms and display EXACTLY as left," deliberately scoped OUT of the isolation fix
-  above ("Isolation only, no viewer UI yet" — explicitly chosen over building both together). The
-  real per-term partitioning above is exactly the prerequisite that feature was waiting on
-  (previously the blocker was real vs. derived-view data, per the "Known next step" this replaces)
-  — building the actual viewer UI is still a separate, later, deliberately-scoped piece of work.
-  Acad.jsx briefly had an in-tab term switcher from an earlier pass and it was explicitly removed
-  ("revert to the original page design") — re-adding term-switching UI should be deliberate, not a
-  repeat of that.
+- **Term-switching (v2.88.21)** — the header dropdown (`components/App.jsx`, next to the STUDYOS
+  logo) is the ONE place to change which term Academics + Calendar display: a badge showing the
+  viewed term's name, color-coded by status (green=Current, blue=Upcoming, muted=Archived), opening
+  a panel listing every term. Picking one is a pure, instant, no-refetch display switch — real
+  request: "switch between terms and display EXACTLY as left." It does NOT change which term is
+  Current (School Info's "Change Status" is still the only thing that does that) — this was the
+  genuine ambiguity worth resolving up front, since the two are easy to conflate.
+  - **Three-tier permission model**, per term status (real request: "Current means we send messages
+    and dynamically notify users. Upcoming is for planning - so user can edit the academics, and
+    preferences, run study plans and review on the screen... Archive - Read Only"):
+    | | Current | Upcoming | Archived |
+    |---|---|---|---|
+    | View courses/assignments/exams/plan | ✅ | ✅ | ✅ |
+    | Edit courses/assignments/exams, preferences, syllabus sync | ✅ | ✅ | ❌ |
+    | Run/generate study plan, review on screen | ✅ | ✅ | ❌ |
+    | Dynamic notifications, habit logging (Pomodoro/gym/check-ins) | ✅ | ❌ | ❌ |
+  - **Mechanism** (`lib/data/terms.js`): `projectTermForPlanning(data,term,school)` re-projects
+    courses/assignments/exams (generalized `termScopedForPlanning(data,term)`, optional 2nd arg) and
+    profile/studyPlan/quarterPlan onto an arbitrary term instead of always Current — `termAsProfile`
+    builds the profile-shaped object `getTermRange`/`isFin`/`isHol`/`getQ` already expected, so none
+    of them needed to change. For Current this is provably a no-op (`===data`); it only actually
+    diverges for a non-current term. Writing a (re)generated plan back the other way is
+    `applyTermScopedPatch`'s new optional 3rd arg, `targetTermId` — routes a scoped-key write into
+    that term's own copy without touching Current's live flat mirror. `components/App.jsx` composes
+    both into `viewedData`/`updViewed`, passed to Week/Acad in place of raw `data`/`upd`; Today,
+    notifications, and habit-logging keep using raw `data`/`upd` unconditionally — those are
+    Current-only, live-behavior concepts with no meaning for a term that isn't actually active.
+    `refreshQuarterPlan`'s core logic was split into a parametrized `runQuarterPlan(term,data,upd)`
+    with two zero-arg wrappers — `refreshQuarterPlan` (viewed term, for Week/Acad) and
+    `refreshQuarterPlanCurrent` (always the real Current term, for Today's error-recovery button and
+    Settings' "Save & Replan") — because those two surfaces must never follow the header dropdown:
+    without the split, idly viewing an Upcoming term while clicking "Save & Replan" in Settings would
+    have silently replanned THAT term while Today (still showing Current) never reflected the
+    "success" it just reported.
+  - **Archived = read-only** is enforced by `updViewedOrBlock` (`App.jsx`) — one guard in front of
+    `updViewed`, passed as the `upd` prop to Acad/Week instead of `updViewed` directly, refusing any
+    write with a toast while the viewed term is archived. One central choke point rather than gating
+    every individual edit control across both files; Acad.jsx additionally disables/hides its most
+    visible entry points (Add Course/Assignment/Exam, Upload Syllabus, Reset Academic Data, Save
+    Difficulty) and shows a persistent banner, for UX — the guard is the actual correctness backstop
+    either way, verified live by attempting a course delete and a Replan against an archived term
+    (both correctly blocked, no data touched).
+  - Acad.jsx briefly had an in-tab term switcher from an earlier pass and it was explicitly removed
+    ("remove what added before at the header 'Courses' + drop down... revert to the original page
+    design") — that was about living in the wrong place (duplicated per-tab), not a rejection of the
+    concept; this is the single global home it always belonged in.
+  - Verified live against the real account: dropdown lists both real terms with correct color
+    coding; switching to the archived term re-projects Courses/Calendar to show ITS OWN isolated
+    data (different courses, empty/different calendar) with the read-only banner and blocked
+    delete/Replan attempts; switching back to Current instantly restores its full, real, populated
+    calendar with zero cross-contamination in either direction.
 
 ### Today tab
 - `realDayBlocks(data, dateStr)` is the single source of truth for "what does the real plan say
