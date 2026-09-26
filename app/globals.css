@@ -332,6 +332,13 @@
        row taking up vertical space permanently. .header-spacer-nav below shrinks to match. */
     .mobile-menu-btn{display:none;}
     .header-spacer-nav{height:92px;}
+    /* Term-viewer badge — inline next to "Hey Avishai" by default (display:contents so it doesn't
+       add an extra box to .topbar-row's own flex layout); .topbar-term-row (a dedicated second line
+       under STUDYOS) stays hidden until the ≤640px swap below. Real report: "the header... does not
+       have enough space to display 'UCSD Fall 2026 UPCOMING'... in mobile view we need to display
+       this in one line under 'STUDYOS'." */
+    .topbar-term-inline{display:contents;}
+    .topbar-term-row{display:none;}
     @media (max-width:768px){
       .nav-row{display:none;}
       .mobile-menu-btn{display:flex;}
@@ -340,11 +347,27 @@
     @media (max-width:640px){
       /* Keep only what's essential on a phone: hamburger + brand mark and the actionable
          missing-due-dates warning on the left, account (and bug-report) on the right. Greeting,
-         term badge, API status and the version stamp are all either decorative or diagnostic —
-         cut them rather than let them force a second row or clip. */
+         API status and the version stamp are all either decorative or diagnostic — cut them rather
+         than let them force a second row or clip. The term badge/dropdown is NOT decorative (it's
+         how you switch terms) so instead of cutting it too, it moves to its own row below — see
+         .topbar-term-row above. */
       .topbar-row{padding:0 12px; gap:8px;}
-      .topbar-greet, .topbar-term, .topbar-api, .topbar-version{display:none;}
+      .topbar-greet, .topbar-api, .topbar-version{display:none;}
       .topbar-missing{max-width:150px; overflow:hidden; text-overflow:ellipsis;}
+      .topbar-term-inline{display:none;}
+      .topbar-term-row{display:flex; padding:2px 12px 10px 12px;}
+      .header-spacer-nav{height:84px;}
+    }
+
+    /* School Info page header — real report: "the title shall [get] space to display the page
+       title 'School Info' in one line, under line to display the buttons. Only in mobile view."
+       Row (title left, buttons right) above 640px; stacked (title full line, buttons below) at or
+       below it. The whole layout lives here, not as an inline style on the element, specifically so
+       this media query can actually override align-items/gap — an inline style always wins over an
+       external rule regardless of @media, which silently defeated an earlier version of this fix. */
+    .schoolinfo-header-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;}
+    @media (max-width:640px){
+      .schoolinfo-header-row{flex-direction:column; align-items:flex-start; gap:10px;}
     }
 
     /* Plan status drawer — top offset matches the fixed header's real height, same 92→50 split as
@@ -354,6 +377,9 @@
     .plandrawer-panel{top:92px;}
     @media (max-width:768px){
       .plandrawer-panel{top:50px;}
+    }
+    @media (max-width:640px){
+      .plandrawer-panel{top:84px;} /* matches .header-spacer-nav's own 84px at this breakpoint (the mobile term row adds a second line) */
     }
 
     /* Sub-project: Web-Mobile Enablement item #4 — Today tab touch-target pass. The Focus Time
@@ -490,6 +516,9 @@
     .toast span{white-space:normal; overflow-wrap:break-word;}
     @media (max-width:768px){
       .toast{top:78px;}
+    }
+    @media (max-width:640px){
+      .toast{top:110px;} /* header grows back to 84px here (mobile term row) — same ~26px clearance as the other breakpoints */
     }
 
     /* Daily message preview (Today tab) */

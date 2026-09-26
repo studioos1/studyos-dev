@@ -299,9 +299,14 @@ export function SchoolInfo({data,upd,updP,toast2}){
 
   return(
     <div className="fade">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      {/* Real report: "School info page in mobile view is also condensed: I think the title shall
+          space to display the page title 'School Info' in one line, under line to display the
+          buttons. Only in mobile view." .schoolinfo-header-row stays a row (title left, buttons
+          right) at normal widths; ≤640px it stacks — title full-width on its own line, then the
+          button row below (see globals.css). */}
+      <div className="schoolinfo-header-row">
         <h2>School Info</h2>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {data.terms?.length>0&&(editingStatus?(
             <>
               {hasStatusDraft&&(
