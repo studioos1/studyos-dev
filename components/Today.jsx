@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { iso, du, m2t, t2m, f12, fmtDur, briefPeriodStart } from "@/lib/time";
 import { sparkleBurst } from "@/lib/sparkle";
 import { notifyPhase } from "@/lib/notify";
-import { termScopedForPlanning, getQ, isFin, isHol, GYM0, pushNotification } from "@/lib/data";
+import { getQ, isFin, isHol, GYM0, pushNotification } from "@/lib/data";
 import {
   findRawDayBlock,
   saveBlockToDay,
@@ -18,13 +18,15 @@ import { dedupeCourseFromTaskLabel } from "@/lib/taskLabel";
 import { Sp, DiffBadge, DelBtn, DayAgenda, PaceRunner, SideDrawer, DrawerHeader } from "@/components/shared";
 
 // ── TODAY ────────────────────────────────────────────────────────────────────
-export function Today({data:rawData,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
-  // Scoped to the current term — otherwise Deadline Awareness, Today's Classes, and everything
-  // else here would consider every course/assignment/exam ever created, including years-old
-  // completed terms kept for history. Safe: this component never writes directly to
-  // courses/assignments/exams (only studyPlan/completionLog/pomodoroLogs via shared functions),
-  // so there's no risk of the scoped copy accidentally overwriting other terms' data on save.
-  const data=termScopedForPlanning(rawData);
+export function Today({data,upd,ai,busy,toast2,refreshQuarterPlan,planning,setTab,onCheckIn}){
+  // `data` arrives already scoped to whichever term the header dropdown is showing (App.jsx's
+  // viewedData — see its own comment) — courses/assignments/exams already filtered, so Deadline
+  // Awareness/Today's Classes/etc. never see other terms' data. Re-scoping it AGAIN here via
+  // termScopedForPlanning(data) — the original version of this line, from before Today followed the
+  // term-viewer — was a real, caught-before-shipping bug: termScopedForPlanning with no term
+  // argument re-resolves "current" from data.terms itself, which still lists the REAL current term
+  // regardless of which one is being viewed, silently undoing App.jsx's projection and filtering an
+  // already-filtered array by the wrong term entirely.
   // Cached once per "brief period" (see briefPeriodStart — anchored to 8am local time, not
   // midnight and NOT the app's build version). The old briefVersion===APP_VERSION check meant
   // every rebuild/redeploy invalidated the cache and fired a real, paid AI call on next load,

@@ -12,11 +12,18 @@ import { SideDrawer, DrawerHeader } from "./SideDrawer";
 // item (e.g. a quiz the AI called an exam) or wrong date/weight, rather than discovering it
 // later in a cluttered calendar. A single "Looks good, save all" button confirms everything as-is
 // for the common case; per-row editing is only needed when something's actually wrong.
-export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],onConfirm,onCancel}){
+export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],sourceText,onConfirm,onCancel}){
   const [saving,setSaving]=useState(false);
   // Deterministic sanity check on the raw AI output — surfaces misreads (a heading taken for a
   // course, a wrong-year date) up front so the student can re-upload instead of hand-fixing rows.
-  const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd});
+  // sourceText (the raw PDF text actually sent to the AI) enables the completeness cross-check —
+  // optional so this still works from any caller that hasn't wired it through.
+  const {issues}=checkSyllabusExtraction(parsed,{courses,termStart,termEnd,sourceText});
+  // The AI's own completeness self-report (extraction prompt rule 10) — categories it recognized
+  // but couldn't find real per-item dates for. Shown separately from `issues` above: this isn't a
+  // problem with the extraction, it's the AI being transparent about a real gap in the source
+  // document, so it gets its own neutral info block rather than looking like an error/warning.
+  const extractionNotes=(parsed.courses||[]).flatMap(c=>(c.extractionNotes||[]).map(n=>({course:c.courseName,note:n})));
   // Flatten into one editable list, tagging each row with its course + a stable local key. Each
   // row is also checked against what's already saved (findProbableDuplicate, lib/syllabus.js) —
   // re-uploading the same or a revised syllabus is common, and a real duplicate was slipping
@@ -30,7 +37,7 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
       const course=courses.find(x=>x.name===c.courseName);
       (c.assignments||[]).forEach((a,ai)=>{
         const dup=course?findProbableDuplicate(existingAssignments,course.id,a.title,a.dueDate,"dueDate"):null;
-        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null});
+        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null,generated:!!a.generated});
       });
       (c.exams||[]).forEach((e,ei)=>{
         const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date"):null;
@@ -99,6 +106,17 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
               <ExtractionIssues issues={issues} onReupload={onCancel}/>
             </div>
           )}
+          {extractionNotes.length>0&&(
+            <div style={{marginTop:16,background:"var(--card2)",borderRadius:9,padding:"11px 13px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>
+                <i className="ti ti-info-circle" style={{fontSize:15}}/>
+                What the AI couldn't find individual dates for
+              </div>
+              <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"var(--t3)",lineHeight:1.6}}>
+                {extractionNotes.map((n,i)=><li key={i}>{totalCourses>1?`${n.course}: `:""}{n.note}</li>)}
+              </ul>
+            </div>
+          )}
           {dupCount>0&&(
             <div style={{marginTop:16,padding:"10px 14px",background:"var(--amber-bg)",borderRadius:9,
               display:"flex",alignItems:"center",gap:10,fontSize:13,color:"#fff"}}>
@@ -140,7 +158,18 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
                       </select>
                     </td>
                     <td style={{padding:"7px 8px"}}>
-                      <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)} style={{fontSize:13,padding:"4px 6px",width:"100%"}}/>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)} style={{fontSize:13,padding:"4px 6px",width:"100%"}}/>
+                        {/* Generated from a stated weekly recurring pattern (rule 11 /
+                            expandRecurringSeries), not a date the AI read directly off the page —
+                            real distinction the student should see before trusting the date. */}
+                        {r.generated&&(
+                          <span className="tt" data-tt="Generated from a stated weekly pattern (e.g. 'due every Tuesday') — not an explicit date in the document. Double-check it, especially the first/last few."
+                            style={{flexShrink:0,fontSize:10,padding:"2px 6px",borderRadius:5,background:"var(--blue-bg)",color:"var(--blue)",whiteSpace:"nowrap"}}>
+                            ↻ generated
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{padding:"7px 8px"}}>
                       <input type="date" value={r.date||""} onChange={e=>updateRow(r.key,"date",e.target.value)} style={{fontSize:12,padding:"4px 6px"}}/>

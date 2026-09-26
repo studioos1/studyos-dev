@@ -12,15 +12,21 @@ import {
   ED,
   load,
   save,
-  getQ,
   isHol,
   isFin,
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
+  migrateTermStatusIfNeeded,
+  migrateTermDataIsolationIfNeeded,
+  applyTermScopedPatch,
+  backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
   repairTermLinkageIfNeeded,
   syncActiveTermToProfilePatch,
+  computeTermStatuses,
+  getActiveTermAndSchool,
+  projectTermForPlanning,
   pushNotification,
   markAllNotificationsRead,
   urgentItems,
@@ -188,14 +194,60 @@ function App(){
   const [showBugReport,setShowBugReport]=useState(false);
   const [showNotifPanel,setShowNotifPanel]=useState(false);
   const [showMobileMenu,setShowMobileMenu]=useState(false); // hamburger dropdown, mobile-only (<768px)
+  const [showTermMenu,setShowTermMenu]=useState(false); // term-viewer dropdown, header badge
   // App is the root component and never unmounts — the render gates below just swap in <Login/>.
   // So any modal state left open when the session ends (Sign out lives inside AccountModal itself)
   // would still be open on the next login. Force it shut whenever there's no session.
   useEffect(()=>{if(!session){setShowAccount(false);setShowBugReport(false);}},[session]);
   const [planDrawerOpen,setPlanDrawerOpen]=useState(false); // Weekly-tab Plan status drawer — lifted here so a replan can auto-open it on a shortfall
 
-  function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
+  // applyTermScopedPatch (lib/data/terms.js) is the real logic — keeps every term-scoped field's
+  // flat top-level copy (studyPlan, completionLog, pomodoroLogs, gymLogs, dailyLogs, adhoc,
+  // briefCache/briefPeriod, quarterPlan, planStale, notifications, lastSyllabusSync — see
+  // TERM_SCOPED_KEYS, lib/data/schema.js) in sync with whichever term is current, and mirrors any
+  // direct write to one of them into that term's own isolated copy. This is what makes every term
+  // "a complete isolated term... no cross-talking" (real request) without every one of the ~50
+  // call sites across the app that read/write these fields needing to change at all.
+  function upd(p){setD(prev=>{const n=applyTermScopedPatch(prev,p);save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
+
+  // Term-viewer: which term Today + Academics + Calendar currently DISPLAY — separate from which
+  // term is Current (School Info's "Change Status" — the only thing that still changes it). Real
+  // request: "the way to allow user switch between term will be simply in ONE place only - on the
+  // top header." Deliberately ORTHOGONAL to term status (real correction after testing: "Term
+  // switching SHOULD BE ORTHOGONAL to the terms' status... REMOVE any connection to the Status when
+  // switching. It's independent tag and NOT related at all to the functionality of the viewer.") —
+  // switching to ANY term, current/upcoming/archived alike, behaves identically: view + edit + run a
+  // plan, always. Status is display-only here (the header tag, color-coded).
+  // ONE consistent rule everywhere (real follow-up, after Today alone kept following Current while
+  // every other tab followed the dropdown — confusing, looked like the switch "broke" on Today
+  // specifically): Today follows this too, not just Academics/Calendar. The background effects below
+  // this block — browser/schedule notifications, urgentItems — are a genuinely different thing (real
+  // OS notifications firing about the actual live term regardless of what's on screen) and correctly
+  // keep using raw `data`/`upd`, tied to whichever term is actually current.
+  // null = "follow whichever term is current", the default/only behavior before this feature existed.
+  const [viewingTermId,setViewingTermId]=useState(null);
+  const terms=data?computeTermStatuses(data.terms):[];
+  const {term:currentTerm}=data?getActiveTermAndSchool(data):{term:null};
+  const viewedTerm=terms.find(t=>t.id===viewingTermId)||currentTerm; // falls back to Current if unset, or if the viewed term got deleted out from under it
+  const viewedSchool=viewedTerm?(data?.schools||[]).find(s=>s.id===viewedTerm.schoolId)||null:null;
+  // Read side: courses/assignments/exams/studyPlan/quarterPlan/profile all reprojected onto the
+  // viewed term — ALWAYS, not just for a non-current one (projectTermForPlanning is provably a
+  // no-op when viewedTerm actually is current, so this never changes Current's own behavior; it just
+  // stops treating "is it current" as a special case). Pass this, not `data`, into anything that
+  // should reflect "the term being looked at" (Today, Week's calendar, the plan refresh function
+  // below). The background notification effects further down intentionally keep using raw `data` —
+  // see above.
+  const viewedData=projectTermForPlanning(data,viewedTerm,viewedSchool);
+  // Write side: routes a scoped-key write (a plan being (re)generated) into the VIEWED term's own
+  // isolated copy — applyTermScopedPatch's targetTermId already only actually diverts anything when
+  // the target ISN'T current (mirrors straight into the flat fields exactly as plain upd() would
+  // when it is), so always passing viewedTerm.id here is the same "no special case" simplification
+  // as viewedData above. Non-scoped writes (course/assignment/exam edits — never term-isolated to
+  // begin with) already work unchanged via plain upd() regardless of which term is being viewed.
+  function updViewed(p){
+    setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm?.id);save(n);return n;});
+  }
   // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
   // stakes. `e:true` used to mean both "persist + show ×" AND "color it red" at once — but red is
   // this app's established color for something that actually FAILED (delete buttons, overdue
@@ -263,6 +315,38 @@ function App(){
     if(fix)upd(fix);
   },[data?.terms?.length,data?.courses?.length,data?.profile?.termStart,data?.profile?.termEnd]); // eslint-disable-line
 
+  // One-time backfill for accounts that already had terms before status became a stored, manually-
+  // set field — see migrateTermStatusIfNeeded. Real request: "add a field to manage the term
+  // states: Current, Upcoming, Archive."
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateTermStatusIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length]); // eslint-disable-line
+
+  // One-time backfill for accounts whose first term was created before `termsInitialized` existed
+  // as a marker — see the guard atop migrateLegacyTermIfNeeded (real, shipped bug: "I deleted all
+  // terms, and still showing term" — a deleted term got resynthesized from stale profile fields).
+  // Without this, any account that already has a term but predates the fix is still one deletion
+  // away from the same resurrection.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=backfillTermsInitializedIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length,data?.termsInitialized]); // eslint-disable-line
+
+  // One-time migration for accounts created before real per-term isolation existed — seeds each
+  // term's own isolated copy of studyPlan/completionLog/pomodoroLogs/etc (see
+  // migrateTermDataIsolationIfNeeded, lib/data/terms.js): the current term adopts whatever's
+  // sitting in the old flat fields, every other term starts genuinely empty. Runs through upd()
+  // like the others, so applyTermScopedPatch's own "terms changed → re-derive every mirror" branch
+  // immediately re-syncs the flat fields from the now-migrated current term in the same tick.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateTermDataIsolationIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length]); // eslint-disable-line
+
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields
   // (the planner, getTermRange, isFin/isHol, WeekGrid) keeps working unchanged, now always
@@ -279,16 +363,23 @@ function App(){
     catch(e){toast2(e.message,true);setBusy(false);return null;}
   }
 
-  // Shared by both Weekly's "Refresh Plan" button and Settings' "Save & Replan" button — the same
-  // single function, so there's no risk of them ever doing different things. Re-plans every day from
-  // the current week forward through the end of the term (never backward). Deterministic placement
-  // (times/targets) is always freshly recomputed from current settings, assignments, and exams; the
-  // AI only writes specific task text for the already-placed slots, batched a couple weeks at a time.
+  // Shared by Today's error-recovery Refresh, Weekly's "Refresh Plan", Acad's Difficulty "Save &
+  // Replan", and Settings' "Save & Replan" — one function everywhere, so there's no risk of any of
+  // them ever doing something different. Always plans for whichever term the header dropdown is
+  // currently showing (viewedTerm/viewedData/updViewed) — every surface follows the same term-viewer
+  // selection uniformly now (real request: term switching should have ONE consistent rule
+  // everywhere, no tab-specific exception). Re-plans every day from the current week forward through
+  // the end of the term (never backward). Deterministic placement (times/targets) is always freshly
+  // recomputed from current settings, assignments, and exams; the AI only writes specific task text
+  // for the already-placed slots, batched a couple weeks at a time.
   async function refreshQuarterPlan(){
+    // Plans for whichever term is being VIEWED (viewedData/viewedTerm — the term-viewer's header
+    // dropdown), not necessarily Current — orthogonal to status on purpose, so this runs the same
+    // way for any term regardless of current/upcoming/archived (see the viewingTermId block above).
     // End-of-plan is anchored on the last real deadline, not the term-end date the student typed
     // (see lib/planningRange.js) — a mis-typed term-end can't stretch a pointless empty tail or
     // hide real deadlines.
-    const termRange=planningRange(data);
+    const termRange=planningRange(viewedData,viewedTerm);
     if(!termRange){toast2("Set your term dates in Settings → School Info first, so I know how far ahead to plan.",true);return;}
     const ok=await confirmApp(`Re-plan every day from this week through the end of your term (${termRange.end})? This uses your current settings, assignments, and exams. Any study blocks you've manually added or edited will be kept as-is.`);
     if(!ok)return;
@@ -310,12 +401,12 @@ function App(){
       const userEditedByDate={};
       allDates.forEach(dateStr=>{
         const ws=weekStartOf(dateStr);
-        const priorDay=data.studyPlan?.weeks?.[ws]?.days?.[dateStr]||[];
+        const priorDay=viewedData.studyPlan?.weeks?.[ws]?.days?.[dateStr]||[];
         userEditedByDate[dateStr]=priorDay.filter(b=>b.userEdited);
       });
 
       setPlanMsg(`Planning ${allDates.length} days...`);
-      const scopedData=termScopedForPlanning(data);
+      const scopedData=termScopedForPlanning(viewedData,viewedTerm);
       const gapsByDayFn=(dateStr,userEdited)=>freeSlots(dateStr,scopedData,userEdited);
       const result=planHorizon(allDates,scopedData,gapsByDayFn,userEditedByDate);
       const placedByDate=result.blocksByDate;
@@ -328,9 +419,9 @@ function App(){
       // per-day placements into week entries.
       const weeksTouched={};
       allDates.forEach(ds=>{const ws=weekStartOf(ds);weeksTouched[ws]=true;});
-      const newWeeks={...(data.studyPlan?.weeks||{})};
+      const newWeeks={...(viewedData.studyPlan?.weeks||{})};
       Object.keys(weeksTouched).forEach(weekStart=>{
-        const existingWeek=data.studyPlan?.weeks?.[weekStart];
+        const existingWeek=viewedData.studyPlan?.weeks?.[weekStart];
         const days={};
         for(let i=0;i<7;i++){
           const d=new Date(weekStart+"T12:00:00");
@@ -344,16 +435,16 @@ function App(){
         newWeeks[weekStart]={
           generatedAt:new Date().toISOString(),
           generatedFrom:{
-            courseCount:data.courses.length,
-            assignmentCount:data.assignments.length,
-            examCount:data.exams.length,
-            profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,peak:data.profile.energyPeakTime}),
+            courseCount:viewedData.courses.length,
+            assignmentCount:viewedData.assignments.length,
+            examCount:viewedData.exams.length,
+            profileHash:JSON.stringify({wake:viewedData.profile.wakeTime,sleep:viewedData.profile.sleepTime,focus:viewedData.profile.focusMins,brk:viewedData.profile.breakMins,peak:viewedData.profile.energyPeakTime}),
           },
           days,
         };
       });
 
-      upd({
+      updViewed({
         quarterPlan:{tasksByDate,generatedAt:iso(),generatedThrough:allDates[allDates.length-1],datesPlanned:allDates.length,version:APP_VERSION,lastError:null},
         studyPlan:{weeks:newWeeks},
         briefCache:null,briefPeriod:null,planStale:false,
@@ -370,10 +461,24 @@ function App(){
       // shortfall summary never answered on its own.
       const totalBlocks=Object.values(placedByDate).reduce((s,b)=>s+b.length,0);
       const forcedItems=result.summaryItems.filter(it=>it.forced);
+      // Nudge if the typed term-end doesn't match the real last deadline — planning is fine either
+      // way (anchored on the deadline), but Finals Week / holidays / term status still use the date.
+      // Folded into whichever toast fires below, never its own separate toast2() call: toast2()
+      // only ever holds ONE toast (see its own comment above), so firing this as a second call
+      // right after the real result toast used to silently replace it — not add to it — the
+      // instant both ran in the same tick, so the student never actually saw the "re-planned
+      // successfully" confirmation, only this date nudge, styled as a persistent red error with no
+      // sign the plan (which had, in fact, already saved) had completed at all. Real, confirmed
+      // report from exactly this shape of case: "when I clicked save, it did not save" — it always
+      // had; only the confirmation was ever shown to say so.
+      const w=termRange.termEndWarning;
+      const termEndNote=w?`Term end is set ${w.gapDays} day${w.gapDays!==1?"s":""} ${w.direction} your last deadline (${w.lastDeadline}) — planning is fine either way, it's anchored on the deadline — double check School Info if that gap isn't intentional.`:null;
       if(result.shortfalls.length===0){
-        toast2(forcedItems.length
+        const msg=forcedItems.length
           ?`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. ⭐ ${forcedItems.length===1?`"${forcedItems[0].title}" is`:`All ${forcedItems.length} prioritised items are`} fully scheduled. 🎯`
-          :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`);
+          :`Re-planned ${allDates.length} days through ${termRange.end} — ${totalBlocks} blocks scheduled. Everything fits! 🎯`;
+        if(termEndNote)toast2({title:msg,sub:termEndNote},true,"warning");
+        else toast2(msg);
       }else{
         const forcedShort=result.shortfalls.filter(it=>it.forced);
         const otherShort=result.shortfalls.filter(it=>!it.forced);
@@ -389,18 +494,18 @@ function App(){
             forcedShort.length&&otherShort.length?`+${otherShort.length} other item${otherShort.length!==1?"s":""} also short.`:null,
           ].filter(Boolean).join(" "),
           lines,
-          footer:`${result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:""}Check Courses → Study Preferences.`,
+          footer:[
+            result.shortfalls.length>lines.length?`+${result.shortfalls.length-lines.length} more. `:"",
+            "Check Courses → Study Preferences.",
+            termEndNote,
+          ].filter(Boolean).join(" "),
         },true,"warning");
         setPlanDrawerOpen(true); // surface the shortfall in the Plan status drawer, not just a fleeting toast
       }
-      // Nudge if the typed term-end doesn't match the real last deadline — planning is fine either
-      // way (anchored on the deadline), but Finals Week / holidays / term status still use the date.
-      const w=termRange.termEndWarning;
-      if(w)toast2(`Planned through your last deadline (${w.lastDeadline}). Your term end is set ${w.gapDays} day${w.gapDays!==1?"s":""} ${w.direction} that — fix it in School Info if it's wrong.`,true);
     }catch(err){
       console.error("StudyOS: refreshQuarterPlan() failed —",err);
       toast2("Couldn't refresh the plan ("+(err?.message||"unknown error")+")",true);
-      upd({quarterPlan:{...(data.quarterPlan||{}),lastError:err?.message||"unknown error",lastErrorAt:iso(),version:APP_VERSION}});
+      updViewed({quarterPlan:{...(viewedData.quarterPlan||{}),lastError:err?.message||"unknown error",lastErrorAt:iso(),version:APP_VERSION}});
     }
     setPlanMsg("");
     setPlanning(false);
@@ -411,7 +516,8 @@ function App(){
   // 7 days — no cross-week demand awareness (an item partly covered by an adjacent week isn't
   // known here), but still real priority-driven placement, not the old memoryless per-day ramp.
   async function refreshWeekPlan(weekStart){
-    const existingWeek=data.studyPlan?.weeks?.[weekStart];
+    // See runQuarterPlan's opening comment — same viewedData/viewedTerm/updViewed pattern, orthogonal to status.
+    const existingWeek=viewedData.studyPlan?.weeks?.[weekStart];
     const today=iso();
     const dateStrs=[];
     for(let i=0;i<7;i++){
@@ -426,7 +532,7 @@ function App(){
     plannableDateStrs.forEach(dateStr=>{
       userEditedByDate[dateStr]=(existingWeek?.days?.[dateStr]||[]).filter(b=>b.userEdited);
     });
-    const scopedData=termScopedForPlanning(data);
+    const scopedData=termScopedForPlanning(viewedData,viewedTerm);
     const gapsByDayFn=(dateStr,userEdited)=>freeSlots(dateStr,scopedData,userEdited);
     const result=plannableDateStrs.length?planHorizon(plannableDateStrs,scopedData,gapsByDayFn,userEditedByDate):{blocksByDate:{}};
     // Days before today keep their existing data completely untouched; only today-forward days
@@ -438,14 +544,14 @@ function App(){
     const newWeek={
       generatedAt:new Date().toISOString(),
       generatedFrom:{
-        courseCount:data.courses.length,
-        assignmentCount:data.assignments.length,
-        examCount:data.exams.length,
-        profileHash:JSON.stringify({wake:data.profile.wakeTime,sleep:data.profile.sleepTime,focus:data.profile.focusMins,brk:data.profile.breakMins,peak:data.profile.energyPeakTime}),
+        courseCount:viewedData.courses.length,
+        assignmentCount:viewedData.assignments.length,
+        examCount:viewedData.exams.length,
+        profileHash:JSON.stringify({wake:viewedData.profile.wakeTime,sleep:viewedData.profile.sleepTime,focus:viewedData.profile.focusMins,brk:viewedData.profile.breakMins,peak:viewedData.profile.energyPeakTime}),
       },
       days,
     };
-    upd({studyPlan:{weeks:{...(data.studyPlan?.weeks||{}),[weekStart]:newWeek}},planStale:false});
+    updViewed({studyPlan:{weeks:{...(viewedData.studyPlan?.weeks||{}),[weekStart]:newWeek}},planStale:false});
     // Same forced-item callout as refreshQuarterPlan — see its comment for why.
     const forcedItemsWk=(result.summaryItems||[]).filter(it=>it.forced);
     if(result.shortfalls.length===0){
@@ -556,7 +662,11 @@ function App(){
   if(!session)return <Login/>;
   if(!data)return null;
 
-  const p=data.profile,q=getQ(p),td=iso(),fin=isFin(td,p),hol=isHol(td,p);
+  const p=data.profile,td=iso();
+  // Finals/Holiday reflect whichever term the header dropdown is showing — via viewedData.profile
+  // (always the viewed term's own dates/calendar, see projectTermForPlanning), not gated to "only
+  // if it's Current" — orthogonal to status like the rest of the viewer, same reasoning.
+  const fin=isFin(td,viewedData.profile),hol=isHol(td,viewedData.profile);
   const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
   const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
   const notifLog=data.notifications||[];
@@ -623,7 +733,62 @@ function App(){
           <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,letterSpacing:"0.01em",background:"linear-gradient(120deg,var(--blue),var(--teal))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>STUDYOS</span>
           <span style={{fontSize:9.5,fontWeight:700,color:"var(--t3)",letterSpacing:"0.06em",marginLeft:5,flexShrink:0}}>BETA</span>
           {data.onboarded&&p.name&&<span className="topbar-greet" style={{fontSize:13,color:"var(--t2)"}}>Hey {p.name}</span>}
-          {q&&<span className="badge badge-blue topbar-term">{q.name}{fin&&" · Finals"}{hol&&" · Holiday"}</span>}
+          {/* Term-viewer badge/dropdown — the ONE place to switch which term the Academics +
+              Calendar tabs display (real request: "on the top header where we display the term
+              (drop down)"). Deliberately ORTHOGONAL to term status (real correction after testing:
+              "Term switching SHOULD BE ORTHOGONAL to the terms' status... REMOVE any connection to
+              the Status when switching. It's independent tag and NOT related at all to the
+              functionality of the viewer") — switching to ANY term behaves identically regardless of
+              current/upcoming/archived; status shows only as the separate colored TAG next to the
+              name, purely informational. Finals/Holiday suffix reflects whichever term is being
+              viewed (its own dates), same "no special case for current" reasoning. Selecting a term
+              is a pure display switch (nothing saved/discarded — see viewingTermId's own comment
+              above) and does NOT change which term is Current (that stays School Info's "Change
+              Status"). Acad.jsx briefly had a per-tab version of this and it was reverted ("revert to
+              the original page design") for living in the wrong place, not for the concept — this is
+              the single global home it was always meant to end up in. */}
+          {data.onboarded&&terms.length>0&&viewedTerm&&(
+            <div style={{position:"relative",marginLeft:10}}>
+              <button onClick={()=>setShowTermMenu(v=>!v)}
+                style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
+                  display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
+                <span className="badge" style={{fontSize:12,fontWeight:400,color:"var(--t1)",background:"var(--card2)",gap:6}}>
+                  {viewedTerm.name}
+                  <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.04em",
+                    color:viewedTerm.status==="current"?"var(--green)":viewedTerm.status==="upcoming"?"var(--blue)":"var(--t3)"}}>
+                    {viewedTerm.status.toUpperCase()}
+                  </span>
+                </span>
+                {fin&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>FINALS</span>}
+                {hol&&<span className="badge badge-amber" style={{fontSize:9,padding:"2px 6px"}}>HOLIDAY</span>}
+                <i className="ti ti-chevron-down" style={{fontSize:10,opacity:0.7,color:"var(--t3)"}}/>
+              </button>
+              {showTermMenu&&(
+                <>
+                  <div onClick={()=>setShowTermMenu(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+                  <div style={{position:"absolute",top:"120%",left:0,zIndex:200,minWidth:230,
+                    background:"var(--card)",border:"1px solid var(--b1)",borderRadius:10,
+                    boxShadow:"0 12px 30px rgba(0,0,0,0.4)",padding:6}}>
+                    {terms.map(t=>{
+                      const color=t.status==="current"?"var(--green)":t.status==="upcoming"?"var(--blue)":"var(--t3)";
+                      const isViewed=t.id===viewedTerm.id;
+                      return (
+                        <button key={t.id} onClick={()=>{setViewingTermId(t.id);setShowTermMenu(false);}}
+                          style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,width:"100%",textAlign:"left",
+                            padding:"9px 10px",borderRadius:7,border:"none",fontFamily:"inherit",fontSize:13,
+                            background:isViewed?"var(--card2)":"transparent",color:"var(--t1)",cursor:"pointer"}}>
+                          <span>{t.name}</span>
+                          <span style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0}}>
+                            {t.status}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
           {/* The "click to report complete" text + × only appear once the nudge is actually
               active — the icon itself (below, in the right-hand icon group) is always there. */}
@@ -732,9 +897,9 @@ function App(){
       <div style={{maxWidth:tab==="week"?"100%":960,margin:"0 auto",padding:tab==="week"?"10px 14px":"20px 16px"}}>
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
-          :tab==="today"   ?<Today    data={data} upd={upd} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
-          :tab==="week"    ?<Week     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
-          :tab==="acad"    ?<Acad     data={data} upd={upd} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
+          :tab==="today"   ?<Today    data={viewedData} upd={updViewed} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
+          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
+          :tab==="acad"    ?<Acad     data={data} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
           :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>

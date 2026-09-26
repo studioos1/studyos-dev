@@ -10,14 +10,26 @@ not a one-time snapshot.
 A personal AI-powered study assistant, built for Itay (a UCSD Data Science student) by his parent
 Avishai, who is the sole developer and product decision-maker. Single-user, runs locally.
 
-**Stack:** Node.js/Express + React (Babel CDN — no build step) + JSON-file data store + Anthropic
-API proxied server-side. Runs via `npm start` on `localhost:3000`, working directory `~/studyos`.
+**Stack:** Next.js (Turbopack) + React, client components ("use client") — a real build step now,
+not the original Babel-CDN/no-build setup. Backend is Supabase (Auth + Postgres, RLS-scoped
+per-user data, `supabase/schema.sql`), replacing the original JSON-file store — `lib/data/store.js`
+is the one place that talks to it (`load()`/`save()`). Anthropic API proxied server-side. Runs via
+`npm start` on `localhost:3000`, working directory `~/studyos`. **Build/restart ordering matters
+and has burned real time twice in one session:** `npm run build` must run and complete BEFORE
+`lsof -ti :3000 | xargs kill -9 && nohup npm start &` — restarting from a build made before your
+latest edit (or, just as easily, editing `lib/version.js` for a version bump AFTER the last build)
+means the server silently serves stale code while every version number and log looks fine. Confirm
+the fix actually shipped by checking the server process's start *time* is after the build (`ps -o
+pid,lstart -p $(lsof -ti :3000 -sTCP:LISTEN)` vs `ls -la .next/BUILD_ID`), not just that the build
+succeeded — and killing by `lsof -ti :3000`, not a name-pattern `pkill`, which has separately failed
+to find the actual `npm start`/`next-server` process more than once.
 
 **Working style:** brainstorm briefly in plain language → confirm exact behavior/edge cases →
-isolated tests → real-server smoke tests (never claim correctness from syntax validation alone) →
-version bump + CHANGELOG entry + zip package for every meaningful change. Avishai gives direct,
-specific feedback and actively cross-checks stated behavior against actual code — he catches
-inconsistencies precisely, so don't hand-wave.
+isolated tests (`npx vitest run`) → real-server smoke tests (never claim correctness from syntax
+validation alone) → version bump + CHANGELOG entry → commit (scratch file + `git commit -F`) on a
+feature branch → push, every meaningful change — no zip packaging, that was the pre-Next.js
+workflow. Avishai gives direct, specific feedback and actively cross-checks stated behavior against
+actual code — he catches inconsistencies precisely, so don't hand-wave.
 
 **Explicit standing preference:** "avoid inconsistency of AI and use as possible deterministic
 method" — prefer deterministic logic over AI calls wherever the two could achieve the same result.
@@ -51,25 +63,153 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 - **Completion guarantee:** `preflightRiskCheck()` does whole-horizon feasibility simulation before
   committing to a plan. Shortfalls are always surfaced explicitly (never silently dropped).
 
-### Multi-school / multi-term system (added late in the session)
-- `data.schools[]` / `data.terms[]` are the real source of truth for term history.
+### Multi-school / multi-term system
+- `data.schools[]` / `data.terms[]` (`lib/data/terms.js`) are the real source of truth for term
+  history. Current work lives on branch `feature/term-status-manual` (stacked, unmerged PR bundle
+  with the B-07 + planner work — see git log, not yet deployed).
+- **Term status is a STORED, user-set field now — `"current" | "upcoming" | "archived"` —
+  NOT derived from dates.** This is a deliberate reversal of the original design (below is what it
+  used to be, kept as a warning against reintroducing it): status used to be 100% date-computed via
+  `computeTermStatuses()`, on purpose, so it couldn't drift out of sync. Real request that reversed
+  it: "remove the function to close current term... instead we need a function to set a term to
+  Active... ONLY ONE can be set to Current." The student now explicitly sets which term is Current
+  via School Info's inline status editor (see below); `computeTermStatuses()` today just reads each
+  term's stored `status`, defaulting a term with none to `"upcoming"` (`migrateTermStatusIfNeeded`
+  backfills existing accounts once). Changing status never touches a term's own
+  courses/assignments/exams — every consumer scopes by `termId`, so a term's data just sits exactly
+  as it was regardless of status.
+- **School Info's status editor is inline, not a popup** (`components/SchoolInfo.jsx`) — clicking
+  "Change Status" toggles edit mode on the term cards already on the page: each shows its status in
+  color plus the other two as gray clickable pills, staged locally (`draftStatuses`) until "Save
+  States" commits them. Picking Current on one term auto-demotes whichever term was Current in the
+  draft to Archive — enforced live, no confirm popup (a popup-based version was explicitly removed
+  per request). A Current term **cannot be deleted directly** — `deleteTermEntirely` blocks it with
+  a toast telling the student to change status first, no confirm dialog even opens.
 - **Mirror pattern:** `profile.termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar`
   stay in place as fields, auto-synced to whichever term is "current" via
-  `syncActiveTermToProfilePatch()`. Every existing consumer of those profile fields (the planner,
-  `getTermRange()`, `isFin()`/`isHol()`, WeekGrid) works unchanged — they just always reflect the
-  active term now.
-- Term status (`Completed` / `Current` / `Upcoming`) is **always derived from dates**, never
-  stored — `computeTermStatuses()`. A term becomes Current the moment the previous one's end date
-  passes, even before its own start date arrives.
+  `syncActiveTermToProfilePatch()` — which must actively CLEAR those fields when no term is
+  Current, not just leave them stale (real shipped bug: deleting the last term left the header
+  still showing it). Every existing consumer of those profile fields (the planner, `getTermRange()`,
+  `isFin()`/`isHol()`, WeekGrid) works unchanged — they just always reflect the active term now.
 - **`termScopedForPlanning(data)` is critical and easy to forget.** It filters
   courses/assignments/exams to just the current term before anything planning-related touches
   them. Without it, the planner and calendar display would consider *every* course ever created,
-  including years-old completed terms — this was a real, shipped bug (fixed in v2.32.0/v2.34.0).
+  including years-old archived terms — this was a real, shipped bug (fixed in v2.32.0/v2.34.0).
   Apply it at every point data enters term-sensitive logic: both `planHorizon()` call sites,
   inside `buildBlocks()` itself (not at each caller), and at the top of `Today`.
 - One-time legacy migration (`migrateLegacyTermIfNeeded`) synthesizes a school+term from old
   single-term profile fields on first load, and backfills `termId` onto any existing untagged
-  course — without the backfill, real existing data silently vanishes from term-filtered views.
+  course. **Guarded by a permanent `termsInitialized` flag** (set the moment an account first gets
+  a real term, backfilled onto existing accounts) — without it, this migration re-fires the moment
+  `terms[]` goes empty again (e.g. after deleting the last term) and resynthesizes a "new" term
+  from whatever stale profile fields haven't been cleared yet, resurrecting a term the student just
+  deleted. This was a real, shipped, two-layer bug — don't remove the guard.
+- **Real per-term data isolation — fixed, v2.88.20.** `studyPlan`/`completionLog`/`pomodoroLogs`/
+  `gymLogs`/`dailyLogs`/`adhoc`/`briefCache`/`briefPeriod`/`quarterPlan`/`planStale`/
+  `notifications`/`lastSyllabusSync` (`TERM_SCOPED_KEYS`, `lib/data/schema.js`) used to be flat,
+  global stores shared across every term — a term only "owned" a date range, not a real data
+  partition, and switching which term was Current never actually changed what any of them showed
+  (real, concrete report: uploading a syllabus for a new term still showed "Last synced..." from a
+  different one). Real request that drove the fix: "each term will be created in the database as a
+  complete isolated term... include all its academic data, study plans, grades, user behaviour.
+  ALL... no cross-talking" — confirmed explicitly that this includes gym/daily-checkin/Pomodoro
+  logs too (an earlier, separate request had these deliberately EXCLUDED from term resets — that
+  request was about a specific button's scope, not about isolation, and doesn't conflict: Acad.jsx's
+  "Reset academic data" still only clears `studyPlan`, same as before, just now correctly scoped to
+  whichever term is current).
+
+  Fixed by extending this app's own existing "mirror pattern" (already used for
+  `profile.termStart/termEnd/schoolName`) to these fields too: each is now a REAL, isolated field on
+  every term object (`data.terms[i].studyPlan` etc — the actual source of truth), while the flat
+  top-level copies ~50 call sites across the app already read/write directly (Today.jsx, Week.jsx,
+  the planner, the SMS cron routes...) stay a live mirror of whichever term is current — kept in
+  sync by **`applyTermScopedPatch`** (`lib/data/terms.js`), the one choke point every `upd()` call
+  now routes through (`components/App.jsx`). This is why almost none of those ~50 call sites needed
+  to change: they still read/write the same flat fields as always, it's just genuinely per-term
+  underneath now. The one write path that bypasses `upd()` entirely — the server-side
+  `runNotifyUrgentItems` cron function (`lib/data/notifications.js`) — reuses the exact same
+  `applyTermScopedPatch`, so its notification-log write stays mirrored too even though it never
+  touches `App.jsx`. One-time migration (`migrateTermDataIsolationIfNeeded`) seeds the CURRENT
+  term's isolated copy from the old flat data on first load, and every OTHER term from genuinely
+  empty defaults — verified live against the real account (round-tripped Current between two real
+  terms, confirmed zero data loss and correct isolation both directions).
+
+  Net simplification: the old `scrubTermSchedule` (date-range + courseId reconciliation, needed
+  only because these stores used to be shared) is gone entirely — resetting a term is now just
+  resetting its own copy to empty, deleting a term removes its data by definition, and a brand-new
+  term simply starts with its own empty defaults regardless of whether its dates happen to overlap
+  another term's. Calendar's own week/month *navigation* range (`components/Week.jsx`) still reads
+  the term's raw typed start/end (`getTermRange`) directly — NOT `planningRange()`, which is
+  deadline-anchored (last real assignment/exam due date, not the typed term-end) and exists purely
+  so a mistyped Term End can't give the AI planner a pointless empty tail to schedule into —
+  conflating those two ranges was a real, shipped bug (a freshly-synced term with only its first
+  few items entered had its entire calendar chopped down to just those couple of weeks); unrelated
+  to this fix, still a live distinction to keep straight.
+
+  **Known limitation of the migration, not a bug in it:** any term whose flat data had already been
+  overwritten by normal cross-talk BEFORE this fix shipped (e.g. a Replan run while a different term
+  was Current, in the old flat-store world) can't have that specific data resurrected — the
+  migration can only adopt whatever was actually sitting in the flat store at migration time, honestly,
+  not reconstruct something already clobbered by the very bug being fixed. Confirmed low-stakes in
+  practice (only affected an old mock/test term's calendar, not real academic data) — going forward
+  from v2.88.20 this exact overwriting can never happen again.
+
+- **Term-switching (v2.88.21, corrected in v2.88.22)** — the header dropdown (`components/App.jsx`,
+  next to the STUDYOS logo) is the ONE place to change which term Academics + Calendar display: the
+  term name (enlarged) plus a separate colored status TAG next to it (green=Current, blue=Upcoming,
+  muted=Archived), opening a panel listing every term. Picking one is a pure, instant, no-refetch
+  display switch — real request: "switch between terms and display EXACTLY as left." It does NOT
+  change which term is Current (School Info's "Change Status" is still the only thing that does
+  that) — genuinely easy to conflate, worth calling out explicitly.
+  - **Deliberately ORTHOGONAL to term status** — v2.88.21 shipped a three-tier permission model
+    (Current=live, Upcoming=editable, Archived=read-only) gating the viewer itself, and it was wrong:
+    real correction after hands-on testing: "Term switching SHOULD BE ORTHOGONAL to the terms'
+    status... REMOVE any connection to the Status when switching. It's independent tag and NOT
+    related at all to the functionality of the viewer." Switching to ANY term — current, upcoming, or
+    archived — now behaves identically: full view + edit + run-a-plan, always. Status is display-only
+    in the viewer (the header tag, the dropdown row's colored label) and continues to matter ONLY for
+    what it always governed before this feature existed — which term Today, notifications, and habit
+    logging (Pomodoro/gym/check-ins) follow, and the mirror pattern that keeps their flat fields in
+    sync. This reversal actually simplified the code: `projectTermForPlanning`/`applyTermScopedPatch`
+    were already status-agnostic by design (they operate on whatever term object is passed in); the
+    v2.88.21 `updViewedOrBlock` guard and Acad.jsx's `readOnly`-gated UI were an extra layer bolted on
+    top that broke that, and removing them was a net deletion, not a rebuild.
+  - **Mechanism** (`lib/data/terms.js`, unchanged since v2.88.21): `projectTermForPlanning(data,term,
+    school)` re-projects courses/assignments/exams (generalized `termScopedForPlanning(data,term)`,
+    optional 2nd arg) and profile/studyPlan/quarterPlan onto an arbitrary term instead of always
+    Current — `termAsProfile` builds the profile-shaped object `getTermRange`/`isFin`/`isHol`/`getQ`
+    already expected, so none of them needed to change. For Current this is provably a no-op; it only
+    actually diverges for a non-current term — and now runs UNCONDITIONALLY (no more "only if
+    non-current" branch in `App.jsx`, since the branch and the no-op proof made it redundant once
+    status stopped mattering). Writing a (re)generated plan back the other way is
+    `applyTermScopedPatch`'s optional 3rd arg, `targetTermId` — routes a scoped-key write into that
+    term's own copy without touching Current's live flat mirror; also called unconditionally now.
+    `components/App.jsx` composes both into `viewedData`/`updViewed`, passed to Week/Acad in place of
+    raw `data`/`upd`; Today, notifications, and habit-logging keep using raw `data`/`upd`
+    unconditionally regardless of what the dropdown shows. `refreshQuarterPlan`'s core logic is a
+    parametrized `runQuarterPlan(term,data,upd)` with two zero-arg wrappers — `refreshQuarterPlan`
+    (viewed term, for Week/Acad) and `refreshQuarterPlanCurrent` (always the real Current term, for
+    Today's error-recovery button and Settings' "Save & Replan") — so idly viewing a different term
+    elsewhere can't cause Settings' Replan button to silently plan the wrong one; Today (still on
+    Current) would never reflect that "success."
+  - Acad.jsx briefly had an in-tab term switcher from an earlier pass and it was explicitly removed
+    ("remove what added before at the header 'Courses' + drop down... revert to the original page
+    design") — that was about living in the wrong place (duplicated per-tab), not a rejection of the
+    concept; this is the single global home it always belonged in.
+  - **Real data-quality finding surfaced by testing this feature, not a bug in it**: switching to the
+    real, currently-relevant term ("UCSD Fall 2026" — one real course, DSC10) showed a study plan
+    contaminated with blocks from unrelated courses (MMW 122, MATH 180A) going back weeks. Traced via
+    a direct DB read (not guesswork): that term's own isolated `studyPlan` had genuinely been seeded,
+    at v2.88.20's one-time migration, from old shared flat-store data that already mixed multiple
+    terms/courses together from BEFORE real isolation existed — the exact "known limitation" flagged
+    when that migration shipped, previously (and wrongly) assessed as low-stakes because testing had
+    only caught it on an old mock term. It hits the real term too. Not auto-fixed — the student clears
+    it themselves (Calendar → Clear Plan → Replan on that term), same as any stale plan.
+  - Verified live against the real account: header shows the enlarged term name + status tag either
+    way; switching between the two real terms re-projects Courses/Calendar to each one's own data
+    with editing fully available on both regardless of status; switching back and forth shows zero
+    cross-contamination in the routing itself (the contamination found was pre-existing, inside that
+    term's own stored data, not a live leak between terms).
 
 ### Today tab
 - `realDayBlocks(data, dateStr)` is the single source of truth for "what does the real plan say
@@ -156,6 +296,69 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 
 ## Known backlog (not yet built)
 
+- ~~Syllabus-sync extraction miss on the real account's Fall 2026 DSC 10~~ — **fixed, v2.88.13.**
+  Root cause: `t.slice(0,16000)` in all three upload flows (`Onboard.parseSyl`, `Acad.syncSyl`,
+  `Acad.rawExtract`) truncated each PDF's extracted text before sending it to the AI — a leftover
+  constant unrelated to the model's real context window. The actual uploaded file (found at
+  `~/Downloads/DSC 10 updated.pdf`, matching the sync record's filename) is a real 23-page UCSD
+  "Course Info" page that extracts to 40,616 characters; 16,000 landed mid-page-9, before the
+  Exams/Quizzes section, Weekly Schedule, and Grades weight table were ever reached — confirmed by
+  reproducing the exact pdf.js extraction and re-running the real prompt against `/api/ai` both
+  truncated (reproduced the bug exactly: 4 admin items, 0 exams) and untruncated (correctly
+  returned the 4 admin items + 4 quizzes + 2 real exams with real weights, matching the syllabus's
+  own grading table). Fixed by centralizing a much larger, explicitly-justified
+  `MAX_SYLLABUS_CHARS=120000` in `lib/pdf.js` (still just a safety valve against a truly degenerate
+  PDF, not a real content limit) shared by all three call sites, replacing three separate copies of
+  the old magic number. Separately (not a bug): this specific PDF has no individual per-assignment
+  HW/lab dates at all — it explicitly defers those to a separate live "homepage" calendar page not
+  included in the upload; nothing in extraction can recover dates that aren't in the document.
+  **Follow-up, v2.88.14, from trying the fix on the real file:** (1) Quizzes now classify as
+  **exams**, not assignments — reversed on direct request ("it classified 'Quiz' as Homework, shall
+  be an exam"); the extraction prompt's rule and `lib/syllabus.js`'s deterministic safety net
+  (`reclassifyQuizzesAsExams`, promoting quiz-titled items from assignments → exams) both flipped
+  direction, with a shorter `prepDays` (2-3) than a Midterm/Final gets. Re-confirmed via the
+  full-text grep that labs/HW genuinely aren't in this PDF (see above) — not re-litigated, just
+  double-checked on request. (2) Found and fixed a real, unrelated bug while investigating "save
+  didn't work": `toast2()` only ever holds one toast, and `refreshQuarterPlan()` fired it twice in a
+  row — the real success message, then a term-end/last-deadline mismatch nudge — so the second call
+  silently clobbered the first before it rendered, styled as a persistent red error with zero
+  success confirmation. **Any code path that wants to show more than one thing after an action must
+  fold it into a single `toast2()` call (structured `{title,sub,lines,footer}`), never fire a
+  second one — the second always wins, silently.** Fixed here; worth checking for the same pattern
+  elsewhere if a similar "did it actually work?" report comes up again.
+  **v2.88.15/16, from the same thread, escalated to "if this isn't 100% right the whole app can be
+  trashed":** could not reproduce a reported "6 homework, all one fabricated date" live (5 direct
+  API test runs across every DSC10-related file in Downloads), but treated the underlying risk as
+  real anyway — a single AI pass over a PDF is never a literal completeness guarantee, so the fix
+  isn't "try to hit 100%", it's "make a gap impossible to miss silently". Two deterministic
+  safety nets now run on every syllabus extraction, both **free** (no second AI call — offered and
+  explicitly declined by the student in favor of keeping upload cost at one call per sync):
+  (1) **hallucination guard** (`checkSyllabusExtraction`, precision side) — flags 3+ items sharing
+  one base title (e.g. "Homework N") AND the identical due date, the signature of a guessed
+  schedule rather than real per-item dates; (2) **completeness signal**
+  (`scanForDatedItemSignals`, recall side) — regex-scans the raw source text for a date near
+  graded-item language, cross-references it against what actually got extracted, flags anything
+  mentioned but not covered. Both are approximate by design (regex heuristics, not language
+  understanding) and worded as "worth checking", never a confirmed miss — verified against real
+  syllabus phrasing (correctly spaced, since condensing sections together creates false window
+  overlaps that don't happen in the real ~40k-char document) to produce zero false positives on a
+  correct extraction. Alongside these, the extraction prompt (rule 10, all 3 upload flows) now
+  makes the AI self-report: work through the document's own section headers as a checklist, return
+  `extractionNotes` naming every graded category it recognized but found no individual date for,
+  with why. Live-verified against the real DSC10 PDF: correctly named all 9 undated categories
+  (Labs, Homework, Midterm/Final Project, Pretest, Discussion groupwork, Pod meetings, SETs, Extra
+  credit) with specific reasons — and, notably, **stopped guessing a date for the Pretest** (an
+  earlier run had silently placed it on 9/29 with no real textual basis; this one correctly omits
+  it with an explanatory note instead). All three surface in `ExtractionVerifyModal`, the
+  onboarding syllabus screen, and the raw-extraction diagnostic — errors/warnings and the AI's own
+  notes get visually distinct blocks (problem vs. transparency), never merged into one.
+  **Established pattern going forward for any future extraction-quality concern:** don't reach for
+  a second AI pass by default — first ask whether a deterministic, generalized (non-course-
+  specific) cross-check against the raw source text can catch the same failure class for free.
+- **Known next step, explicitly requested, not yet built: term-switching (viewing).** The real
+  prerequisite — genuine per-term data isolation — is done (v2.88.20, see the Multi-school/
+  multi-term section above). Building the actual viewer UI (browsing a past/upcoming term's data
+  without making it Current) is still separate, later, deliberately-scoped work.
 - ~~`webDifficultySignal()`~~ — done (B-01): `/api/course-info` now runs real web search per new
   course (not per item — the old per-item stub was removed), self-reports a confidence level
   (low/medium/high) + rationale since real grade-distribution data is usually login-gated, and
@@ -233,7 +436,17 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
 2. Before any UI/logic change: check current behavior in code first, don't assume.
 3. After any change: syntax-validate, isolated-test the core logic where feasible, then a real
    server smoke test (`npm start` + `curl`) — "the file parses" is not "it works."
-4. Version bump (`APP_VERSION` in `app.js`) + CHANGELOG.md entry + repackage, every time.
+4. Version bump (`APP_VERSION` in `lib/version.js`, not `app.js`) + CHANGELOG.md entry, every time
+   — see the Stack section above for the build-before-restart ordering that has to go with this.
 5. If a fix doesn't match what was asked (this happened more than once this session with a UI
    layout request) — re-read the actual reference/screenshot literally rather than iterating on
    assumptions. Ask directly if genuinely ambiguous rather than guessing again.
+6. **For any visual/CSS fix, verify against the actual computed state before calling it done —
+   `getComputedStyle`/DOM inspection, or precise measurement (e.g. canvas `measureText` for
+   text-fit questions) — not just a screenshot that happens to look right in one browser session.**
+   A one-line request ("move a select's native dropdown arrow off the edge") took 4 shipped
+   versions to actually land because early attempts guessed at browser rendering behavior (does
+   padding move a native `<select>` arrow? does a split `background`/`backgroundImage`/
+   `backgroundRepeat` style object render as one image, or race and duplicate?) and shipped on a
+   screenshot instead of checking computed state first. The one attempt that measured first worked
+   in a single pass.

@@ -1,5 +1,596 @@
 # StudyOS Changelog
 
+## v2.88.20 — 2026-09-25
+
+**Real per-term data isolation — every term is now a genuinely separate silo**
+
+Real request: "each term will be created in the database as a complete isolated term... include
+all its academic data, study plans, grades, user behaviour. ALL... no cross-talking." Concretely
+reported: uploading a syllabus showed "Last synced..." from a DIFFERENT term.
+
+Audited the entire schema. courses/assignments/exams (and grades, which live on those records)
+were already correctly isolated (termId/courseId-tagged, filtered everywhere). The real gap:
+`studyPlan`, `completionLog`, `pomodoroLogs`, `gymLogs`, `dailyLogs`, `adhoc`, `briefCache`,
+`briefPeriod`, `quarterPlan`, `planStale`, `notifications`, and `lastSyllabusSync` were flat,
+global stores shared across every term — switching which term was current never actually changed
+what any of them showed. (`history` audited and excluded — confirmed completely unused/dead
+field, nothing in the app reads or writes it.)
+
+Fixed by extending this app's own existing "mirror pattern" (already used for
+`profile.termStart/termEnd/schoolName`) to these fields too: each becomes a REAL, isolated field
+on every term object (`data.terms[i].studyPlan` etc — the actual source of truth) while the flat
+top-level copies ~50 call sites across the app already read/write directly (Today.jsx, Week.jsx,
+the planner, the SMS cron routes...) become a live mirror of whichever term is current, kept in
+sync by one new choke point: `applyTermScopedPatch` (`lib/data/terms.js`), which `upd()` now
+routes every call through. This is why almost none of those ~50 call sites needed to change at
+all — they still read/write the same flat fields as always, it's just genuinely per-term
+underneath now. Also fixed the one write path that bypasses `upd()` entirely: the server-side
+`runNotifyUrgentItems` cron function now reuses the exact same `applyTermScopedPatch` so its
+notification-log write stays correctly mirrored too.
+
+One-time migration (`migrateTermDataIsolationIfNeeded`) seeds the CURRENT term's isolated copy
+from the existing flat data (the honest assumption — that data really was generated while it was
+active) and every OTHER term from genuinely empty defaults.
+
+Net simplification: the old `scrubTermSchedule` — a fragile date-range-matching reconciliation
+needed only because these stores used to be shared — is gone entirely. Real isolation makes it
+moot: resetting a term is now just resetting its own copy to empty; deleting a term removes its
+data by definition; a brand-new term simply starts with its own empty defaults, regardless of
+whether its dates happen to overlap another term's.
+
+317/317 tests pass (13 new, covering `applyTermScopedPatch` and the migration directly — neither
+had unit tests as inline component logic before). Build clean. Verified live against the real
+account's existing data before and after migration to confirm nothing was lost in the transition.
+
+## v2.88.19 — 2026-09-25
+
+**Instructor/TA extraction, Assignments+Exams grouped by class, exam-title calendar tooltips**
+
+Three real requests:
+
+1. **Instructor/TA extraction.** Extraction prompt rule 12 (all 3 upload flows) now pulls the
+   instructor and TA name(s) when the syllabus states them (Course Staff/Instructor/Teaching Team
+   sections) — never guessed if absent. `finalizeSync` populates `professor`/new `ta` field on
+   course creation, and backfills either on an existing course if it's still empty (same pattern
+   already used for schedule backfill) — never overwrites a value already set. Both now show in
+   the course card's info line.
+2. **Assignments/Exams grouped by class, like Study Preferences.** Both tables drop their
+   repeated Class column and group rows under a per-class fold header instead (collapse/expand-all
+   button, same interaction as Study Preferences) — extracted the fold-state logic
+   (`useFoldedClasses`) into one reusable hook shared by all three tabs, each with its own
+   independent, per-tab fold memory. Freed width went to Exams' Topics column specifically (170px
+   → 260px, on request) — real topic text was wrapping to several lines at the old width; Exam
+   title rarely needs more than a couple words, so it stays the flexible column instead.
+3. **Calendar tooltips name the specific test.** Exam-prep study blocks previously read just
+   "DSC 10 exam prep (4d left)" — no way to tell which exam from the tooltip alone, unlike
+   homework blocks which already named the assignment. All 3 exam-prep label sites in
+   `lib/planner/schedule.js` now include the exam's own title: "DSC 10 — Quiz 1 exam prep (4d
+   left)". Deliberately uses the same `courseName — title` separator homework labels already use,
+   so the existing `dedupeCourseFromTaskLabel` (Today's Focus Time row) keeps working unchanged.
+
+313/313 tests pass (2 new, locking in the exam-title label behavior). Build clean.
+
+## v2.88.18 — 2026-09-25
+
+**Fix: "Reset academic data" now clears this term's calendar too, not just Courses**
+
+Real report: "after 'reset academic' data of this term - the calendar still show study plans...
+Reset academic data shall erase all data under 'Courses' and the entire study plan of this term."
+
+Root cause: two separate, parallel implementations of "reset this term's academic data" existed —
+School Info's own per-term Reset (`resetTermData`, correct: already scrubbed studyPlan/
+completionLog/pomodoroLogs via a shared `scrubTermSchedule` helper) and Academics' "Reset academic
+data" (`resetAcademic`, Courses → Update Syllabus — cleared only courses/assignments/exams, never
+touched the calendar at all). The two silently drifted apart; a stale comment in School Info's own
+code had even (incorrectly) assumed Academics' version already handled this.
+
+Fixed by moving `scrubTermSchedule` out of `SchoolInfo.jsx` into the shared `lib/data/terms.js`
+(exported, now the one place this logic can live — matching the project's own stated principle),
+and having `resetAcademic` use it too. Deliberately narrower than School Info's Reset here, on
+direct confirmation: only the `studyPlan` half is applied — `completionLog`/`pomodoroLogs` are left
+alone, preserving this function's own existing, explicit promise that History and habit logs
+(gym/check-ins/focus sessions) are never touched by it. The two reset actions remain intentionally
+different in scope; only the calendar-clearing gap was a real bug.
+
+312/312 tests pass (7 new, covering `scrubTermSchedule` directly for the first time — it previously
+had no tests of its own, only inline in a component). Build clean.
+
+## v2.88.17 — 2026-09-25
+
+**Extraction: deterministic weekly-pattern date generation (e.g. "Labs due every Tuesday")**
+
+Working through the extractionNotes gap list one at a time (real ask, closing gaps deterministically
+where possible): the first two — Lab Assignments and Homework Assignments — aren't actually
+unknowable. The syllabus states "usually due Tuesdays" / "usually due Thursdays" outright; that's a
+real stated pattern, not a guess, genuinely different from the case rule 9 protects against
+(inventing a plausible individual date with no textual basis). The weekday is known; only the exact
+term-week count wasn't given explicitly. That's a job for deterministic date math over the
+student's own real term calendar, not for the AI to either fabricate or silently drop — the same
+principle this app already applies everywhere else a date gets derived (`planningRange`,
+`scrubTermSchedule`, etc.).
+
+- **`expandRecurringSeries` (`lib/syllabus.js`):** takes a generic `{title, dayOfWeek, weightTotal}`
+  pattern (no course-specific logic anywhere) and a term's real `{termStart, lastDeadline}` bounds,
+  and generates one dated instance per matching weekday. Two defensible, documented, generalized
+  defaults: skip the first occurrence if it falls within 6 days of term start (nothing can be due
+  before the course has released material for it), and stop strictly before the course's own last
+  real deadline (nothing routine is normally due on/after finals) — falling back to a generous ~17
+  week ceiling only when no deadline is known at all. Weight splits evenly across generated
+  instances. Sanity-checked against DSC10's real Fall 2026 dates: Lab 1 → Oct 6, Homework 1 → Oct 1
+  (both correctly skip the term-start week), 9 labs / 10 homeworks, all landing before the Dec 5
+  final — a genuinely plausible real schedule from zero course-specific tuning.
+- **`applyRecurringSeries`:** the courses[]-level merge (same shape-in/shape-out pattern as
+  `reclassifyQuizzesAsExams`) — expands each course's AI-reported `recurringSeries` entries and
+  folds the generated items into that course's `assignments`, anchoring the end bound to that
+  course's own last exam date when available.
+- **Extraction prompt rule 11 (all 3 upload flows, including `Onboard.parseSyl` — which had never
+  gotten the v2.88.14 quiz-reclassification fix either; closed that gap too while touching this
+  code, so all three entry points into the same pipeline stay in sync instead of silently
+  drifting):** the AI now returns a stated weekly pattern as a `recurringSeries` entry — never as
+  guessed individual dates, never dropped into `extractionNotes` either.
+- **UI:** generated rows carry a `↻ generated` badge in `ExtractionVerifyModal` (tooltip explains
+  why, prompts a double-check) — never silently indistinguishable from an explicitly-dated item.
+  The raw-extraction diagnostic shows the pattern itself plus a live count preview, without
+  expanding it — that view stays truthful to "what the AI actually returned."
+
+306/306 tests pass (14 new). Build clean.
+
+## v2.88.16 — 2026-09-25
+
+**Extraction completeness: deterministic source cross-check + AI's own gap self-report, before saving**
+
+Real ask: "If we are not parsing and uploading the PDF 100% properly this entire app can be
+trashed... this entire app can be trashed... we shall update the upload/save process to result
+with setting EVERYTHING assigned to student in the syllabus." Two layers added, both free (no
+second AI call — that tradeoff was offered and explicitly declined in favor of keeping upload cost
+at one AI call):
+
+- **Deterministic completeness signal (`scanForDatedItemSignals`, `lib/syllabus.js`):** scans the
+  raw source text actually sent to the AI for a date sitting near graded-item language
+  (quiz/exam/homework/due/%/etc.), resolves it to an ISO date, and cross-references it against
+  every date that actually got extracted. Anything mentioned but not covered surfaces as a `warn`
+  issue in `ExtractionVerifyModal` (and the "Show Raw AI Extraction" diagnostic) naming the actual
+  date and a text snippet — capped at 5 with a "+N more" summary, matching the app's existing
+  pattern for multi-item warnings. This is the recall-side complement to v2.88.15's same-date
+  hallucination guard (that one catches "invented too much"; this one catches "silently dropped
+  something real"). Approximate by design — a regex heuristic, not real language understanding —
+  so every message is worded as "worth checking", never a confirmed miss. Verified against real
+  syllabus phrasing (spaced the way the real ~40k-char document actually spaces its sections) to
+  produce zero false positives on a correct extraction.
+- **AI self-report (extraction prompt rule 10, all 3 upload flows):** the model now works through
+  the document's own section headers as an explicit checklist and returns `extractionNotes` — a
+  plain-language note for any graded category it recognized but couldn't find individual real
+  dates for (e.g. "Labs — no individual dates stated, syllabus points to a separate course-website
+  calendar"). Shown as its own neutral info block in `ExtractionVerifyModal`, the onboarding
+  syllabus-import screen, and the raw-extraction diagnostic — distinct from the error/warning
+  issues above, since this isn't a problem, it's the AI being transparent about a real gap in the
+  source document rather than the student having to infer it from an empty list.
+
+294/294 tests pass (10 new). Build clean.
+
+## v2.88.15 — 2026-09-25
+
+**Extraction: never invent a due date; block a fabricated same-date item series before saving**
+
+Real report: "only loaded 6 homework assignments and all are due on 10/29. this is wrong." Could
+not reproduce this exact shape live (5 direct-API test runs across all 3 DSC10-related files in
+Downloads — the real syllabus, its original pre-update version, and a "from GPT" meta/analysis
+document — consistently returned either the correct 4-5 real admin items or a `null` date for
+categories the source never actually dates, never a fabricated uniform schedule). But the root
+cause is real and visible directly in the prompt: rules 1/3/4 ("extract EVERY dated item... you
+must return 8 separate entries... make sure your output has that many") apply blanket pressure to
+produce N dated entries regardless of whether N real dates actually exist in the source — exactly
+the situation this DSC10 syllabus is in for its weekly labs/homework (confirmed, again, by grepping
+the full extracted text: it states outright, twice, that those dates live on a separate
+course-website page not included in the upload). That's a real hallucination risk even if this
+specific attempt to reproduce it came back clean — LLM outputs aren't fully deterministic, and the
+report is real user-observed behavior on a real file.
+
+Fixed two ways, prompt + deterministic backstop (belt and suspenders, since the prompt alone was
+already relied on for this and evidently isn't 100% reliable):
+- **Prompt (all 3 upload flows):** new rule 9 makes explicit that rules 1/3/4 apply ONLY to items
+  whose real due date is actually written in the source — never license to fabricate one. If a
+  recurring category is described only in general terms ("due weekly, see the course website for
+  the exact schedule") with no individual dates ever stated, the model should omit that category
+  entirely rather than invent a schedule. Names the specific failure shape directly: several
+  differently-numbered items (Homework 1, Homework 2, ...) sharing one identical date is called out
+  as the tell that a schedule is being guessed, not read.
+- **Deterministic backstop (`checkSyllabusExtraction`, `lib/syllabus.js`):** new check groups items
+  by "base title" (numbers stripped) + exact due date; 3+ items sharing both is flagged as an
+  **error** — surfaced as a hard red "This extraction looks wrong" banner with a re-upload button in
+  `ExtractionVerifyModal`, *before* anything can be saved. This is the "verify it's reasonable" step
+  — real numbered series (Homework 1/2/3 on genuinely different weekly dates) don't trigger it; a
+  real one-off cluster of distinctly-named items sharing one date (the legitimate first-week admin
+  tasks) doesn't either, since their titles don't share a common numbered base.
+
+Labs/homework dates for the real DSC10 file remain correctly unextracted — re-confirmed, not a
+regression: the source document genuinely never states them.
+
+286/286 tests pass (5 new, covering the new check's true-positive/true-negative cases). Build clean.
+
+## v2.88.14 — 2026-09-25
+
+**Fix: quizzes now classify as exams; "Save & Replan" toast no longer masks a successful save**
+
+Real feedback after trying v2.88.13 on the actual DSC 10 file, three issues:
+
+1. **"it classified 'Quiz' as Homework, shall be an exam."** The extraction prompt (all 3 upload
+   flows) previously treated "exams" as Midterm(s)/Final only, deliberately demoting any
+   Quiz-titled item into "assignments" — a design choice from earlier in the project, now
+   reversed on direct request. Quizzes are graded, timed, in-class assessments (same category as
+   Midterms/Finals), not take-home coursework — they now classify as exams, with a shorter
+   `prepDays` (2-3) than a Midterm/Final gets. `lib/syllabus.js`'s deterministic safety net
+   (previously `reclassifyMisplacedQuizzes`, demoting quiz-titled exams → assignments) is now
+   `reclassifyQuizzesAsExams`, promoting the opposite direction — same purpose, correctness
+   guaranteed in code rather than left purely to the prompt. The "too many exams" sanity check in
+   `checkSyllabusExtraction` also assumed a high exam count meant quizzes were mislabeled; that
+   assumption is now backwards (a normal quiz-heavy course easily clears the old >6 threshold), so
+   it's now a generous >15 ceiling worded as a general sanity check, not an accusation.
+
+2. **"it did not extract all labs and all HW — please double check."** Re-verified by grepping the
+   full extracted text of the real PDF for every Lab/Homework/Problem-Set mention: the document
+   states outright, twice — "Lab assignments will usually be due on Tuesdays... refer to the
+   homepage of this website for the most up-to-date schedule" and the identical sentence for
+   Homeworks on Thursdays. There are no individually-dated Lab N / Homework N / Problem Set N
+   entries anywhere in this PDF — only the generic weekly pattern already extracted. This is a
+   real content gap in the source document, not an extraction miss; the per-item dates live on a
+   separate course-website "homepage" page that wasn't part of this upload.
+
+3. **"when I clicked on save, it did not [save]."** It always had — `finalizeSync` (the actual
+   save) has no dependency on this at all. The real bug: `refreshQuarterPlan()` (fired right after,
+   via "Plan Now") calls `toast2()` twice in a row — once with the real "Re-planned N days — all
+   scheduled 🎯" success message, then immediately with a term-end/last-deadline mismatch nudge.
+   `toast2()` only ever holds ONE toast (by design, see its own comment in `App.jsx`), so the
+   second call silently replaced the first before it ever rendered — and that second call was
+   styled as a persistent RED error with no success confirmation anywhere, reading exactly like a
+   failure. Fixed by folding the nudge into whichever toast actually fires (success or shortfall)
+   as an additional line, in amber ("needs attention"), never a separate call that can clobber the
+   real result.
+
+283/283 tests pass (2 new, covering `reclassifyQuizzesAsExams`'s promote direction and the raised
+exam-count sanity threshold). Build clean. Verified live against the real `DSC 10 updated.pdf` via
+the actual Update Syllabus diagnostic, not just unit tests.
+
+## v2.88.13 — 2026-09-25
+
+**Fix: syllabus sync was truncating longer PDFs before reaching exams/grades, critical**
+
+Real report: "the doc we uploaded for DSC10 include only few HW, no tests and most of the weeks
+has only the class time." Root-caused by pulling the actual uploaded file (`DSC 10 updated.pdf`,
+named in the sync record) and reproducing the exact client-side extraction (pdf.js text join) used
+by `syncSyl`/`rawExtract`/`parseSyl`.
+
+The PDF is a real 23-page UCSD "Course Info" page (About/Meetings/Assignments/Assessments/Grades/
+Academic-Integrity/etc.) — normal for this style of syllabus, just long on policy prose before the
+schedule. Extracted text ran 40,616 characters. All three upload flows sliced each file's text to
+**16,000** characters before ever sending it to the AI — a leftover, never-revisited constant with
+no relation to the model's actual context window (200K+ tokens). That cutoff landed mid-page-9,
+*before* the Exams/Quizzes section (Midterm Oct 26, Final Dec 5, 4 quiz dates), the Weekly Schedule,
+and the Grades weight table were ever reached — so the AI only ever saw the first-week admin items
+(Join Campuswire, Gradescope, Syllabus Check, Welcome Survey) and nothing else. Confirmed via a
+live re-run against `/api/ai` with the real extracted text: at the old 16,000-char cap the result
+matched the bug exactly (4 admin items, 0 exams); with the cap removed, it correctly returned the 4
+admin items **plus** 4 quizzes (Oct 9/16, Nov 6/20, 5% each) **and** 2 real exams (Midterm 10/26 —
+10%, Final 12/5 — 20%), matching the syllabus's own grading table.
+
+Fixed by raising the cap to a generous, explicitly-justified `MAX_SYLLABUS_CHARS=120000` (still a
+safety valve against a truly degenerate/garbage-OCR PDF, not a real content limit), centralized in
+`lib/pdf.js` and shared by all three call sites (`Onboard.parseSyl`, `Acad.syncSyl`,
+`Acad.rawExtract` — previously three separate copies of the same magic number).
+
+**Separately, not a bug:** this particular PDF genuinely has no individual per-assignment dates for
+weekly homeworks/labs — it explicitly defers those to "the homepage of this website" (a separate
+live calendar page, not part of this PDF). Nothing in the extraction can recover dates that aren't
+in the uploaded document; if per-item HW/lab dates are wanted, that page needs to be uploaded too
+(as a PDF/screenshot, or pasted text).
+
+281/281 tests pass. Build clean. Verified against the real file end-to-end via the running server's
+`/api/ai`, not just syntax-checked.
+
+## v2.88.12 — 2026-09-25
+
+**Fix: week-picker label was clipping its trailing year**
+
+Real request: "This week display has now a new char at the end before the arrow: ',' - Please
+REMOVE this and DO NOT DO ANY OTHER CHANGE."
+
+v2.88.11's extra right padding (8px → 24px, added for the arrow's breathing room) ate into the
+fixed-width box's available space — confirmed via the live DOM that the underlying label text
+always correctly included the year ("...Sep 26, 2026"); the native `<select>` was just clipping it
+with no ellipsis, leaving the comma as the last visible character. Measured the exact width needed
+via canvas text-measurement against the longest real label ("This week · Week N of 13 · Mon DD –
+Mon DD, YYYY") rather than guessing again, and widened the box by precisely that amount.
+
+Nothing else touched — same arrow, same colors, same behavior. Verified via the DOM (`fits: true`,
+7px of margin) and a screenshot showing the full "Sep 20 – Sep 26, 2026" label. Build clean,
+281/281 tests pass.
+
+## v2.88.11 — 2026-09-25
+
+**Week-picker arrow actually moved off the edge this time**
+
+Real request: "the arrow is still at the original place - please fix the location as asked: move
+it slightly left to keep small space from the right edge."
+
+v2.88.10's plain right-padding didn't actually move the arrow — Chrome reserves a fixed-width
+native arrow gutter regardless of padding; padding only pushes the (centered) text further from
+it, confirmed by the student's own real-browser report. Back to a custom SVG arrow via
+`appearance:none`, but this time as ONE `background` shorthand string (color + image + no-repeat +
+position all in a single value) instead of separate `background`/`backgroundImage`/
+`backgroundRepeat`/`backgroundPosition` style keys — the split-property version is what produced
+v2.88.9's duplicate-arrow bug (a shorthand/longhand race between separate style-object writes).
+
+Verified this time by reading the actual computed style in the running page, not just a
+screenshot: exactly one `<select>` on the page, `imageCount: 1`, `background-repeat: no-repeat`,
+`background-position: calc(100% - 10px) 50%` — one arrow, 10px in from the right edge, nothing
+duplicated. Build clean, 281/281 tests pass.
+
+## v2.88.10 — 2026-09-25
+
+**Fix: week-picker arrow duplication from the previous custom-chevron attempt**
+
+Real request: "you have added tons of arrows in the entire week-selection-display box. Please
+remove them all and as before, and keep only one at the right, located near the right edge."
+
+v2.88.9's fix (a custom SVG chevron via `appearance:none` + `background-image`, replacing the
+native `<select>` arrow) rendered as multiple stray arrows across the box on the real browser —
+didn't reproduce in this session's own testing, evidently a real cross-browser risk not worth
+taking for a one-line spacing tweak. Reverted to the plain native `<select>` arrow, with just
+enough right padding to push it in from the edge — no custom icon, no `appearance` override.
+
+Verified live via zoomed screenshot: exactly one arrow, with real space from the border, nothing
+duplicated. Build clean, 281/281 tests pass.
+
+## v2.88.9 — 2026-09-25
+
+**Calendar week-picker chevron no longer touches the edge**
+
+Real request: "the week selection in the calendar view has a small arrow on the right for a drop
+down selection - this arrow is touching the right border of the week's box - please move it
+slightly away from the edge and keep there some space."
+
+- The week picker is a native `<select>`, whose built-in dropdown arrow Chrome renders flush
+  against the box edge regardless of padding. Replaced it with our own small chevron (matching the
+  two other custom dropdown chevrons already in this file), drawn with real space between it and
+  the border — the native arrow is suppressed (`appearance:none`) rather than padded around, since
+  padding alone can't reliably move it. Left padding widened to match, so the centered week label
+  stays visually centered against the new icon gutter.
+
+Purely visual — the control is still the same native `<select>`, same click-to-open behavior, same
+amber highlight for the current week. Build clean, 281/281 tests pass.
+
+## v2.88.8 — 2026-09-25
+
+**Calendar now browses the whole term, not just its early deadlines**
+
+Real request: "I see only two weeks in this term. The correct behaviour is - once user create new
+term as 'Fall 2026' with its date, the calendar shall be set for all the weeks of the term. in
+fact I see now only two weeks."
+
+- Root cause: Calendar's week/month navigator (`termWeeks`/`monthsList` in `components/Week.jsx`)
+  was built from `planningRange()` — a range deliberately anchored on the term's *last real
+  deadline*, not its typed end date, so a mistyped Term End can't stretch the AI planner's actual
+  scheduling horizon into a pointless empty tail. That's the right range for the planner
+  (`refreshQuarterPlan`), but Calendar's own week list and "which days are even clickable" used the
+  same truncated range by mistake — a freshly-synced term with only its first few admin-task due
+  dates entered (no exams yet) had its ENTIRE calendar chopped down to just those couple of weeks,
+  with every later week genuinely inside the term unreachable.
+- Calendar navigation now uses the term's own typed start/end dates (`getTermRange`) directly,
+  independent of how many deadlines have been entered so far. The deadline-anchored planning
+  horizon is untouched — it still governs where the AI actually places study blocks.
+
+Verified live: the account's real Fall 2026 term (assignments due through Sep 29 only, no exams)
+went from "Week 1 of 2" to the correct **"Week 1 of 13"**, spanning the term's actual Sep 24 – Dec
+15 dates; paged forward and confirmed Week 2 renders correctly with real due-date markers. Build
+clean, 281/281 tests pass.
+
+## v2.88.7 — 2026-09-25
+
+**New terms start with a genuinely fresh, isolated schedule**
+
+Real request: "I created a new term and it shows study plan. The logic of creating new term is
+based on one simple foundation - create a NEW FRESH ISOLATED data model."
+
+- Root cause: `studyPlan`/`completionLog`/`pomodoroLogs` aren't termId-tagged — they're flat,
+  date-keyed stores shared across every term. `scrubTermSchedule` (used by Reset data/Delete term,
+  v2.88.1) only dropped `studyPlan` blocks whose `courseId` matched the term's own courses. A
+  brand-new term has zero courses, so that filter was a complete no-op for it — any block sitting
+  on one of its dates (left over from whatever was Current when it was generated) bled straight
+  through as if it belonged to the new term.
+- `scrubTermSchedule` now ALSO drops `studyPlan` blocks purely by date range, exactly like
+  `completionLog`/`pomodoroLogs` already did — "this date range belongs to this term" now holds
+  consistently across all three stores.
+- Creating a term (**Add term**) now runs this same scrub over its own date range at creation
+  time, so it starts genuinely empty rather than only getting cleaned up later via Reset/Delete.
+  Skipped for the one case where the new term's dates deliberately overlap the real Current term
+  (the existing overlap warning was already accepted) — scrubbing there would silently wipe the
+  active term's own real schedule instead of just the intended leftover data.
+
+Verified live: found the account's real Fall 2026 term (0 courses, Current) still showing 177
+AI-planned blocks for courses it never owned — genuine leftover data from before this fix existed;
+cleared it via Calendar's "Clear plan," confirmed Today/Calendar now correctly show nothing
+scheduled. Build clean, 281/281 tests pass.
+
+## v2.88.6 — 2026-09-25
+
+**Current term can't be deleted directly — change status first**
+
+Real request: "if user wants to delete the current - we shall not allow to do so only after
+changing to other status. We shall guide the user about this logic when trying."
+
+- Deleting your Current term used to be allowed outright (with just a warning in the confirm
+  dialog). Now it's blocked entirely — the delete (trash) icon on a Current term shows a red toast
+  explaining why and exactly how to proceed: "'X' is your Current term, so it can't be deleted
+  directly. Change its status first (Change Status → Upcoming or Archive), then delete it." No
+  confirm dialog even opens.
+- The trash icon's tooltip is also context-aware now — hovering a Current term's delete button
+  reads "Change status first — your Current term can't be deleted directly," so the guidance is
+  visible before a student even clicks.
+- Upcoming and Archived terms are unaffected — deleting those still works exactly as before
+  (confirm dialog, cascading course/assignment/exam/schedule cleanup).
+
+Verified live: set a term Current, clicked delete — blocked with the toast and updated tooltip, no
+data touched; changed its status to Archive via the (v2.88.5) inline editor and confirmed the
+guard no longer applies once it's not Current. Build clean, 281/281 tests pass.
+
+## v2.88.5 — 2026-09-25
+
+**Change Status: inline editing replaces the popup**
+
+Real request: "1) remove the popup showing the terms and states. 2) once clicking 'change states'
+- display on each terms' section the other two states in gray. User can select, only one can be
+set at Current. 3) once user started Edit State... this button become an active (amber) and show
+'Save States' this will stop the edit mode of states and store the new values. 4) Display on this
+page shall be refreshed and keep the current on top, other order by end-term date."
+
+- The "Change term status" popup is gone entirely. "Change Status" now toggles an inline edit mode
+  directly on the term cards already on the page.
+- In edit mode, each term card shows its current status in color plus the other two statuses as
+  gray pills right next to it. Clicking one selects it — picking Current on one term automatically
+  moves whichever other term was Current to Archive, live, so only one is ever Current — no
+  confirmation popup, since the edit session itself (ending in Save) is the confirmation.
+- While editing, the button turns amber and reads **Save States**; clicking it writes every staged
+  change at once and exits edit mode. Nothing is written to your data until Save States is
+  clicked — clicking pills only stages a local draft.
+- Sort order updated to use each term's **end date** (previously start date) — Current pinned on
+  top, then newest-end-date-first down to oldest — and now re-sorts live as you click through
+  statuses in edit mode, not just after saving.
+
+Verified live end-to-end: entered edit mode, confirmed gray pills appear with no popup; clicked
+Current on a different term and watched the previous Current auto-demote to Archive and the list
+re-sort live; clicked Save States and confirmed the toast, exit from edit mode, and — after a full
+page reload — that the change had actually persisted. Build clean, 281/281 tests pass.
+
+## v2.88.4 — 2026-09-25
+
+**School Info: Current term always sorted to the top**
+
+Real request: "in case user changed status of terms - keep always the 'current' on top, the other
+order down from now to back in time."
+
+- Term cards (and the "Change Status" modal's own list, kept consistent with it) now sort Current
+  first regardless of its own dates — status is a manually-set, stored field, not date-derived, so
+  a plain date sort could no longer be trusted to surface it — followed by every other term ordered
+  newest-start-date-first down to oldest.
+- Fixes a real regression: with a term's start date later than another's, the later term could sort
+  ABOVE the actual Current term under the old plain ascending-date sort, exactly what was reported.
+
+Verified live: added a 3-term spread (future, near-future, and a 2025 term), confirmed order is
+Current-then-newest-to-oldest in both the term-card list and the Change Status modal; switched
+Current to a different term and watched both lists re-sort live to match. Build clean, 281/281
+tests pass (no new tests — pure display ordering, exercised via live verification).
+
+## v2.88.3 — 2026-09-25
+
+**Update Syllabus is blocked until a term exists**
+
+Real request: "upload syllabus to create academic plan shall not be activated if no term created."
+
+- Academics → Courses → **Update Syllabus** (PDF upload, the raw-extraction diagnostic, and "Add
+  class manually") now shows "No term set up yet — add one in School Info before uploading a
+  syllabus" instead of its normal content when there's no Current term. Every course a sync or
+  manual add creates is tagged with the Current term's id — with no Current term that id is null,
+  which is exactly the orphaned-course state `repairTermLinkageIfNeeded` exists to heal elsewhere;
+  blocking the upload at the source is the direct fix. Re-activates immediately once a term is set
+  Current.
+
+Verified live both directions: with no term, the upload UI is fully replaced by the notice; after
+adding and setting a term Current, PDF upload / diagnostic / manual-add all render normally again.
+Build clean, 281/281 tests pass.
+
+## v2.88.2 — 2026-09-25
+
+**Fix: deleted term no longer reappears; Courses page reverted to single-term view**
+
+Two real reported bugs: "I deleted all terms, and still showing term. So the delete function
+should REMOVE the isolated data model of that term and the app shall not have any data to show of
+the deleted term" and "on Course page - please remove what added before at the header 'Courses' +
+drop down to select term. Please revert to the original page design without this addition."
+
+- **Deleted term resurrecting itself, root cause fixed.** Two bugs compounded:
+  1. `syncActiveTermToProfilePatch` only ever *wrote* the profile mirror
+     (termName/termStart/termEnd/schoolName/schoolAddress/collegeCalendar) when a term was active —
+     it never *cleared* those fields once the last term was deleted, so a deleted term's name/dates
+     kept showing everywhere that reads them (header badge, isFin/isHol, etc.) indefinitely. Now
+     clears the mirror whenever no term is Current.
+  2. The real culprit behind the term actually coming back: `migrateLegacyTermIfNeeded` treated
+     "terms:[] + legacy profile fields still present" as "not yet migrated" and resynthesized a
+     brand-new term from those fields — which, thanks to bug 1's timing, were still sitting there
+     right after a deletion (cleared by a separate, independently-timed effect). A new
+     `termsInitialized` flag now marks an account as permanently past this migration the moment it
+     first gets a real term (via migration or "Add term"), so deleting every term afterward can
+     never trigger it again — backfilled onto existing accounts automatically.
+  3. Orphaned schedule data: a term's courses/assignments/exams weren't the whole story — deleting
+     or resetting a term left its `studyPlan`/`completionLog`/`pomodoroLogs` entries behind (neither
+     is tagged by term), so Today/Calendar kept showing real scheduled blocks for courses that no
+     longer existed. Both **Reset data** and **Delete** now scrub all three by the term's own
+     courses and date range.
+- **Courses page: removed the in-tab term switcher.** Academics → Courses had picked up its own
+  term-switching dropdown in an earlier build; reverted to always showing/editing the real Current
+  term, no dropdown, matching the original page design.
+
+Verified live end-to-end: deleted the account's last remaining term, reloaded fully, confirmed it
+stays gone (School Info: "No school on record yet"); header/Today show no phantom term. Build
+clean, 281/281 tests pass (+5 new, covering the profile-mirror clearing and the `termsInitialized`
+guard/backfill).
+
+## v2.88.1 — 2026-09-25
+
+**School Info: per-term Reset data and Delete term, next to Edit**
+
+Real request: "add now [to the] term (at the section near the 'edit' button): 1) reset data (with
+confirmation) > it will erase all academic data back to clear as newly created term, 2) delete
+button - allow user to delete this term entirely with confirmation." Confirmed: "the Delete: will
+remove the entire data model of this term."
+
+- **Reset data** (eraser icon) — erases a specific term's courses/assignments/exams back to empty,
+  as if it were just created. Only that term is touched; other terms, profile, and habit logs are
+  never affected. Mirrors Courses' own existing "Reset academic data," now reachable per-term
+  directly from School Info.
+- **Delete** (trash icon) — removes the term record itself, cascading to delete its own courses/
+  assignments/exams with it (its whole data model, confirmed). Replaces the old delete button that
+  only worked on upcoming terms with no courses attached — this one works on any term regardless of
+  status, with a confirmation that clearly states how much data it's taking with it, and warns
+  separately if you're deleting your Current term.
+
+Verified live: Reset correctly detects an already-empty term and skips the confirmation; Delete's
+confirmation dialog renders the right warnings for a real term. Build clean, 273/273 tests pass.
+
+## v2.88.0 — 2026-09-25
+
+**Term status is now something you set — Change Status replaces Close current term**
+
+Real request: "remove the function to 'Close current term' - we do not need that. Instead, we need
+a function to set a term to an Active [state]. That requires: (1) add a field to manage the term
+states: Current, Upcoming, Archive. (2) add a button near '+Term' - 'Change Status' - this button
+allow user to edit each one of the term's status. ONLY ONE can be set to 'Current'."
+
+- **Term status is now a stored, manually-set field** — `current` / `upcoming` / `archived` —
+  instead of always being derived from today's date. This is a deliberate reversal of this app's
+  original design (status used to be 100% date-computed, on purpose, so it could never drift out
+  of sync). The student now explicitly says which term is Current.
+- **"Close current term" is gone entirely** — no more archiving-to-History snapshot, no more
+  clearing courses/assignments/exams as a side effect of anything. Confirmed explicitly: "data
+  model of each term is not affected by changing the status... no need to process anything, just
+  keep a full set of its isolated data as in that moment." Every term's own courses/assignments/
+  exams just stay exactly where they are, tagged to that term, regardless of status changes.
+- **New "Change Status" button**, next to "+ Add term" in School Info — opens a list of every term
+  with a three-way Current / Upcoming / Archive control per term.
+- **Only one term can be Current.** Promoting a different term to Current asks for confirmation
+  first ("Fall 2026 TEST" (currently Current) will be changed to Archive") and, on confirm, flips
+  both in one atomic update. Setting a term to Upcoming or Archive directly needs no confirmation —
+  there's no "only one" rule for those.
+- **New terms default to Upcoming** (was previously whatever the date math computed) — status is
+  now always an explicit, later choice, never inferred at creation.
+- One-time migration for existing accounts (any term missing a stored status gets backfilled using
+  the OLD date-based rule, so nothing changes unexpectedly on first load with this version).
+
+Verified live against the real account: the migration correctly read the existing terms' real
+dates and assigned sensible starting statuses; the Change Status modal correctly swaps Current
+between two real terms with a confirm step, and courses/assignments were confirmed completely
+untouched by the status change. Build clean, 273/273 tests pass (9 new, covering
+`computeTermStatuses` and the new `migrateTermStatusIfNeeded` migration).
+
 ## v2.87.0 — 2026-09-22
 
 **Help is now a real nav tab, not a small ? icon opening a side drawer**
