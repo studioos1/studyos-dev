@@ -195,6 +195,13 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // userValue/userHours/reviewedAt, which stay untouched until the student actually reviews the
   // item). This is a cache write, not a review — it just means "this is now a genuinely one-time
   // migration," not a recurring one.
+  //
+  // Real reported bug: after a syllabus sync, Courses/Assignments/Exams updated immediately but
+  // Difficulty only showed the new items after a full page reload. Root cause: this effect used to
+  // run once ([]) at mount only, so diffRatings was a one-time snapshot that never learned about
+  // items added afterward. Re-runs whenever the assignment/exam COUNT changes (sync adding new
+  // items) — not on every data change, which would also refire on the freshA/freshE cache write-back
+  // below and loop; that write-back only patches existing items in place, never changing the count.
   useEffect(()=>{
     let cancelled=false;
     (async()=>{
@@ -234,9 +241,32 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
         if(e.estimatorValue==null||aiHours!==e.aiHours)freshE[e.id]={estimatorValue,aiHours};
       }
       if(!cancelled){
-        setDiffRatings(next);
+        // Merge, don't replace, on a re-fire (prev already populated — i.e. NOT the initial mount):
+        // preserve every existing entry exactly as the student left it (including a typed-but-not-
+        // yet-Saved userHours/userValue override), only adding entries for items that are genuinely
+        // new since the last fire. Full replace here would silently revert any in-progress unsaved
+        // edit the moment a sync elsewhere added a new item mid-edit. Uses the functional setState
+        // form (not the `diffRatings` closure, which this effect's dependency array — deliberately
+        // count-only — can leave stale) to always merge against the true latest state.
+        let merged=next;
+        setDiffRatings(prev=>{
+          if(!prev)return next; // initial mount — nothing to preserve yet
+          merged={...next};
+          Object.keys(prev).forEach(k=>{if(merged[k])merged[k]=prev[k];});
+          return merged;
+        });
         setDiffComputing(false);
-        setDiffBaseline(JSON.stringify(Object.fromEntries(Object.entries(next).map(([k,r])=>[k,{u:r.userValue,h:r.userHours}]))));
+        // Baseline gets the same merge treatment — a newly-added item's baseline entry is just its
+        // own fresh value (so it reads as "clean", not spuriously dirty); every pre-existing entry
+        // (including one mid-edit right now) keeps its real last-saved baseline untouched.
+        setDiffBaseline(prevBaseline=>{
+          const prevObj=prevBaseline?JSON.parse(prevBaseline):null;
+          const out={};
+          Object.entries(merged).forEach(([k,r])=>{
+            out[k]=(prevObj&&prevObj[k]!==undefined)?prevObj[k]:{u:r.userValue,h:r.userHours};
+          });
+          return JSON.stringify(out);
+        });
         if(Object.keys(freshA).length||Object.keys(freshE).length){
           upd({
             assignments:data.assignments.map(a=>freshA[a.id]?{...a,...freshA[a.id]}:a),
@@ -246,7 +276,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
       }
     })();
     return()=>{cancelled=true;};
-  },[]);
+  },[data.assignments.length,data.exams.length]); // eslint-disable-line
 
   // Changing the difficulty band is a fresh statement that the current hours aren't right — so it
   // re-derives the suggestion (aiHours) AND drops any hours the student had typed, letting the new
