@@ -748,11 +748,11 @@ function App(){
               the original page design") for living in the wrong place, not for the concept — this is
               the single global home it was always meant to end up in. */}
           {data.onboarded&&terms.length>0&&viewedTerm&&(
-            <div style={{position:"relative"}}>
+            <div style={{position:"relative",marginLeft:10}}>
               <button onClick={()=>setShowTermMenu(v=>!v)}
                 style={{cursor:"pointer",border:"none",background:"transparent",fontFamily:"inherit",
                   display:"inline-flex",alignItems:"center",gap:7,padding:"4px 2px"}}>
-                <span style={{fontSize:16,fontWeight:700,color:"var(--t1)"}}>{viewedTerm.name}</span>
+                <span className="badge" style={{fontSize:13,fontWeight:700,color:"var(--t1)",background:"var(--card2)"}}>{viewedTerm.name}</span>
                 <span className={`badge ${viewedTerm.status==="current"?"badge-green":viewedTerm.status==="upcoming"?"badge-blue":""}`}
                   style={{fontSize:9,padding:"2px 6px",...(viewedTerm.status==="archived"?{background:"var(--card2)",color:"var(--t3)"}:{})}}>
                   {viewedTerm.status.toUpperCase()}
