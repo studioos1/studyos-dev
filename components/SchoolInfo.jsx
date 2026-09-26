@@ -251,14 +251,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
   //
   // Redesigned per follow-up request: "remove the popup showing the terms and states... once
   // clicking 'change states' - display on each terms' section the other two states in gray. User
-  // can select, only one can be set at Current... once user started Edit State... this button
-  // become an active (amber) and show 'Save States' this will stop the edit mode... and store the
-  // new values." Replaces the old confirm-modal-per-click flow with inline, STAGED editing:
-  // selectDraftStatus only ever touches draftStatuses (local, unsaved) — nothing reaches `data`
-  // until saveStatuses runs. Picking Current on one term locally demotes whichever OTHER term
-  // currently reads Current (via effStatus — draft first, falling back to the real stored status)
-  // to Archive, so "only one can be Current" holds live as the student clicks around, with no
-  // per-click confirmation popup — the edit session ending in Save States is the confirmation.
+  // can select, only one can be set at Current." Replaces the old confirm-modal-per-click flow with
+  // inline, STAGED editing: selectDraftStatus only ever touches draftStatuses (local, unsaved) —
+  // nothing reaches `data` until saveStatuses runs. Picking Current on one term locally demotes
+  // whichever OTHER term currently reads Current (via effStatus — draft first, falling back to the
+  // real stored status) to Archive, so "only one can be Current" holds live as the student clicks
+  // around, with no per-click confirmation popup — Save changes is the confirmation.
+  //
+  // Button UX redesigned again per real report: "the button 'Change Status' turned to be 'Save
+  // Changes' - active in amber even though not yet any change made." Entering edit mode is no longer
+  // itself treated as "there's something to save" — see cancelStatusEdit/hasStatusDraft below, and
+  // the button cluster where this is used.
   const [editingStatus,setEditingStatus]=useState(false);
   const [draftStatuses,setDraftStatuses]=useState({}); // termId -> staged status, only for terms actually touched this edit session
   const effStatus=t=>draftStatuses[t.id]||t.status;
@@ -282,6 +285,14 @@ export function SchoolInfo({data,upd,updP,toast2}){
     setEditingStatus(false);
     setDraftStatuses({});
   }
+  // Discards any staged (unsaved) status picks and leaves edit mode — real request: the "Change
+  // Status" button used to silently double as an immediate "Save" the moment it entered edit mode
+  // (turning amber and reading "Save States" before anything had actually changed), which looked
+  // like an active change was pending even on a plain, no-op click. Now: click → edit mode, button
+  // becomes "Cancel" (amber, since we're now in an active editing session) with nothing to save yet;
+  // making the first pick adds "Save changes" (amber, the real action) and demotes Cancel to ghost.
+  function cancelStatusEdit(){setEditingStatus(false);setDraftStatuses({});}
+  const hasStatusDraft=Object.keys(draftStatuses).length>0;
 
   const statusColor=s=>s==="current"?"var(--amber)":s==="upcoming"?"var(--blue)":"var(--t3)";
   const statusLabel=s=>s==="current"?"Current":s==="upcoming"?"Upcoming":"Archive";
@@ -291,13 +302,24 @@ export function SchoolInfo({data,upd,updP,toast2}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h2>School Info</h2>
         <div style={{display:"flex",gap:8}}>
-          {data.terms?.length>0&&(
-            <button className={`tt tt-below tt-right btn btn-sm ${editingStatus?"btn-action":"btn-ghost"}`}
-              data-tt={editingStatus?"Save the status changes made below":"Set which term is Current, Upcoming, or Archive. Only one term can be Current at a time."}
-              onClick={()=>editingStatus?saveStatuses():setEditingStatus(true)}>
-              <i className={`ti ${editingStatus?"ti-device-floppy":"ti-adjustments"}`}/> {editingStatus?"Save States":"Change Status"}
+          {data.terms?.length>0&&(editingStatus?(
+            <>
+              {hasStatusDraft&&(
+                <button className="tt tt-below tt-right btn btn-sm btn-action" data-tt="Save the status changes made below" onClick={saveStatuses}>
+                  <i className="ti ti-device-floppy"/> Save changes
+                </button>
+              )}
+              <button className={`btn btn-sm ${hasStatusDraft?"btn-ghost":"btn-action"}`} onClick={cancelStatusEdit}>
+                <i className="ti ti-x"/> Cancel
+              </button>
+            </>
+          ):(
+            <button className="tt tt-below tt-right btn btn-sm btn-ghost"
+              data-tt="Set which term is Current, Upcoming, or Archive. Only one term can be Current at a time."
+              onClick={()=>setEditingStatus(true)}>
+              <i className="ti ti-adjustments"/> Change Status
             </button>
-          )}
+          ))}
           <button className="btn btn-action btn-sm" onClick={openAddTerm}>
             <i className="ti ti-plus"/> Add term
           </button>
@@ -354,24 +376,9 @@ export function SchoolInfo({data,upd,updP,toast2}){
             {terms.map(t=>(
               <div key={t.id} style={BOX}>
                 <div style={TITLE_ROW}>
-                  <div style={{...TITLE_LEFT,flexWrap:"wrap",rowGap:6}}>
+                  <div style={TITLE_LEFT}>
                     <div style={{width:10,height:10,borderRadius:"50%",background:statusColor(effStatus(t)),flexShrink:0}}/>
                     <span style={{...TITLE_TEXT,color:"var(--t1)",fontSize:16,textTransform:"none",letterSpacing:"normal",fontWeight:500}}>{t.name}</span>
-                    <span className="badge" style={{background:"transparent",border:`1px solid ${statusColor(effStatus(t))}`,color:statusColor(effStatus(t)),fontSize:10,textTransform:"uppercase"}}>
-                      {statusLabel(effStatus(t))}
-                    </span>
-                    {/* Real request: "display on each terms' section the other two states in
-                        gray. User can select, only one can be set at Current." Only the two
-                        statuses NOT currently in effect show, so there's never a redundant pill
-                        for the one already shown above in color. */}
-                    {editingStatus&&["current","upcoming","archived"].filter(s=>s!==effStatus(t)).map(s=>(
-                      <button key={s} onClick={()=>selectDraftStatus(t,s)}
-                        style={{fontSize:10,fontWeight:600,textTransform:"uppercase",padding:"4px 10px",
-                          borderRadius:20,border:"1px solid var(--b1)",background:"var(--card2)",
-                          color:"var(--t3)",cursor:"pointer"}}>
-                        {statusLabel(s)}
-                      </button>
-                    ))}
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
                     <button className="tt" data-tt="Reset this term's data — erase all courses, assignments, and exams back to empty" onClick={()=>resetTermData(t)}
@@ -393,6 +400,25 @@ export function SchoolInfo({data,upd,updP,toast2}){
                       <i className="ti ti-pencil" style={{fontSize:13}}/>
                     </button>
                   </div>
+                </div>
+                {/* Status display — centered in the section, deliberately separate from the term
+                    name above (real request: "place the state in the center of the section (not
+                    near the term name)"). The current status badge, plus (while editing) the two
+                    OTHER statuses in gray so the student can pick one — only the two NOT currently
+                    in effect show, so there's never a redundant pill for the one already shown in
+                    color. */}
+                <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,flexWrap:"wrap",padding:"10px 20px 0 20px"}}>
+                  <span className="badge" style={{background:"transparent",border:`1px solid ${statusColor(effStatus(t))}`,color:statusColor(effStatus(t)),fontSize:10,textTransform:"uppercase"}}>
+                    {statusLabel(effStatus(t))}
+                  </span>
+                  {editingStatus&&["current","upcoming","archived"].filter(s=>s!==effStatus(t)).map(s=>(
+                    <button key={s} onClick={()=>selectDraftStatus(t,s)}
+                      style={{fontSize:10,fontWeight:600,textTransform:"uppercase",padding:"4px 10px",
+                        borderRadius:20,border:"1px solid var(--b1)",background:"var(--card2)",
+                        color:"var(--t3)",cursor:"pointer"}}>
+                      {statusLabel(s)}
+                    </button>
+                  ))}
                 </div>
                 <div style={DIVIDER}/>
                 <div style={INNER}>
