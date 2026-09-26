@@ -18,6 +18,8 @@ import {
   termScopedForPlanning,
   migrateLegacyTermIfNeeded,
   migrateTermStatusIfNeeded,
+  migrateTermDataIsolationIfNeeded,
+  applyTermScopedPatch,
   backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
@@ -196,7 +198,14 @@ function App(){
   useEffect(()=>{if(!session){setShowAccount(false);setShowBugReport(false);}},[session]);
   const [planDrawerOpen,setPlanDrawerOpen]=useState(false); // Weekly-tab Plan status drawer — lifted here so a replan can auto-open it on a shortfall
 
-  function upd(p){setD(prev=>{const n={...prev,...p};save(n);return n;});}
+  // applyTermScopedPatch (lib/data/terms.js) is the real logic — keeps every term-scoped field's
+  // flat top-level copy (studyPlan, completionLog, pomodoroLogs, gymLogs, dailyLogs, adhoc,
+  // briefCache/briefPeriod, quarterPlan, planStale, notifications, lastSyllabusSync — see
+  // TERM_SCOPED_KEYS, lib/data/schema.js) in sync with whichever term is current, and mirrors any
+  // direct write to one of them into that term's own isolated copy. This is what makes every term
+  // "a complete isolated term... no cross-talking" (real request) without every one of the ~50
+  // call sites across the app that read/write these fields needing to change at all.
+  function upd(p){setD(prev=>{const n=applyTermScopedPatch(prev,p);save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
   // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
   // stakes. `e:true` used to mean both "persist + show ×" AND "color it red" at once — but red is
@@ -284,6 +293,18 @@ function App(){
     const fix=backfillTermsInitializedIfNeeded(data);
     if(fix)upd(fix);
   },[data?.terms?.length,data?.termsInitialized]); // eslint-disable-line
+
+  // One-time migration for accounts created before real per-term isolation existed — seeds each
+  // term's own isolated copy of studyPlan/completionLog/pomodoroLogs/etc (see
+  // migrateTermDataIsolationIfNeeded, lib/data/terms.js): the current term adopts whatever's
+  // sitting in the old flat fields, every other term starts genuinely empty. Runs through upd()
+  // like the others, so applyTermScopedPatch's own "terms changed → re-derive every mirror" branch
+  // immediately re-syncs the flat fields from the now-migrated current term in the same tick.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateTermDataIsolationIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields

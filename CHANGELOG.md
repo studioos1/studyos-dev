@@ -1,5 +1,47 @@
 # StudyOS Changelog
 
+## v2.88.20 — 2026-09-25
+
+**Real per-term data isolation — every term is now a genuinely separate silo**
+
+Real request: "each term will be created in the database as a complete isolated term... include
+all its academic data, study plans, grades, user behaviour. ALL... no cross-talking." Concretely
+reported: uploading a syllabus showed "Last synced..." from a DIFFERENT term.
+
+Audited the entire schema. courses/assignments/exams (and grades, which live on those records)
+were already correctly isolated (termId/courseId-tagged, filtered everywhere). The real gap:
+`studyPlan`, `completionLog`, `pomodoroLogs`, `gymLogs`, `dailyLogs`, `adhoc`, `briefCache`,
+`briefPeriod`, `quarterPlan`, `planStale`, `notifications`, and `lastSyllabusSync` were flat,
+global stores shared across every term — switching which term was current never actually changed
+what any of them showed. (`history` audited and excluded — confirmed completely unused/dead
+field, nothing in the app reads or writes it.)
+
+Fixed by extending this app's own existing "mirror pattern" (already used for
+`profile.termStart/termEnd/schoolName`) to these fields too: each becomes a REAL, isolated field
+on every term object (`data.terms[i].studyPlan` etc — the actual source of truth) while the flat
+top-level copies ~50 call sites across the app already read/write directly (Today.jsx, Week.jsx,
+the planner, the SMS cron routes...) become a live mirror of whichever term is current, kept in
+sync by one new choke point: `applyTermScopedPatch` (`lib/data/terms.js`), which `upd()` now
+routes every call through. This is why almost none of those ~50 call sites needed to change at
+all — they still read/write the same flat fields as always, it's just genuinely per-term
+underneath now. Also fixed the one write path that bypasses `upd()` entirely: the server-side
+`runNotifyUrgentItems` cron function now reuses the exact same `applyTermScopedPatch` so its
+notification-log write stays correctly mirrored too.
+
+One-time migration (`migrateTermDataIsolationIfNeeded`) seeds the CURRENT term's isolated copy
+from the existing flat data (the honest assumption — that data really was generated while it was
+active) and every OTHER term from genuinely empty defaults.
+
+Net simplification: the old `scrubTermSchedule` — a fragile date-range-matching reconciliation
+needed only because these stores used to be shared — is gone entirely. Real isolation makes it
+moot: resetting a term is now just resetting its own copy to empty; deleting a term removes its
+data by definition; a brand-new term simply starts with its own empty defaults, regardless of
+whether its dates happen to overlap another term's.
+
+317/317 tests pass (13 new, covering `applyTermScopedPatch` and the migration directly — neither
+had unit tests as inline component logic before). Build clean. Verified live against the real
+account's existing data before and after migration to confirm nothing was lost in the transition.
+
 ## v2.88.19 — 2026-09-25
 
 **Instructor/TA extraction, Assignments+Exams grouped by class, exam-title calendar tooltips**

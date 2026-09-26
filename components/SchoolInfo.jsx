@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { computeTermStatuses, datesOverlap, scrubTermSchedule } from "@/lib/data";
+import { computeTermStatuses, datesOverlap, TERM_DATA_DEFAULTS } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -97,10 +97,12 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // (with confirmation) > it will erase all academic data back to clear as newly created term."
   // Never touches any OTHER term's data, profile, or habit logs.
   //
-  // Also scrubs data.studyPlan/completionLog/pomodoroLogs via the shared scrubTermSchedule
-  // (lib/data/terms.js — see its own comment for why this needs date-range matching, not just
-  // courseId) — real reported bug: "I deleted all terms, and still showing term [schedule]... the
-  // delete function should REMOVE the isolated data model of that term."
+  // Also resets this term's own isolated studyPlan/completionLog/pomodoroLogs/etc (TERM_DATA_
+  // DEFAULTS, lib/data/schema.js) — real reported bug: "I deleted all terms, and still showing
+  // term [schedule]... the delete function should REMOVE the isolated data model of that term."
+  // Each term genuinely owns its own copy of these now (see applyTermScopedPatch, lib/data/
+  // terms.js), so resetting is just setting THIS term's copy back to empty — no more date-range
+  // scrubbing of a shared flat store needed, whether or not t happens to be the current term.
   async function resetTermData(t){
     const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
     const courseCount=termCourseIds.size;
@@ -113,8 +115,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      ...scrubTermSchedule(data,t,termCourseIds),
-      ...(t.status==="current"?{briefCache:null,briefPeriod:null}:{}),
+      terms:data.terms.map(x=>x.id===t.id?{...x,...TERM_DATA_DEFAULTS}:x),
     });
     toast2(`"${t.name}" reset — back to a clean, newly-created term.`);
   }
@@ -143,12 +144,13 @@ export function SchoolInfo({data,upd,updP,toast2}){
     const dataWarning=courseCount?` This also permanently deletes ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} attached to it.`:"";
     const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
     if(!ok)return;
+    // No separate scrub needed for studyPlan/completionLog/pomodoroLogs/etc — each term owns its
+    // own isolated copy now, so removing the term object below removes its data with it.
     upd({
       terms:data.terms.filter(x=>x.id!==t.id),
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      ...scrubTermSchedule(data,t,termCourseIds),
     });
     toast2(`"${t.name}" deleted.`);
   }
@@ -221,24 +223,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
       // status:"upcoming" — real request: "user set the term name, dates... and default shall be
       // 'Upcoming'." A brand-new term never starts Current on its own; that's always an explicit
       // choice made afterward via "Change Status" below.
-      const newTerm={id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming"};
+      // Real request: "create a NEW FRESH ISOLATED data model" — spreading in TERM_DATA_DEFAULTS
+      // gives this term its own genuinely empty studyPlan/completionLog/pomodoroLogs/etc from the
+      // moment it exists (see applyTermScopedPatch, lib/data/terms.js) — a real, separate object,
+      // not a date-range view of shared data, so it can't inherit anything from any other term
+      // regardless of whether its dates happen to overlap one. No scrubbing needed anymore.
+      const newTerm={id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming",...TERM_DATA_DEFAULTS};
       patch.terms=[...(data.terms||[]),newTerm];
       // Permanently marks this account as having entered the real terms system, so
       // migrateLegacyTermIfNeeded can never resurrect a deleted term from stale profile fields
       // later — see the comment on that guard in lib/data/terms.js.
       patch.termsInitialized=true;
-      // Real request: "create a NEW FRESH ISOLATED data model" — a brand-new term has zero
-      // courses of its own (empty Set below), so this purely date-scrubs any leftover
-      // studyPlan/completionLog/pomodoroLogs sitting on dates inside the new term's range —
-      // e.g. from whatever term was Current when that schedule was generated — so the term
-      // genuinely starts empty rather than inheriting someone else's plan the moment its dates
-      // happen to be looked at. Skipped for the one case where that range is a DELIBERATE
-      // overlap with the real Current term (checkOverlapAndProceed already warned and the
-      // student chose "Continue anyway") — scrubbing there would silently wipe the active
-      // term's own real, in-use schedule for the shared dates, which is a materially bigger and
-      // less obvious loss than the stale-leftover-plan bug this exists to fix.
-      const overlapsCurrent=currentTerm&&datesOverlap(newTerm.start,newTerm.end,currentTerm.start,currentTerm.end);
-      if(!overlapsCurrent)Object.assign(patch,scrubTermSchedule(data,newTerm,new Set()));
       upd(patch);
       toast2(existing?"Term added!":"New school and term added!");
       setExpandedSchoolId(schoolId);

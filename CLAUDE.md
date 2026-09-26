@@ -104,29 +104,66 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   `terms[]` goes empty again (e.g. after deleting the last term) and resynthesizes a "new" term
   from whatever stale profile fields haven't been cleared yet, resurrecting a term the student just
   deleted. This was a real, shipped, two-layer bug — don't remove the guard.
-- **`studyPlan`/`completionLog`/`pomodoroLogs` are NOT termId-tagged — flat, date-keyed stores
-  shared across every term.** This is the biggest open gap for the term-switching feature below: a
-  term only "owns" a date range, not a real data partition. `scrubTermSchedule()`
-  (`components/SchoolInfo.jsx`) is the one place that reconciles this — used by Reset/Delete term
-  AND by term creation (so a brand-new term doesn't inherit a stale plan sitting on its dates from
-  whatever was Current before) — it drops `studyPlan` blocks and log entries by date range
-  (matching the owning term's start/end), not by any real per-term partition. Calendar's own
-  week/month *navigation* range (`components/Week.jsx`) reads the term's raw typed start/end
-  (`getTermRange`) directly — NOT `planningRange()`, which is deadline-anchored (last real
-  assignment/exam due date, not the typed term-end) and exists purely so a mistyped Term End can't
-  give the AI planner a pointless empty tail to schedule into. Conflating those two ranges was a
-  real, shipped bug: a freshly-synced term with only its first few items entered had its entire
-  calendar chopped down to just those couple of weeks.
-- **Known next step, explicitly requested but not yet built: switching which term's data is
-  VIEWED.** Real request from earlier in this session: "later, we shall allow user to switch
-  between terms and display EXACTLY as left" — deliberately deferred once already ("yes lets wait
-  with the view-switching"). Given the studyPlan/log isolation gap above, this needs either (a) real
-  per-term partitioning of studyPlan/completionLog/pomodoroLogs (the structurally correct fix, more
-  work), or (b) a viewing-scope layer that filters/derives a term-specific view from the existing
-  flat stores using `scrubTermSchedule`-style date-range + courseId logic (faster, keeps today's
-  data shape). Acad.jsx briefly had an in-tab term switcher from an earlier pass in this area and
-  it was explicitly removed ("revert to the original page design") — re-adding term-switching UI
-  should be a deliberate, scoped feature, not a repeat of that.
+- **Real per-term data isolation — fixed, v2.88.20.** `studyPlan`/`completionLog`/`pomodoroLogs`/
+  `gymLogs`/`dailyLogs`/`adhoc`/`briefCache`/`briefPeriod`/`quarterPlan`/`planStale`/
+  `notifications`/`lastSyllabusSync` (`TERM_SCOPED_KEYS`, `lib/data/schema.js`) used to be flat,
+  global stores shared across every term — a term only "owned" a date range, not a real data
+  partition, and switching which term was Current never actually changed what any of them showed
+  (real, concrete report: uploading a syllabus for a new term still showed "Last synced..." from a
+  different one). Real request that drove the fix: "each term will be created in the database as a
+  complete isolated term... include all its academic data, study plans, grades, user behaviour.
+  ALL... no cross-talking" — confirmed explicitly that this includes gym/daily-checkin/Pomodoro
+  logs too (an earlier, separate request had these deliberately EXCLUDED from term resets — that
+  request was about a specific button's scope, not about isolation, and doesn't conflict: Acad.jsx's
+  "Reset academic data" still only clears `studyPlan`, same as before, just now correctly scoped to
+  whichever term is current).
+
+  Fixed by extending this app's own existing "mirror pattern" (already used for
+  `profile.termStart/termEnd/schoolName`) to these fields too: each is now a REAL, isolated field on
+  every term object (`data.terms[i].studyPlan` etc — the actual source of truth), while the flat
+  top-level copies ~50 call sites across the app already read/write directly (Today.jsx, Week.jsx,
+  the planner, the SMS cron routes...) stay a live mirror of whichever term is current — kept in
+  sync by **`applyTermScopedPatch`** (`lib/data/terms.js`), the one choke point every `upd()` call
+  now routes through (`components/App.jsx`). This is why almost none of those ~50 call sites needed
+  to change: they still read/write the same flat fields as always, it's just genuinely per-term
+  underneath now. The one write path that bypasses `upd()` entirely — the server-side
+  `runNotifyUrgentItems` cron function (`lib/data/notifications.js`) — reuses the exact same
+  `applyTermScopedPatch`, so its notification-log write stays mirrored too even though it never
+  touches `App.jsx`. One-time migration (`migrateTermDataIsolationIfNeeded`) seeds the CURRENT
+  term's isolated copy from the old flat data on first load, and every OTHER term from genuinely
+  empty defaults — verified live against the real account (round-tripped Current between two real
+  terms, confirmed zero data loss and correct isolation both directions).
+
+  Net simplification: the old `scrubTermSchedule` (date-range + courseId reconciliation, needed
+  only because these stores used to be shared) is gone entirely — resetting a term is now just
+  resetting its own copy to empty, deleting a term removes its data by definition, and a brand-new
+  term simply starts with its own empty defaults regardless of whether its dates happen to overlap
+  another term's. Calendar's own week/month *navigation* range (`components/Week.jsx`) still reads
+  the term's raw typed start/end (`getTermRange`) directly — NOT `planningRange()`, which is
+  deadline-anchored (last real assignment/exam due date, not the typed term-end) and exists purely
+  so a mistyped Term End can't give the AI planner a pointless empty tail to schedule into —
+  conflating those two ranges was a real, shipped bug (a freshly-synced term with only its first
+  few items entered had its entire calendar chopped down to just those couple of weeks); unrelated
+  to this fix, still a live distinction to keep straight.
+
+  **Known limitation of the migration, not a bug in it:** any term whose flat data had already been
+  overwritten by normal cross-talk BEFORE this fix shipped (e.g. a Replan run while a different term
+  was Current, in the old flat-store world) can't have that specific data resurrected — the
+  migration can only adopt whatever was actually sitting in the flat store at migration time, honestly,
+  not reconstruct something already clobbered by the very bug being fixed. Confirmed low-stakes in
+  practice (only affected an old mock/test term's calendar, not real academic data) — going forward
+  from v2.88.20 this exact overwriting can never happen again.
+
+- **Term-switching (VIEWING a non-current term without making it current) remains explicitly
+  deferred, on request** — real request from this same session: "later, we shall allow user to
+  switch between terms and display EXACTLY as left," deliberately scoped OUT of the isolation fix
+  above ("Isolation only, no viewer UI yet" — explicitly chosen over building both together). The
+  real per-term partitioning above is exactly the prerequisite that feature was waiting on
+  (previously the blocker was real vs. derived-view data, per the "Known next step" this replaces)
+  — building the actual viewer UI is still a separate, later, deliberately-scoped piece of work.
+  Acad.jsx briefly had an in-tab term switcher from an earlier pass and it was explicitly removed
+  ("revert to the original page design") — re-adding term-switching UI should be deliberate, not a
+  repeat of that.
 
 ### Today tab
 - `realDayBlocks(data, dateStr)` is the single source of truth for "what does the real plan say
@@ -272,10 +309,10 @@ method" — prefer deterministic logic over AI calls wherever the two could achi
   **Established pattern going forward for any future extraction-quality concern:** don't reach for
   a second AI pass by default — first ask whether a deterministic, generalized (non-course-
   specific) cross-check against the raw source text can catch the same failure class for free.
-- **Known next step, explicitly requested, not yet built: term-switching (viewing).** See the
-  studyPlan/completionLog/pomodoroLogs isolation gap and the "Known next step" note in the
-  Multi-school/multi-term section above — this is the real prerequisite/design question before
-  building the switcher UI itself.
+- **Known next step, explicitly requested, not yet built: term-switching (viewing).** The real
+  prerequisite — genuine per-term data isolation — is done (v2.88.20, see the Multi-school/
+  multi-term section above). Building the actual viewer UI (browsing a past/upcoming term's data
+  without making it Current) is still separate, later, deliberately-scoped work.
 - ~~`webDifficultySignal()`~~ — done (B-01): `/api/course-info` now runs real web search per new
   course (not per item — the old per-item stub was removed), self-reports a confidence level
   (low/medium/high) + rationale since real grade-distribution data is usually login-gated, and

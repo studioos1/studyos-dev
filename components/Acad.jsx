@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from "react";
 import { iso, du } from "@/lib/time";
 import { courseNameFor, findMatchingCourse, norm, prettyCourseCode } from "@/lib/courses";
-import { computeTermStatuses, uid, scrubTermSchedule } from "@/lib/data";
+import { computeTermStatuses, uid } from "@/lib/data";
 import { calcGPA, letterFromPct } from "@/lib/grades";
 import {
   estimateDifficulty,
@@ -360,22 +360,20 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // which also wipes completion history and Pomodoro logs; kept that way on purpose, not touched
   // here). Real, reported bug: "after Reset academic data... the calendar still shows study
   // plans." This used to only clear courses/assignments/exams, leaving every study-plan block that
-  // referenced them (or just sat on this term's dates) as calendar debris. Fixed by reusing the
-  // same shared scrubTermSchedule (lib/data/terms.js) School Info's Reset already relies on for
-  // its own studyPlan half — but taking ONLY its `studyPlan` result here, deliberately discarding
-  // its completionLog/pomodoroLogs half so History and habit logs keep this function's existing
-  // no-touch guarantee.
+  // referenced them (or just sat on this term's dates) as calendar debris. Fixed simply now — this
+  // term owns its own isolated studyPlan (see applyTermScopedPatch, lib/data/terms.js), so a flat
+  // studyPlan:{weeks:{}} here is automatically mirrored into the CURRENT term's own copy, nothing
+  // else's. No more date-range scrubbing needed.
   async function resetAcademic(){
     const total=termCourses.length+termAssignments.length+termExams.length;
     if(total===0){toast2("Nothing academic to clear for this term — you're already starting fresh.");return;}
     const ok=await confirm(`Clear ${termCourses.length} course${termCourses.length!==1?"s":""}, ${termAssignments.length} assignment${termAssignments.length!==1?"s":""}, and ${termExams.length} exam${termExams.length!==1?"s":""} for this term only — including this term's own study plan on the calendar? Other terms, your profile, routine settings, History, and habit logs (gym/check-ins/focus sessions) will NOT be touched. This can't be undone.`);
     if(!ok)return;
-    const{studyPlan}=scrubTermSchedule(data,currentTerm||{start:null,end:null},termCourseIds);
     upd({
       courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
       assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
       exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      studyPlan,
+      studyPlan:{weeks:{}},
       briefCache:null,briefPeriod:null,
     });
     toast2("This term's academic data and study plan cleared — other terms, profile, and history kept!");
