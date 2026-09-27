@@ -590,7 +590,11 @@ function App(){
     if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
     const key="studyos_notified_"+iso();
     if(localStorage.getItem(key))return;
-    const items=urgentItems(data);
+    // Real audit-caught bug: urgentItems() used to receive raw `data` — courses/assignments/exams
+    // span every term (never isolated at storage level), so a future-dated item on an old/archived
+    // term could fire a real browser notification. Current-only, like the rest of this effect —
+    // termScopedForPlanning(data) with no override resolves whichever term is actually current.
+    const items=urgentItems(termScopedForPlanning(data));
     if(items.length){
       const title="StudyOS — today's priorities",body=items.slice(0,3).join("\n");
       try{
@@ -667,7 +671,11 @@ function App(){
   // (always the viewed term's own dates/calendar, see projectTermForPlanning), not gated to "only
   // if it's Current" — orthogonal to status like the rest of the viewer, same reasoning.
   const fin=isFin(td,viewedData.profile),hol=isHol(td,viewedData.profile);
-  const missing=data.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
+  // Tracks whichever term is being VIEWED (not pinned to Current) — real audit finding: this
+  // badge navigates straight to Courses on click (go("acad")), which already shows the viewed
+  // term's own assignments; counting across every term here would show a number that didn't match
+  // what clicking through actually revealed.
+  const missing=viewedData.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
   const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
   const notifLog=data.notifications||[];
   const unreadCount=notifLog.filter(n=>!n.read).length;
@@ -916,13 +924,13 @@ function App(){
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
           :tab==="today"   ?<Today    data={viewedData} upd={updViewed} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
-          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
+          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} rawData={data} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen} viewedTerm={viewedTerm}/>
           :tab==="acad"    ?<Acad     data={data} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
-          :tab==="prog"    ?<Prog     data={viewedData} upd={updViewed} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
+          :tab==="prog"    ?<Prog     data={viewedData} upd={updViewed} rawData={data} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)
-          :<Sett data={data} upd={upd} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
+          :<Sett data={viewedData} upd={updViewed} updP={updP} toast2={toast2} ai={ai} busy={busy} planning={planning} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump}/>
         }
       </div>
       {toast&&(()=>{
