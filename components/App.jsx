@@ -918,7 +918,7 @@ function App(){
           :tab==="today"   ?<Today    data={viewedData} upd={updViewed} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
           :tab==="week"    ?<Week     data={viewedData} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen}/>
           :tab==="acad"    ?<Acad     data={data} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
-          :tab==="prog"    ?<Prog     data={data} upd={upd} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
+          :tab==="prog"    ?<Prog     data={viewedData} upd={updViewed} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)

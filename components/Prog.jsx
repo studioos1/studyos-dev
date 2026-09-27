@@ -9,6 +9,15 @@ import { catchUpDays, todayPassedBlocks, catchUpMarkComplete } from "@/lib/calen
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
+// `data` arrives pre-scoped to whichever term the header dropdown is showing (App.jsx's
+// viewedData) — courses/assignments/exams/dailyLogs/gymLogs/pomodoroLogs all already filtered, so
+// GPA, the Evening Check-in task list, and the readiness checks never mix in another term's items.
+// Real, confirmed bug this fixes: an assignment from an old test term (a "MMW 122" item) was
+// showing in the Evening Check-in list of a real, unrelated Current term with no MMW 122 course at
+// all — Prog.jsx was the one consumer that had NEVER been scoped to a term, unlike Today/Calendar/
+// Courses (courses/assignments/exams are flat arrays spanning every term by design, filtered by
+// whoever reads them — this wasn't a violation of per-term data isolation, just a gap in this one
+// file that predates it).
 export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   const logs=data.dailyLogs||[],gymLogs=data.gymLogs||[],p=data.profile;
   const td=iso(),gymD=(p.gymDays||GYM0).filter(g=>g.on),gymTarget=gymD.length;
