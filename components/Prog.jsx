@@ -9,7 +9,16 @@ import { catchUpDays, todayPassedBlocks, catchUpMarkComplete } from "@/lib/calen
 import { StatCard, SecHead, Sp } from "@/components/shared";
 
 // ── PROGRESS ─────────────────────────────────────────────────────────────────
-export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
+// `data` arrives pre-scoped to whichever term the header dropdown is showing (App.jsx's
+// viewedData) — courses/assignments/exams/dailyLogs/gymLogs/pomodoroLogs all already filtered, so
+// GPA, the Evening Check-in task list, and the readiness checks never mix in another term's items.
+// Real, confirmed bug this fixes: an assignment from an old test term (a "MMW 122" item) was
+// showing in the Evening Check-in list of a real, unrelated Current term with no MMW 122 course at
+// all — Prog.jsx was the one consumer that had NEVER been scoped to a term, unlike Today/Calendar/
+// Courses (courses/assignments/exams are flat arrays spanning every term by design, filtered by
+// whoever reads them — this wasn't a violation of per-term data isolation, just a gap in this one
+// file that predates it).
+export function Prog({data,upd,rawData,toast2,ai,busy,backTo,onBack}){
   const logs=data.dailyLogs||[],gymLogs=data.gymLogs||[],p=data.profile;
   const td=iso(),gymD=(p.gymDays||GYM0).filter(g=>g.on),gymTarget=gymD.length;
   const streak=(()=>{let s=0;for(let i=0;i<30;i++){const d=iso(new Date(Date.now()-i*864e5));const l=logs.find(x=>x.date===d);if(l&&l.completed?.length>0)s++;else if(i>0)break;}return s;})();
@@ -77,7 +86,13 @@ export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
       // completedAt stamps the first time an assignment goes done — needed for the On-time
       // Assignments metric (Today.jsx) to tell on-time from late. This flow is one-way (no
       // unmark-done control exists), so a guarded set is enough — never overwritten once set.
-      ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
+      // Real, audit-caught CRITICAL bug: this used to map over `data.assignments` — but `data` here
+      // is the VIEWED term's already-filtered projection (viewedData), not the real full array.
+      // Writing that filtered subset back as "assignments" would have silently replaced the WHOLE
+      // stored array with only the viewed term's items, deleting every other term's assignments on
+      // the very first check-in submitted. Maps over rawData (the true, complete, unfiltered array)
+      // instead — every id not in doneA (including every other term's) passes through untouched.
+      ...(doneA.size?{assignments:rawData.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
     });
     const savedMsg=caughtCount?`Check-in saved — ${caughtCount} session${caughtCount!==1?"s":""} caught up! 🎯`:"Check-in saved! 🎯";
     if(existingFeedback){

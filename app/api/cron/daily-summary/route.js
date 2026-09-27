@@ -1,6 +1,7 @@
 import { serviceClient, verifyCronAuth, sendSms, eligibleUsers, todayInTZ, CRON_TZ } from "@/lib/sms/cronSend";
 import { buildDailySummaryMessage } from "@/lib/sms/dailySummary";
 import { runNotifyUrgentItems } from "@/lib/data/notifications";
+import { termScopedForPlanning } from "@/lib/data/terms";
 
 // Fires once a day (see .github/workflows/scheduled-reminders.yml — Vercel Cron Jobs turned out
 // to be silently unavailable on the Hobby plan, so a GitHub Actions schedule calls this route's
@@ -40,7 +41,15 @@ export async function GET(req) {
         continue;
       }
       try {
-        const message = buildDailySummaryMessage(row.data, today);
+        // Real, audit-caught bug: courses/assignments/exams are flat arrays spanning EVERY term
+        // (never isolated at the storage level), and this used to pass row.data straight through
+        // unscoped — a real risk of texting about a class/exam/project from an old or archived
+        // term (its recurring weekly class-time pattern has no date-range awareness of its own, and
+        // an old term's future-dated test/mock item would pass the countdown-window checks too).
+        // termScopedForPlanning (no term override) resolves whichever term is actually current;
+        // studyPlan itself needs no separate scoping — the flat mirror already always reflects
+        // current regardless.
+        const message = buildDailySummaryMessage(termScopedForPlanning(row.data), today);
         const sid = (await sendSms({ to: p.phone, message })).sid;
         // Update the in-memory row, not just the DB — runNotifyUrgentItems below reuses this same
         // `rows` array for the SAME users; without this, its own write would read the pre-SMS-loop

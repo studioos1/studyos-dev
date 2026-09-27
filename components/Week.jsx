@@ -6,7 +6,7 @@ import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal, DayAgenda 
 import { PlanDrawer } from "@/components/PlanDrawer";
 
 // ── WEEK ─────────────────────────────────────────────────────────────────────
-export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg,planDrawerOpen,setPlanDrawerOpen}){
+export function Week({data,upd,rawData,ai,busy,planning,toast2,refreshQuarterPlan,refreshWeekPlan,planMsg,planDrawerOpen,setPlanDrawerOpen,viewedTerm}){
   const {confirm,modal}=useConfirm();
   // Sub-project: Web-Mobile Enablement item #2 — the 7-column time-block grid genuinely can't fit
   // a phone screen (each day column would be well under 50px). Default straight into "agenda"
@@ -348,7 +348,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
             onClose={()=>setEditState(null)}
           />
         )}
-        <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan}/>
+        <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} rawData={rawData} refreshQuarterPlan={refreshQuarterPlan} viewedTerm={viewedTerm}/>
       </div>
     );
   }
@@ -507,7 +507,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
         )}
       </div>
       {modal}
-      <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan}/>
+      <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} rawData={rawData} refreshQuarterPlan={refreshQuarterPlan} viewedTerm={viewedTerm}/>
 
       {mode==="week"&&(
         <div>
