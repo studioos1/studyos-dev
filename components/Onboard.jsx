@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PDF, MAX_SYLLABUS_CHARS } from "@/lib/pdf";
+import { PDF, MAX_SYLLABUS_CHARS, syllabusExtractMaxTokens } from "@/lib/pdf";
 import { CI } from "@/lib/api";
 import { findMatchingCourse, prettyCourseCode } from "@/lib/courses";
 import { iso, f12, t2m, m2t } from "@/lib/time";
@@ -152,7 +152,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
 ],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,6)),{model:"claude-opus-5"});
       if(r){
         const parsed=JSON.parse(r.replace(/```json|```/g,"").trim());
         // Same deterministic post-processing as Acad's syncSyl — this is a second, independent

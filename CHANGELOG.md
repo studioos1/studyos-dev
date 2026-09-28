@@ -1,5 +1,39 @@
 # StudyOS Changelog
 
+## v2.88.46 — 2026-09-28
+
+**Fix: uploading 3 syllabi at once failed with "Unterminated string in JSON"**
+
+Real, reported failure: uploading "DSC 10 updated.pdf, syllabus.pdf, LIGN8-Syllabus-FA26.UPDATED.pdf"
+together (exactly what the upload UI itself invites — "select one or multiple docs") failed with
+"Sync failed / Unterminated string in JSON at position 7485 (line 93 column 110)" — meaningless to
+the student.
+
+Root cause: the syllabus-extraction AI call's `maxTokens` was a single hardcoded `8000`, in THREE
+separate call sites (`Acad.jsx`'s `syncSyl`/`rawExtract`, `Onboard.jsx`'s `parseSyl`), regardless of
+how many syllabi got combined into one request. Three dense syllabi easily exceed 8000 output
+tokens once the AI has to enumerate every assignment/exam/meeting time across all three courses —
+the response got cut off mid-string, and the raw (truncated) text was handed straight to
+`JSON.parse()`, which is exactly the "Unterminated string" error the student saw. A second, real
+gap made the failure opaque: `app/api/ai/route.js` never checked whether Anthropic reported the
+response as truncated (`stop_reason:"max_tokens"`) — a truncated response looks like a normal 200
+success at the HTTP level, so it just passed the broken JSON through as if nothing had gone wrong.
+
+Fixed in two places:
+1. `app/api/ai/route.js` now checks `stop_reason==="max_tokens"` and returns a real, actionable
+   error ("...too much content for one request... try uploading fewer files at once") through the
+   same error-surfacing path every caller already had wired up, instead of silently handing
+   truncated JSON downstream.
+2. New `syllabusExtractMaxTokens(fileCount)` (`lib/pdf.js`, the same file `MAX_SYLLABUS_CHARS`
+   already lives in, for the same reason — a previously duplicated magic number) scales the budget
+   with how many files are actually combined into one request (8000 base +5000/extra file, capped
+   at 24000), instead of a fixed pool shared across however many syllabi get uploaded together.
+   Wired into all three call sites.
+
+Verified against the exact real failure — re-uploaded the same 3 real files (via a live browser
+smoke test, not a guess) and confirmed a clean extraction: 77 items across 3 courses, review screen
+opened normally. Not saved to the real account — cancelled out of the review step deliberately.
+
 ## v2.88.45 — 2026-09-28
 
 **Update Syllabus tab redesigned — hero upload zone + a real "doc directory" upload history**
