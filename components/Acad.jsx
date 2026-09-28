@@ -643,12 +643,23 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
   // The actual save — runs only after the student confirms the ExtractionVerifyModal (with
   // whatever corrections they made). This is the same matching/creating/dedup logic syncSyl used
-  // to run immediately; now it's a separate step, gated on human confirmation.
+  // to run immediately; now it's a separate step, gated on human confirmation. Returns the result
+  // object instead of managing its own popup/closing the drawer — real request: "keep the rest of
+  // the flow over the same side-page rather than jumping to popup." ExtractionVerifyModal shows
+  // this result itself, in a "done" step inside the same drawer; it only actually closes once the
+  // student is done looking at it (Close / Plan Now), not the instant the save finishes.
   async function finalizeSync(p,fileNames){
     setSyncing(true);
     setProgress?.({label:"Matching courses, saving & estimating study time...",detail:fileNames.join(", ")});
+    try{
     let added=0,skippedDuplicate=0,coursesCreated=0,replaced=0;
     const nA=[],nE=[],newCourses=[];
+    // Existing items the student unchecked BOTH the "Saved" and "New" boxes on in
+    // ExtractionVerifyModal — that item is unwanted and nothing is replacing it, so it's removed
+    // outright rather than just left alone. Empty arrays (the normal case — nothing to delete)
+    // when the caller isn't that modal or nothing was unchecked this way.
+    const delA=new Set(p._deleteExisting?.assignmentIds||[]);
+    const delE=new Set(p._deleteExisting?.examIds||[]);
     // id -> patch, for rows the student explicitly chose "Keep recent" on in ExtractionVerifyModal
     // (findProbableDuplicate flagged a probable match, not an exact one, so the OLD exact-match
     // check just below never would have caught these on its own). Applied over data.assignments/
@@ -733,17 +744,26 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
 
     upd({
       courses:workingCourses,
-      // Replacements are applied over the EXISTING array (preserving id/status/completedAt on
-      // whichever item matched) before the genuinely-new items are appended.
-      assignments:[...data.assignments.map(x=>replaceAssignments.has(x.id)?{...x,...replaceAssignments.get(x.id)}:x),...nA],
-      exams:[...data.exams.map(x=>replaceExams.has(x.id)?{...x,...replaceExams.get(x.id)}:x),...nE],
-      lastSyllabusSync:{at:new Date().toISOString(),files:fileNames,added,coursesFound:p.courses?.map(c=>c.courseName)||[]}
+      // Deleted-existing items are dropped first; replacements are then applied over what's left
+      // (preserving id/status/completedAt on whichever item matched) before the genuinely-new
+      // items are appended.
+      assignments:[...data.assignments.filter(x=>!delA.has(x.id)).map(x=>replaceAssignments.has(x.id)?{...x,...replaceAssignments.get(x.id)}:x),...nA],
+      exams:[...data.exams.filter(x=>!delE.has(x.id)).map(x=>replaceExams.has(x.id)?{...x,...replaceExams.get(x.id)}:x),...nE],
+      lastSyllabusSync:{at:new Date().toISOString(),files:fileNames,added,coursesFound:p.courses?.map(c=>c.courseName)||[]},
+      // Every upload gets its own history entry (lastSyllabusSync above only ever keeps the single
+      // most recent one) — feeds the Update Syllabus tab's "doc directory" list. storagePath stays
+      // null until real file storage exists (see CLAUDE.md backlog) — the directory list only
+      // offers View/Download for entries that actually have one.
+      syllabusUploads:[...(data.syllabusUploads||[]),{id:uid(),at:new Date().toISOString(),files:fileNames.map(name=>({name,storagePath:null})),added,replaced,removed:delA.size+delE.size,coursesFound:p.courses?.map(c=>c.courseName)||[]}]
     });
-    setSyncResult({added,skippedDuplicate,replaced,coursesFound:p.courses?.map(c=>c.courseName)||[],coursesCreated,itemsByCourse,fileNames});
     setSylPdfs([]);
-    setPendingVerify(null);
-    setSyncing(false);
-    setProgress?.(null);
+    return{added,skippedDuplicate,replaced,removed:delA.size+delE.size,coursesFound:p.courses?.map(c=>c.courseName)||[],coursesCreated,itemsByCourse,fileNames};
+    }catch(e){
+      return{error:e.message,fileNames};
+    }finally{
+      setSyncing(false);
+      setProgress?.(null);
+    }
   }
 
 
@@ -1784,28 +1804,11 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
               </div>
             ):(<>
 
-            {/* Last sync marker — persists across reloads */}
-            {viewedTerm?.lastSyllabusSync&&(
-              <div style={{
-                display:"flex",alignItems:"flex-start",gap:10,
-                padding:"10px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:14
-              }}>
-                <i className="ti ti-circle-check" style={{color:"var(--green)",fontSize:16,flexShrink:0,marginTop:1}}/>
-                <div style={{fontSize:13,color:"#fff",lineHeight:1.6}}>
-                  <div>Last synced: <strong>{new Date(viewedTerm?.lastSyllabusSync.at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</strong></div>
-                  <div style={{color:"var(--t2)",marginTop:2}}>
-                    {viewedTerm?.lastSyllabusSync.files?.join(", ")||"unknown file"} — {viewedTerm?.lastSyllabusSync.added} new item{viewedTerm?.lastSyllabusSync.added===1?"":"s"} added
-                  </div>
-                  {viewedTerm?.lastSyllabusSync.coursesFound?.length>0&&(
-                    <div style={{color:"var(--t3)",marginTop:2,fontSize:12}}>
-                      Courses found: {viewedTerm?.lastSyllabusSync.coursesFound.join(", ")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <PdfDrop label="Syllabus or Schedule PDFs" hint="Select one or more PDF files" files={sylPdfs} onFiles={setSylPdfs} multi/>
+            {/* The main function of this screen — real request: "this section shall be a bit
+                more highlighted as the main function." hero mode (PdfDrop, components/shared/
+                ui.jsx) is purely additive to the shared component; Onboard.jsx's two callers are
+                unaffected. */}
+            <PdfDrop hero label="Select one or multiple docs to upload" hint="Syllabus or class schedule PDFs" files={sylPdfs} onFiles={setSylPdfs} multi/>
             {sylPdfs.length>0&&(
               <>
                 <button className="btn btn-action" style={{width:"100%",marginTop:4,justifyContent:"center"}} onClick={syncSyl} disabled={syncing||busy||rawExtracting}>
@@ -1815,6 +1818,62 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
                   {rawExtracting?<><Sp/> Extracting (diagnostic — nothing will be saved)...</>:<><i className="ti ti-bug"/> Show Raw AI Extraction (diagnostic — nothing saved)</>}
                 </button>
               </>
+            )}
+
+            {/* Upload history — every sync this term, newest first, styled like a doc directory
+                (icon/filename/date one row each). Real request: "show a list of all the upload
+                history in the term... make it look like a doc directory list... under the main
+                section." Replaces the old single "Last synced..." line, which only ever showed
+                the most recent upload. */}
+            {viewedTerm?.syllabusUploads?.length>0&&(
+              <div style={{marginTop:20}}>
+                <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                  <i className="ti ti-folder" style={{fontSize:14}}/>Upload History ({viewedTerm.syllabusUploads.length})
+                </div>
+                <div style={{background:"var(--card2)",borderRadius:10,overflow:"hidden"}}>
+                  {[...viewedTerm.syllabusUploads].reverse().map((u,i,arr)=>{
+                    // storagePath stays null until the original file is actually kept (needs real
+                    // file storage — not wired up yet, see CLAUDE.md backlog); View/Download only
+                    // show for uploads that actually have one, rather than a dead button always.
+                    const hasFile=u.files?.some(f=>f.storagePath);
+                    return(
+                      <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 13px",borderBottom:i<arr.length-1?"1px solid var(--b1)":"none"}}>
+                        <i className="ti ti-file-type-pdf" style={{fontSize:20,color:"var(--amber)",flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {u.files?.map(f=>f.name).join(", ")||"unknown file"}
+                          </div>
+                          <div style={{fontSize:11,color:"var(--t3)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {new Date(u.at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
+                            {u.coursesFound?.length>0?` · ${u.coursesFound.join(", ")}`:""}
+                          </div>
+                        </div>
+                        <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                          {u.added>0&&<span className="badge badge-green">+{u.added}</span>}
+                          {u.replaced>0&&<span className="badge badge-teal">{u.replaced} updated</span>}
+                          {u.removed>0&&<span className="badge badge-red">{u.removed} removed</span>}
+                        </div>
+                        <div style={{flexShrink:0,marginLeft:4}}>
+                          {hasFile?(
+                            <div style={{display:"flex",gap:4}}>
+                              <button className="tt" data-tt="View" style={{padding:5,borderRadius:6,border:"none",cursor:"pointer",background:"transparent",color:"var(--t2)"}}>
+                                <i className="ti ti-eye" style={{fontSize:15}}/>
+                              </button>
+                              <button className="tt" data-tt="Download" style={{padding:5,borderRadius:6,border:"none",cursor:"pointer",background:"transparent",color:"var(--t2)"}}>
+                                <i className="ti ti-download" style={{fontSize:15}}/>
+                              </button>
+                            </div>
+                          ):(
+                            <span className="tt" data-tt="Original file not saved — uploaded before file storage was added" style={{color:"var(--t3)",cursor:"help",display:"flex"}}>
+                              <i className="ti ti-file-off" style={{fontSize:15}}/>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Raw extraction diagnostic result — shows exactly what the AI returned, unfiltered */}
@@ -1932,13 +1991,14 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
         </div>
       )}
       {modal}
-      <SyncResultModal result={syncResult} planning={planning}
-        onClose={()=>{const hadItems=syncResult?.added>0;setSyncResult(null);if(hadItems)setView("difficulty");}}
-        onPlanNow={async()=>{await refreshQuarterPlan();setSyncResult(null);setView("difficulty");}}/>
+      {/* Only ever fed an {error} now — the success path moved into ExtractionVerifyModal's own
+          "done" step (same drawer, not a separate popup). This still covers the one case that
+          happens BEFORE that drawer ever opens: the initial AI parse itself failing. */}
+      <SyncResultModal result={syncResult} onClose={()=>setSyncResult(null)}/>
       {pendingVerify&&(
         <ExtractionVerifyModal
           parsed={pendingVerify.parsed}
-          courses={data.courses}
+          courses={termCourses}
           termStart={data.profile?.termStart}
           termEnd={data.profile?.termEnd}
           existingAssignments={data.assignments}
@@ -1946,6 +2006,8 @@ SYLLABI:\n${texts.join("\n")}`,8000,{model:"claude-opus-5"});
           sourceText={pendingVerify.sourceText}
           onConfirm={correctedParsed=>finalizeSync(correctedParsed,pendingVerify.fileNames)}
           onCancel={()=>{setPendingVerify(null);setSylPdfs([]);}}
+          planning={planning}
+          onPlanNow={async()=>{await refreshQuarterPlan();setPendingVerify(null);setView("difficulty");}}
         />
       )}
     </div>

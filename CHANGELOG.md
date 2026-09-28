@@ -1,5 +1,294 @@
 # StudyOS Changelog
 
+## v2.88.45 — 2026-09-28
+
+**Update Syllabus tab redesigned — hero upload zone + a real "doc directory" upload history**
+
+Real request: "optimize the UI/UX design of the upload tab: 1) [drop zone] shall be a bit more
+highlighted as the main function... 2) re-design the way we track doc uploads: a) how we display,
+b) show a list of all the upload history in the term, c) make it look like a doc directory list,
+d) uploaded docs shall be saved and allow user to download or view them."
+
+1. `PdfDrop` (`components/shared/ui.jsx`) gained an additive `hero` mode — bigger icon/text, a
+   dashed accent border instead of a flat card — used only by this tab; Onboard.jsx's two other
+   callers are unchanged.
+2. New term-scoped `syllabusUploads` array (`lib/data/schema.js`, same mirror pattern as every
+   other term-scoped field) — every sync now gets its own history entry (`finalizeSync`,
+   `Acad.jsx`), replacing `lastSyllabusSync`'s old single-most-recent-only marker. Fully additive;
+   `lastSyllabusSync` itself is untouched.
+3. New "Upload History" list directly under the upload section, styled as a doc directory — PDF
+   icon, filename(s), date + courses found, and added/updated/removed count badges per row, newest
+   first.
+
+**Part (d) — not done, and can't be from here:** saving the original files for View/Download needs
+a real Supabase Storage bucket + access policies, which requires either the Supabase dashboard or a
+service-role key — this repo has neither locally (confirmed: no `supabase` CLI, no project link,
+`SERVICE_ROLE` absent from `.env`). The directory list is already wired for this (`files[].
+storagePath`, a View/Download icon pair shown only when a path exists) so no further UI work is
+needed once storage exists — every row just shows a muted "not saved" icon until then.
+
+## v2.88.44 — 2026-09-28
+
+**`ExtractionVerifyModal` — final confirmation stays in the drawer, not a separate popup**
+
+Real feedback: "we shall keep the rest of the flow over the same side-page rather than jumping to
+popup." The Confirm button used to hand off to a centered `SyncResultModal` popup once the save
+finished. `finalizeSync` (`Acad.jsx`) now RETURNS its result (added/replaced/removed/coursesFound/
+etc, or `{error}` on failure) instead of managing that popup itself and closing the drawer the
+instant it's done. `ExtractionVerifyModal` gained a third internal step, "done," that shows the
+exact same summary tiles inside the same drawer; the drawer only actually closes once the student
+clicks Close/Not now or Create study plan. `SyncResultModal` itself is unchanged and still handles
+the one case that happens before this drawer ever opens — the initial AI parse itself failing.
+
+Verified live end-to-end (review → summary → confirm → done → close) using a temporary fake
+resolver so the real account's data wasn't touched by test clicks.
+
+## v2.88.43 — 2026-09-28
+
+**`ExtractionVerifyModal` — fixed tag/class overlap, audited every column's alignment**
+
+Real bug: "the 'Existing' [tag] overlap the next column - class name." Confirmed: the tag column
+was 44px, "Existing" at that font/weight doesn't fit, and a fixed-px CSS Grid track never grows to
+accommodate overflowing content — the text just bled into the Class column visually. Widened to
+66px (52px on mobile) and rebalanced Class/Type slightly to compensate, no net width change.
+
+Also found and fixed while auditing "make sure the alignment of each column is done properly": the
+read-only Existing/New comparison rows were missing their `ev-f-course`/`ev-f-title`/`ev-f-date`/
+`ev-f-weight` classes entirely (only the editable single-row case had them) — harmless on desktop
+(which positions by DOM order) but meant these rows had no `grid-area` assigned on mobile and would
+have laid out incorrectly there. Fixed by adding the classes uniformly to both row types, which
+also let one shared CSS rule apply consistently to both: Class nudged right off the tag column
+(real feedback: "there is large space on the right side of the class name"), Wt% centered under
+its header. Every column header's alignment now matches its content's actual alignment (Type/Wt%/
+Keep centered — buttons, a short number, a checkbox; Class/Title/Date stay left — full text
+values), not just Type as originally reported. Verified via direct DOM measurement (zero pixels of
+overlap, header/content centers exactly aligned), not a screenshot guess.
+
+## v2.88.42 — 2026-09-28
+
+**`ExtractionVerifyModal` footer buttons — natural size, not stretched full-width**
+
+Real feedback: "adjust the action-button sizes — avoid too long across the window." The footer used
+`flex:1`/`flex:2` on its two buttons, stretching them the full ~860px drawer width — every other
+modal/drawer in this app (`BlockEditModal`, `SyncResultModal`, the Account drawer) instead
+right-aligns naturally-sized buttons (`justifyContent:"flex-end"`, `padding:"8px 20px"`). Matched
+that convention here instead of inventing a new one.
+
+## v2.88.41 — 2026-09-28
+
+**`ExtractionVerifyModal` UI, round 6 — two-step flow with an itemized summary before saving**
+
+Real feedback: "'Looks good, save all' > we shall have 'Looks good, Next step' > that will show a
+summary of the new items to upload only (after decision on the dups), then Confirm or Back. Save
+should save only items with a check mark." Live follow-up while building it: "when are we showing
+the complete readout of the items?" — answered by making the summary itemized (every title, course,
+date), not just a count.
+
+The review list (Existing/New comparison pairs + any manually-added items) is now step 1. "Looks
+good, next step" computes a plan from the current checkbox states — same branching logic as before
+(keep only / keep both / replace in place / remove) — and moves to step 2: a plain-language summary
+("2 new items will be uploaded, 1 removed.") followed by a real itemized list grouped New/Updated/
+Removed, each with its course and date. "Back" returns to the review list with every checkbox
+exactly as left (nothing resets); "Confirm" saves using that same already-computed plan — no
+double-computation, so what's shown in the summary is guaranteed to be what actually gets saved.
+The final "Sync complete" confirmation (`SyncResultModal`) is unchanged, still fires after saving.
+
+## v2.88.40 — 2026-09-28
+
+**`ExtractionVerifyModal` UI, round 5 — fully read-only comparison pairs, spacing, tooltips**
+
+Real feedback: "first line shall be Existing not Saved... we don't need editable fields for the
+new, display it EXACTLY under the existing without shift right or left... odd circle icon with
+gibberish tooltip, not clear why it's there... add a separator + small space between every
+couple... add a tooltip to the checkbox."
+
+1. Renamed "Saved" → "Existing" everywhere (label, banner text).
+2. A duplicate pair is now TWO fully read-only rows (Existing and New both plain text, no
+   inputs/selects) sharing the identical grid columns — guarantees pixel-exact alignment between
+   them instead of relying on an input box and a text cell happening to line up. Editing only
+   remains on a genuinely new (non-duplicate) item's single row, where there's nothing to compare
+   against.
+3. Removed the "generated from a weekly pattern" icon+tooltip entirely — real feedback was that it
+   read as unexplained clutter rather than useful information; the same information is still
+   available at a glance via the extraction-notes box above the list.
+4. `.ev-item` padding 6px→10px with a small margin between items — a clearer, more breathing-room
+   divider between every Existing/New couple.
+5. Added a tooltip ("Check to save, uncheck to remove/skip") to every checkbox.
+
+## v2.88.39 — 2026-09-28
+
+**`ExtractionVerifyModal` UI, round 4 — Saved/New comparison rows, checkboxes replace 3 buttons**
+
+Real feedback: "display TWO lines per finding — the current uploaded and the new one — so you can
+see exactly how they compare... the 'HW' highlight is too similar to an action button... we do not
+need the 3 buttons, instead: place a checkbox for each. The existing shall be checked, user can
+also check the 2nd line (new upload) to keep both, or uncheck both. Save will save only items with
+a check mark. Make sense? Will that design simplify it?" — yes.
+
+1. **Two-line comparison.** A possible duplicate is now two rows sharing the identical 7-column
+   grid: a muted, read-only "Saved" row (what's already stored) directly above an editable "New"
+   row (what was just parsed) — every field lines up column-for-column, so the difference (or lack
+   of one) is visible at a glance instead of read out in a sentence.
+2. **Checkboxes replace Keep recent / Keep both / Skip.** Each row (Saved and New) ends in this
+   app's existing `.chk` checkbox (the same component Prog.jsx uses for marking work done) —
+   Saved defaults checked, New defaults unchecked, so the safest option ("do nothing") is the
+   default and the student opts INTO a change rather than out of one. Four checkbox states map to
+   the same four real outcomes the old buttons covered (existing✓new✗ → keep saved only; both✓ →
+   keep both; existing✗new✓ → replace in place via `_replaceId`, preserving id/status/completedAt;
+   both✗ → **new** — delete the existing item outright, since nothing is replacing it and it's
+   explicitly unwanted). The old per-row remove (✕) button is gone too — unchecking a plain
+   (non-duplicate) row's own checkbox now does the same job.
+3. **Type highlight toned down.** The HW/Exam buttons' "selected" state was amber twice in a row
+   despite being dimmed each time — real feedback both times: still read as loud/alarming, the same
+   visual weight as a genuine call-to-action. Switched to a plain neutral highlight (`--b2`
+   background, `--t1` text, no color accent) — amber now appears only where a real duplicate is
+   involved (the Saved/New pairing itself), not on every row's ordinary type toggle.
+4. **Uniform columns.** One shared `.ev-row` grid (`globals.css`) — tag / class / type / title /
+   date / wt% / keep — used identically whether a row is a plain single line or half of a Saved/New
+   pair, and identically across every item in the list, not just the flagged ones.
+5. **Width** 760→860 to comfortably fit the extra tag+checkbox columns.
+
+`finalizeSync` (`Acad.jsx`) gained the one genuinely new capability this required: deleting an
+existing item outright when both its checkboxes end up unchecked, via a `_deleteExisting`
+{assignmentIds, examIds} field on the confirm payload — applied as a filter before the existing
+replace-in-place logic, so it composes cleanly with everything already there. `SyncResultModal`
+shows a "removed" tile alongside added/replaced/skipped when this fires.
+
+## v2.88.38 — 2026-09-28
+
+**`ExtractionVerifyModal` UI, round 3 — real fixed-column table, responsive**
+
+Real feedback on round 2: "still not elegant and too bulky... max two lines... similar to a table
+structure with fix column width... one line for class info+action buttons, one below for
+notifications... increase width further if needed, but consider mobile."
+
+Rebuilt on a real CSS Grid table (`.ev-header`/`.ev-row`/`.ev-f-*`, `globals.css`) — same technique
+this app already uses for Focus Time's list (`.ft-actions`/`.ft-time`/`.ft-assignment`), not a new
+layout approach. Six fixed-width columns (Class/Type/Title/Date/Wt%/remove) line up identically
+across every row, header included, instead of each item's fields sizing themselves independently.
+Line 1 is the item's fields; line 2, only when flagged, is the duplicate notice + choice buttons,
+compressed onto one line (icon + comparison + buttons, wrapping only if genuinely too narrow) —
+down from the 3-line block round 2 had. A `<640px` breakpoint swaps the same grid to a 3-line
+mobile layout (course+type+remove / title / date+weight) via `grid-template-areas`, verified at a
+390px viewport with zero overflow.
+
+Real bug caught before shipping (verified live, not guessed): setting `grid-area` on every field
+unconditionally — needed for the mobile template-areas swap — broke the desktop layout entirely.
+An unmatched named `grid-area` does NOT fall back to normal DOM-order placement in the explicit
+column list; it creates its own new implicit grid line, silently pulling every field into its own
+extra column. Fixed by scoping `grid-area` assignment to only the mobile media query, where
+`grid-template-areas` actually defines those names — desktop relies on plain DOM-order placement.
+
+`pillStyle()` also split: color/border/active-state only, sizing left to the surrounding CSS class,
+so the same active-state styling fits both the narrow per-row type buttons and the roomier
+duplicate-resolution buttons without one overriding the other's layout.
+
+## v2.88.37 — 2026-09-28
+
+**`ExtractionVerifyModal` UI, round 2 — fixed real feedback on the round-1 redesign**
+
+Real report on v2.88.36: "side panel is not wide enough and the window added scroll left/right...
+orange color for action shall be dimmed amber... title about dup is not clear... 3 options shall be
+displayed as buttons... stick with UNIFIED ui-design."
+
+1. **Width + horizontal scroll (real bug, not just narrow).** Root cause: `SideDrawer`'s scrollable
+   body set `overflowY:"auto"` but left `overflowX` at its default — per the CSS spec, leaving one
+   overflow axis at `visible` while the other isn't forces the browser to compute the visible one as
+   `auto` too, so any child that doesn't shrink below its own content width silently gives the whole
+   drawer a horizontal scrollbar. The date `<input>` was missing `minWidth:0` on its flex item (a
+   native date input's intrinsic width is wide enough to force this), which is what actually
+   triggered it. Fixed at the shared `SideDrawer` component level (`overflowX:"hidden"`, protecting
+   every current and future consumer from the same quirk) plus the `minWidth:0` fix at the source.
+   Width also increased 640→760.
+2. **Amber color.** Went and checked how amber is actually used for "selected state" elsewhere
+   (Week.jsx's view-mode segmented control, SchoolInfo's term-status pills): a DIM tinted treatment
+   (`amber-bg` background + `amber` text/border), never a solid bright fill. The solid-fill
+   `.toggle-group`/`.toggle-opt` used in round 1 (borrowed from Sett.jsx's On/Off toggles) reads as
+   a bold call-to-action — the same visual weight as the actual Save button — which is what read as
+   "orange." Replaced with a new shared `pillStyle()` matching the app's real established pattern.
+3. **Duplicate label unclear.** Added an explicit small uppercase "⚠ POSSIBLE DUPLICATE" label above
+   the comparison sentence, so what the block IS is unmistakable before reading the sentence itself.
+4. **Options as buttons.** The dim-amber pills above are separate, individually-bordered buttons
+   (matching SchoolInfo's status-pill layout) rather than a joined segmented bar — reads clearly as
+   distinct choices, not one control.
+
+All verified live in the browser against the real component (not guessed from a screenshot) —
+confirmed `document.documentElement.scrollWidth === clientWidth` (zero page-level overflow) and
+single-click switching on every pill before shipping.
+
+## v2.88.36 — 2026-09-28
+
+**`ExtractionVerifyModal` redesigned — side drawer, single-click choices**
+
+Real feedback after seeing the dup-detection UI live: "really bad and hard to follow, too busy...
+long dropdown... yellow text hard to read... 2 clicks... too much friction." Rebuilt on the same
+`SideDrawer`/`DrawerHeader` shell already used for Account and the Calendar popup (slides from the
+right, proper width — 640px, capped to viewport) instead of a centered modal. The dense 6-column
+table + native `<select>`s became one card per item: a single-click `.toggle-group` segmented
+control (same pattern as Study Preferences on/off, course format) for both the Homework/Exam type
+and the duplicate resolution (Keep recent / Keep both / Skip) — no more open-then-choose dropdown.
+Amber is now reserved for the warning icon and the active choice pill only, not whole sentences —
+explanatory text uses normal readable colors, matching this app's existing "activated state = amber"
+convention (previously applied to whole paragraphs, which is what made it hard to read). A possible
+duplicate is now a thin amber card border, not a full amber-tinted table row.
+
+Caught and fixed one real bug via live visual testing (not just a screenshot): the duplicate note's
+date/type-mismatch text re-derived which field to read from the row's *current* (editable) type,
+so toggling Homework↔Exam after a duplicate was flagged would blank out the displayed date. Fixed
+by fixing `dupDateField`/`dupCrossLabel` at match time on each row instead of re-deriving them live.
+
+Known tradeoff, not fixed: because the parent (`Acad.jsx`) mounts/unmounts this drawer entirely
+(rather than always-mounted + an `open` toggle, like Account's drawer), it appears already open
+rather than visibly sliding in. Revisit if the animation itself matters enough to warrant restructuring
+`pendingVerify`'s lifecycle.
+
+## v2.88.35 — 2026-09-28
+
+**Fix: syllabus re-upload dup check silently resolved to the wrong course**
+
+Real report right after v2.88.34 shipped: re-uploading the same GPT-summary doc still showed no
+duplicate warning at all. Root cause was in course lookup, not the matching logic just rebuilt —
+`ExtractionVerifyModal` picked the duplicate-check course with `courses.find(x=>x.name===
+c.courseName)`, unscoped to term. This account has two courses both named "DSC 10" (an old
+archived "Fall 2026 TEST" term and the real current one) — that lookup always resolved to
+whichever came first in the array (the archived one), so every duplicate check ran against the
+wrong course's item list. The actual save step (`finalizeSync`) already scoped by term correctly,
+which is exactly why the real term ended up with the right course but its own preview screen could
+never see the duplicates living there.
+
+Fixed in two places: `ExtractionVerifyModal` now resolves the course with `findMatchingCourse`
+(the same course-code-normalizing match `finalizeSync` itself uses, not a raw name `.find`), and
+`Acad.jsx` now passes it the already term-scoped `termCourses` instead of the full, unscoped
+`data.courses`. The dup-detection logic added in v2.88.34 was verified correct in isolation (test
+suite); this is what kept it from ever running against the real data.
+
+## v2.88.34 — 2026-09-28
+
+**Syllabus duplicate detection — replaced exact-match with category+number matching**
+
+Real report: re-uploading an AI-summarized version of a syllabus (after the original) added
+everything as new instead of flagging duplicates — 31 duplicate rows landed on one course (Lab
+Assignment 1 / Lab 1, Discussion Section Groupwork 1 / Discussion Assignment 1, Homework Assignment
+1 / Homework 1, a "Getting Started"/"Course Setup" merge, and a Syllabus Check saved once as an
+assignment and once as an exam). Explicit direction: "identify possible duplication based on few
+key attributes... same date, similar duty name... under the SAME course... WE SHOULDS NOT KEEP
+LOGIC BASED EXACT MATCH."
+
+`findProbableDuplicate` (`lib/syllabus.js`) rebuilt: extracts a canonical duty category (lab/
+homework/discussion/quiz/exam/onboarding/…) and an ordinal number from each title instead of
+comparing exact/substring text. Matches on category+number with a close date; when either item is
+missing a date entirely — the actual bug, since AI re-extraction sometimes recognizes a duty but
+not its date — still matches on category+number alone (the old logic skipped the check completely
+whenever a date was missing). Mismatched numbers are a hard veto ("Quiz 3" never matches "Quiz 4"),
+which also closes a real latent bug in the old substring rule (`"quiz 10".includes("quiz 1")` was
+`true`). Uncategorized one-off titles fall back to token-overlap similarity. Also now checks the
+OPPOSITE type list (assignments vs. exams) so a duty reclassified between the two across uploads
+gets caught — flagged in `ExtractionVerifyModal` as "saved as a different type," with the in-place
+"Replace" option hidden for those rows (an exam's and an assignment's fields don't merge cleanly).
+
+The per-row Accept/Reject review UI itself (`ExtractionVerifyModal` — Keep recent / Keep both /
+Skip) already existed and needed no changes; only the matching logic behind it was replaced.
+
 ## v2.88.20 — 2026-09-25
 
 **Real per-term data isolation — every term is now a genuinely separate silo**
