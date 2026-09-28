@@ -54,7 +54,7 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
       });
       (c.exams||[]).forEach((e,ei)=>{
         const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date",existingAssignments,"dueDate"):null;
-        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"date"):null,dupExistingType:dup?(dup._crossType?"homework":"exam"):null,existingChecked:!!dup,newChecked:!dup});
+        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,endTime:e.endTime||null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"date"):null,dupExistingType:dup?(dup._crossType?"homework":"exam"):null,existingChecked:!!dup,newChecked:!dup});
       });
     });
     return out;
@@ -113,7 +113,7 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
         if(r.type==="homework"){
           byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
         }else{
-          byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
+          byCourse[r.courseName].exams.push({title:r.title,date:r.date,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
         }
         return;
       }
@@ -123,7 +123,7 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
       if(r.type==="homework"){
         byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2});
       }else{
-        byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
+        byCourse[r.courseName].exams.push({title:r.title,date:r.date,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
       }
     });
     // Preserve meetingTimes from the original parse untouched — this screen only verifies duties.

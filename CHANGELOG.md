@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.88.47 — 2026-09-28
+
+**Planner: back-to-back exams no longer lose the day between them**
+
+Real, reported issue (initially raised as suspected data-corruption/duplication — investigated in
+full via direct DB queries and confirmed clean: no duplicate exam/assignment records, no cross-term
+contamination, one coherent plan generation; the actual cause was elsewhere): with two exams on
+consecutive days (MATH 180A Tue, LIGN 008 Wed), rule F — "no study on an exam day" — blocked all of
+Tuesday, which is also exactly the day LIGN 008's natural eve would have been. That eve got pushed
+to an earlier day instead, and the free hours after the MATH 180A exam ended went completely
+unused even though the student was free and LIGN 008 badly needed the time.
+
+`lib/planner/schedule.js`'s `buildExamPrepPlan` now detects this specific case — an exam day
+immediately followed by a DIFFERENT exam — and carves out a narrow post-exam window on it for that
+next exam's prep, instead of losing the day entirely. Real request, and the exact spec: cutoff =
+`max(that exam's own end time + 3h, 3pm)` — exam end times aren't tracked yet for almost any real
+exam, so 3pm is the effective default in nearly every case today. `planDayV2` still returns full
+rest for every exam day that ISN'T immediately before a different exam — rule F is otherwise
+completely unchanged, confirmed by the full existing test suite passing unmodified.
+
+Also added: exam `endTime` (optional, HH:MM 24h) — a new extraction-prompt rule (all three syllabus
+upload call sites) captures it when a syllabus states one, carried through the whole save path
+(`ExtractionVerifyModal`, `finalizeSync`, `Onboard.jsx`'s `parseSyl`) so the cutoff can use the
+exam's real end time instead of always falling back to 3pm once syllabi start stating it.
+
+4 new tests (`lib/planner/examPrepass.test.js`) cover: no stated end time (3pm floor), a stated end
+time later than 3pm (uses it), a stated end time earlier than 3pm (3pm still wins), and exams that
+aren't actually consecutive (no carve-out, rule F fully unchanged — confirmed against the existing
+"rule F" test too, unmodified and still passing).
+
 ## v2.88.46 — 2026-09-28
 
 **Fix: uploading 3 syllabi at once failed with "Unterminated string in JSON"**
