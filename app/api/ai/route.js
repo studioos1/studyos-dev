@@ -26,6 +26,19 @@ export async function POST(req) {
     if (!response.ok) {
       return Response.json({ error: data?.error?.message || "API error" }, { status: response.status });
     }
+    // Real, confirmed bug: uploading 3 syllabi at once (a JSON-extraction call with a fixed
+    // maxTokens regardless of how much content is combined into it) hit the output token ceiling
+    // mid-response — Anthropic reports this as stop_reason:"max_tokens", not an HTTP error, so the
+    // request "succeeded" with truncated JSON. That used to reach the client as raw text, which
+    // JSON.parse then failed on with an opaque "Unterminated string in JSON at position 7485" —
+    // meaningless to the student. Caught here instead, as a real error with an actionable message,
+    // using the exact same error-surfacing path every caller already has wired up.
+    if (data.stop_reason === "max_tokens") {
+      return Response.json(
+        { error: `The AI's response was cut off before finishing — too much content for one request (limit was ${maxTokens} tokens). Try uploading fewer files at once, or one at a time.` },
+        { status: 500 }
+      );
+    }
     const text = data.content?.map((b) => b.text || "").join("") || "";
     return Response.json({ text });
   } catch (err) {

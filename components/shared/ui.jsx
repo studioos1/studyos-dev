@@ -149,7 +149,12 @@ export function DiffBadge({score,label}){
   return <span className={cls}>{label||"Lvl"} {score}/10</span>;
 }
 
-export function PdfDrop({label,hint,onFiles,files=[],multi=false}){
+// `hero` — a bigger, more visually prominent version of the same drop zone (bigger icon/text,
+// an accent dashed border instead of a flat card) for the one place this IS the main function of
+// the screen (Acad.jsx's Update Syllabus tab). Real request: "this section shall be a bit more
+// highlighted as the main function." Every other caller (Onboard.jsx, twice) keeps the original,
+// more compact styling unchanged — this is purely additive, gated behind the new prop.
+export function PdfDrop({label,hint,onFiles,files=[],multi=false,hero=false}){
   const ref=useRef(null);
   const [drag,setDrag]=useState(false);
   const [rejected,setRejected]=useState(0);
@@ -168,11 +173,17 @@ export function PdfDrop({label,hint,onFiles,files=[],multi=false}){
       <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);handle(Array.from(e.dataTransfer.files));}}
         onClick={()=>ref.current?.click()}
-        style={{background:drag?"var(--blue-bg)":"var(--card2)",borderRadius:10,padding:"18px",textAlign:"center",cursor:"pointer",transition:"background 0.15s",marginBottom:10}}>
-        <i className="ti ti-file-type-pdf" style={{fontSize:24,color:"var(--amber)",display:"block",marginBottom:7}}/>
-        <div style={{fontSize:14,color:"var(--t1)",marginBottom:3}}>{label}</div>
-        <div style={{fontSize:12,color:"var(--t2)"}}>{hint}</div>
-        <div style={{fontSize:11,color:"var(--t3)",marginTop:4}}>Drag &amp; drop or click to browse</div>
+        style={hero?{
+          background:drag?"var(--blue-bg)":"var(--card2)",borderRadius:14,padding:"40px 24px",textAlign:"center",
+          cursor:"pointer",transition:"background 0.15s,border-color 0.15s",marginBottom:10,
+          border:`2px dashed ${drag?"var(--blue)":"var(--b2)"}`,
+        }:{
+          background:drag?"var(--blue-bg)":"var(--card2)",borderRadius:10,padding:"18px",textAlign:"center",cursor:"pointer",transition:"background 0.15s",marginBottom:10,
+        }}>
+        <i className="ti ti-file-type-pdf" style={{fontSize:hero?42:24,color:"var(--amber)",display:"block",marginBottom:hero?12:7}}/>
+        <div style={{fontSize:hero?17:14,fontWeight:hero?600:400,color:"var(--t1)",marginBottom:hero?5:3}}>{label}</div>
+        <div style={{fontSize:hero?13.5:12,color:"var(--t2)"}}>{hint}</div>
+        <div style={{fontSize:hero?12:11,color:"var(--t3)",marginTop:hero?6:4}}>Drag &amp; drop or click to browse</div>
         <input ref={ref} type="file" accept=".pdf,application/pdf" {...(multi?{multiple:true}:{})} style={{display:"none"}} onChange={e=>{handle(Array.from(e.target.files));e.target.value="";}}/>
       </div>
       <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"7px 11px",background:"var(--amber-bg)",borderRadius:7,marginBottom:8,fontSize:12,color:"#fff",lineHeight:1.5}}>

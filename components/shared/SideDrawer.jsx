@@ -26,7 +26,12 @@ export function SideDrawer({open,onClose,width=400,header,children}){
       transition:"width .28s cubic-bezier(.2,.8,.3,1)",display:"flex",flexDirection:"column",
     }}>
       <div style={{padding:"22px 24px 14px",flexShrink:0,minWidth:minw}}>{header}</div>
-      <div style={{flex:1,overflowY:"auto",padding:"0 24px 24px",minWidth:minw}}>{children}</div>
+      {/* overflowX explicitly "hidden", not left to default — leaving only overflowY set makes
+          browsers compute the other axis as "auto" too (CSS spec quirk), so any child that
+          doesn't shrink below its own content width (an <input>, most commonly) silently gives
+          the whole drawer an unwanted horizontal scrollbar. Real, shipped bug — a date input
+          missing min-width:0 in ExtractionVerifyModal triggered exactly this. */}
+      <div style={{flex:1,overflowY:"auto",overflowX:"hidden",padding:"0 24px 24px",minWidth:minw}}>{children}</div>
     </div>
   );
 }
