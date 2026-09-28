@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { iso, t2m, m2t } from "@/lib/time";
 import { checkSyllabusExtraction, findProbableDuplicate } from "@/lib/syllabus";
+import { findMatchingCourse } from "@/lib/courses";
 import { supabase } from "@/lib/supabase";
 import { getMyInviteInfo } from "@/lib/invites";
 import { sparkleBurst } from "@/lib/sparkle";
@@ -12,7 +13,7 @@ import { SideDrawer, DrawerHeader } from "./SideDrawer";
 // item (e.g. a quiz the AI called an exam) or wrong date/weight, rather than discovering it
 // later in a cluttered calendar. A single "Looks good, save all" button confirms everything as-is
 // for the common case; per-row editing is only needed when something's actually wrong.
-export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],sourceText,onConfirm,onCancel}){
+export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existingAssignments=[],existingExams=[],sourceText,onConfirm,onCancel,onPlanNow,planning}){
   const [saving,setSaving]=useState(false);
   // Deterministic sanity check on the raw AI output — surfaces misreads (a heading taken for a
   // course, a wrong-year date) up front so the student can re-upload instead of hand-fixing rows.
@@ -28,20 +29,32 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
   // row is also checked against what's already saved (findProbableDuplicate, lib/syllabus.js) —
   // re-uploading the same or a revised syllabus is common, and a real duplicate was slipping
   // through silently whenever the AI's wording drifted even slightly between two parses of the
-  // same PDF. Flagged rows default to "replace" (recommended — the freshly-parsed version is
-  // usually the more accurate one) but the student sees and can change every flagged row, rather
-  // than it being silently decided either way.
+  // same PDF. A flagged row gets a checkbox pair instead of a single choice: `existingChecked`
+  // (default true — keep what's already saved) and `newChecked` (default false — don't also add
+  // the fresh parse) so the default is "do nothing", the safest option, and the student opts INTO
+  // replacing/duplicating rather than opting out of it.
   const [rows,setRows]=useState(()=>{
     const out=[];
     (parsed.courses||[]).forEach((c,ci)=>{
-      const course=courses.find(x=>x.name===c.courseName);
+      // findMatchingCourse (not a raw name .find) — same course-code-normalizing match finalizeSync
+      // itself uses, so which course a duplicate check runs against never diverges from which
+      // course the item actually gets saved under. `courses` MUST already be scoped to the viewed
+      // term by the caller — a same-named course in another term (a real, confirmed case: an
+      // archived "TEST" term alongside a real one) previously resolved to the WRONG course's item
+      // list here, silently defeating duplicate detection entirely for that course.
+      const course=findMatchingCourse(courses,c.courseName);
       (c.assignments||[]).forEach((a,ai)=>{
-        const dup=course?findProbableDuplicate(existingAssignments,course.id,a.title,a.dueDate,"dueDate"):null;
-        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupResolution:dup?"replace":null,generated:!!a.generated});
+        const dup=course?findProbableDuplicate(existingAssignments,course.id,a.title,a.dueDate,"dueDate",existingExams,"date"):null;
+        // dupDateField/dupExistingType are fixed at match time (not re-derived from the row's live
+        // `type`) — the student can toggle Homework/Exam afterward, which must not change which
+        // field/list `dup` itself actually lives on. A cross-type hit (this looks like an exam
+        // already saved) can't be safely replaced in place — an assignment's fields
+        // (weight/estimatedHours) don't line up with an exam's (topics/prepDays).
+        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"dueDate"):null,dupExistingType:dup?(dup._crossType?"exam":"homework"):null,existingChecked:!!dup,newChecked:!dup});
       });
       (c.exams||[]).forEach((e,ei)=>{
-        const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date"):null;
-        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,dup,dupResolution:dup?"replace":null});
+        const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date",existingAssignments,"dueDate"):null;
+        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"date"):null,dupExistingType:dup?(dup._crossType?"homework":"exam"):null,existingChecked:!!dup,newChecked:!dup});
       });
     });
     return out;
@@ -51,179 +64,316 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
   function updateRow(key,field,value){
     setRows(rs=>rs.map(r=>r.key===key?{...r,[field]:value}:r));
   }
-  function removeRow(key){
-    setRows(rs=>rs.filter(r=>r.key!==key));
-  }
   function addRow(){
-    // New row defaults to the first course found and homework type — student fills in the rest.
-    // A stable, collision-safe local key since this doesn't come from the parsed AI response.
+    // New row defaults to the first course found and homework type, checked (nothing to compare
+    // against, so there's no reason to default it off). A stable, collision-safe local key since
+    // this doesn't come from the parsed AI response.
     const defaultCourse=rows[0]?.courseName||courses[0]?.name||"";
-    setRows(rs=>[...rs,{key:`new_${Date.now()}_${Math.floor(Math.random()*1000)}`,courseName:defaultCourse,type:"homework",title:"",date:"",weight:null,estimatedHours:2,topics:null,prepDays:null}]);
+    setRows(rs=>[...rs,{key:`new_${Date.now()}_${Math.floor(Math.random()*1000)}`,courseName:defaultCourse,type:"homework",title:"",date:"",weight:null,estimatedHours:2,topics:null,prepDays:null,dup:null,newChecked:true}]);
   }
 
   const totalCourses=new Set(rows.map(r=>r.courseName)).size;
 
-  async function handleConfirm(){
-    setSaving(true);
+  // Two-step flow: review the possible duplicates → see a plain-language summary of what will
+  // actually happen → confirm (or go back and change something). Real request: "'Looks good, save
+  // all' > we shall have 'Looks good, Next step' > summary of the new items to upload... then
+  // Confirm or Back." Built once when moving to the summary (rows don't change on that screen) and
+  // reused for the actual save, so the count shown is exactly what gets saved — never recomputed
+  // out of sync with what the student already reviewed.
+  const [step,setStep]=useState("review");
+  const [plan,setPlan]=useState(null);
+  const [result,setResult]=useState(null);
+
+  function buildPlan(){
     // Rebuild into the courses[].assignments/exams shape syncSyl expects, from the (possibly
-    // edited) flat row list — type changes, date/weight edits, and removed rows all take effect.
+    // edited) flat row list. Four real outcomes per flagged row, read off its two checkboxes:
+    //   existing✓ new✗ → keep what's saved, don't add the new parse (the default — do nothing)
+    //   existing✓ new✓ → keep both — new parse added as a genuinely separate item
+    //   existing✗ new✓ → replace — _replaceId updates the existing item in place, preserving its
+    //                     id/status/completedAt, rather than deleting + re-adding
+    //   existing✗ new✗ → the existing item is unwanted and nothing is replacing it — delete it
+    // A plain row (AI-found with no dup, or manually added) only has `newChecked`: true unless the
+    // student unchecked a manually-added one (plain AI-found rows are never shown to uncheck).
     const byCourse={};
+    const deleteAssignmentIds=[],deleteExamIds=[];
+    // Itemized, not just counted — real follow-up: "when are we showing the complete readout of
+    // the items?" The summary step lists every title, not just a number.
+    const addedItems=[],replacedItems=[],removedItems=[];
     rows.forEach(r=>{
-      // "Skip" means exactly that — this row never makes it into the payload finalizeSync acts
-      // on. "Replace" carries the existing item's id through as _replaceId so finalizeSync
-      // updates that item in place (preserving its id/status/completedAt) instead of adding a
-      // second one; "both" (or no duplicate at all) is the normal add path, unchanged.
-      if(r.dup&&r.dupResolution==="skip")return;
-      const dupMeta=r.dup&&r.dupResolution==="replace"?{_replaceId:r.dup.id}:{};
+      if(r.dup){
+        if(!r.existingChecked&&!r.newChecked){
+          (r.dupExistingType==="exam"?deleteExamIds:deleteAssignmentIds).push(r.dup.id);
+          removedItems.push({courseName:r.courseName,title:r.dup.title,date:r.dup[r.dupDateField]});
+          return;
+        }
+        if(!r.newChecked)return; // existing✓ new✗ — nothing to add, existing stays as-is
+        const dupMeta=r.existingChecked?{}:{_replaceId:r.dup.id};
+        (r.existingChecked?addedItems:replacedItems).push({courseName:r.courseName,title:r.title,date:r.date});
+        if(!byCourse[r.courseName])byCourse[r.courseName]={courseName:r.courseName,assignments:[],exams:[]};
+        if(r.type==="homework"){
+          byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
+        }else{
+          byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
+        }
+        return;
+      }
+      if(!r.newChecked)return;
+      addedItems.push({courseName:r.courseName,title:r.title,date:r.date});
       if(!byCourse[r.courseName])byCourse[r.courseName]={courseName:r.courseName,assignments:[],exams:[]};
       if(r.type==="homework"){
-        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
+        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2});
       }else{
-        byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
+        byCourse[r.courseName].exams.push({title:r.title,date:r.date,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
       }
     });
     // Preserve meetingTimes from the original parse untouched — this screen only verifies duties.
     const origByCourse={};
     (parsed.courses||[]).forEach(c=>{origByCourse[c.courseName]=c.meetingTimes;});
     const rebuilt=Object.values(byCourse).map(c=>({...c,meetingTimes:origByCourse[c.courseName]||[]}));
-    // finalizeSync does real work here — a course-difficulty lookup (network call) per NEW course
-    // — awaiting it keeps the spinner visible for the actual duration, not just an instant flash.
-    await onConfirm({...parsed,courses:rebuilt});
+    return{rebuilt,deleteAssignmentIds,deleteExamIds,addedItems,replacedItems,removedItems};
+  }
+
+  function goToSummary(){
+    setPlan(buildPlan());
+    setStep("summary");
+  }
+
+  async function handleConfirm(){
+    setSaving(true);
+    // finalizeSync (Acad.jsx) does real work here — a course-difficulty lookup (network call) per
+    // NEW course — awaiting it keeps the spinner visible for the actual duration, not just an
+    // instant flash. It RETURNS the result instead of closing anything itself — real request:
+    // "keep the rest of the flow over the same side-page rather than jumping to popup." The
+    // confirmation ("final confirmation message") is the "done" step below, in this same drawer.
+    const res=await onConfirm({...parsed,courses:plan.rebuilt,_deleteExisting:{assignmentIds:plan.deleteAssignmentIds,examIds:plan.deleteExamIds}});
+    setSaving(false);
+    setResult(res);
+    setStep("done");
   }
 
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"var(--card)",borderRadius:14,maxWidth:820,width:"100%",maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-        <div style={{padding:"20px 24px",borderBottom:"1px solid var(--b1)",flexShrink:0}}>
-          <div style={{fontSize:18,fontWeight:600}}>Verify What We Found</div>
-          <div style={{fontSize:13,color:"var(--t3)",marginTop:3}}>
-            {rows.length} item{rows.length!==1?"s":""} across {totalCourses} course{totalCourses!==1?"s":""}. Check the Type column especially — fix anything that's not right, then confirm.
+    <SideDrawer open width={860}
+      header={<>
+        <DrawerHeader icon="ti-list-check" title="Verify What We Found" onClose={onCancel}/>
+        <div style={{fontSize:12.5,color:"var(--t3)",marginTop:5}}>
+          {step==="review"
+            ?`${rows.length} item${rows.length!==1?"s":""} across ${totalCourses} course${totalCourses!==1?"s":""} — check the type on each, then continue.`
+            :step==="summary"?"Review what will actually be saved, then confirm."
+            :result?.error?"Something went wrong saving.":"Saved."}
+        </div>
+      </>}>
+      {step==="review"&&issues.length>0&&(
+        <div style={{marginTop:14}}>
+          <ExtractionIssues issues={issues} onReupload={onCancel}/>
+        </div>
+      )}
+      {step==="review"&&extractionNotes.length>0&&(
+        <div style={{marginTop:14,background:"var(--card2)",borderRadius:9,padding:"11px 13px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>
+            <i className="ti ti-info-circle" style={{fontSize:15}}/>
+            What the AI couldn't find individual dates for
           </div>
+          <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"var(--t3)",lineHeight:1.6}}>
+            {extractionNotes.map((n,i)=><li key={i}>{totalCourses>1?`${n.course}: `:""}{n.note}</li>)}
+          </ul>
         </div>
-        <div style={{padding:"0 24px",overflowY:"auto",flex:1}}>
-          {issues.length>0&&(
-            <div style={{marginTop:16}}>
-              <ExtractionIssues issues={issues} onReupload={onCancel}/>
-            </div>
-          )}
-          {extractionNotes.length>0&&(
-            <div style={{marginTop:16,background:"var(--card2)",borderRadius:9,padding:"11px 13px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>
-                <i className="ti ti-info-circle" style={{fontSize:15}}/>
-                What the AI couldn't find individual dates for
+      )}
+      {step==="review"&&dupCount>0&&(
+        <div style={{marginTop:14,padding:"9px 13px",background:"var(--card2)",borderRadius:9,
+          display:"flex",alignItems:"center",gap:9,fontSize:13,color:"var(--t2)"}}>
+          <i className="ti ti-copy" style={{fontSize:16,flexShrink:0,color:"var(--amber)"}}/>
+          {dupCount} item{dupCount!==1?"s look":" looks"} like {dupCount!==1?"duplicates":"a duplicate"} of something already saved — shown paired below (Existing vs. New) so you can compare, each with its own checkboxes.
+        </div>
+      )}
+      {step==="done"?(
+        // The final confirmation, in this same drawer — real request: "keep the rest of the flow
+        // over the same side-page rather than jumping to popup." Same tiles SyncResultModal used
+        // to show as a separate centered popup, now embedded here instead.
+        <div style={{marginTop:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <i className={`ti ${result?.error?"ti-alert-triangle":"ti-circle-check"}`} style={{fontSize:22,color:result?.error?"var(--red)":"var(--green)"}}/>
+            <span style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>{result?.error?"Sync failed":"Sync complete"}</span>
+          </div>
+          {result?.error?(
+            <div style={{color:"var(--red)",fontSize:14}}>{result.error}</div>
+          ):(<>
+            <div style={{display:"flex",gap:12,marginBottom:18,flexWrap:"wrap"}}>
+              <div style={{background:"var(--green-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                <div style={{fontSize:24,fontWeight:700,color:"var(--green)"}}>{result?.added||0}</div>
+                <div style={{fontSize:12,color:"var(--t2)"}}>items added</div>
               </div>
-              <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"var(--t3)",lineHeight:1.6}}>
-                {extractionNotes.map((n,i)=><li key={i}>{totalCourses>1?`${n.course}: `:""}{n.note}</li>)}
-              </ul>
+              {result?.coursesCreated>0&&(
+                <div style={{background:"var(--blue-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                  <div style={{fontSize:24,fontWeight:700,color:"var(--blue)"}}>{result.coursesCreated}</div>
+                  <div style={{fontSize:12,color:"var(--t2)"}}>courses created</div>
+                </div>
+              )}
+              {result?.replaced>0&&(
+                <div style={{background:"var(--teal-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                  <div style={{fontSize:24,fontWeight:700,color:"var(--teal)"}}>{result.replaced}</div>
+                  <div style={{fontSize:12,color:"var(--t2)"}}>updated</div>
+                </div>
+              )}
+              {result?.removed>0&&(
+                <div style={{background:"var(--red-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                  <div style={{fontSize:24,fontWeight:700,color:"var(--red)"}}>{result.removed}</div>
+                  <div style={{fontSize:12,color:"var(--t2)"}}>removed</div>
+                </div>
+              )}
             </div>
-          )}
-          {dupCount>0&&(
-            <div style={{marginTop:16,padding:"10px 14px",background:"var(--amber-bg)",borderRadius:9,
-              display:"flex",alignItems:"center",gap:10,fontSize:13,color:"#fff"}}>
-              <i className="ti ti-copy" style={{fontSize:16,flexShrink:0,color:"var(--amber)"}}/>
-              {dupCount} item{dupCount!==1?"s look":" looks"} like {dupCount!==1?"duplicates":"a duplicate"} of something already saved — marked below, each with its own choice.
-            </div>
-          )}
-          {rows.length===0?(
-            <div style={{color:"var(--t3)",padding:"20px 0"}}>Nothing was found to import.</div>
-          ):(
-            <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead style={{position:"sticky",top:0,background:"var(--card)",zIndex:1}}>
-                <tr style={{borderBottom:"1px solid var(--b1)"}}>
-                  <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"16px 8px 8px",fontWeight:600}}>Class</th>
-                  <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"16px 8px 8px",fontWeight:600}}>Type</th>
-                  <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"16px 8px 8px",fontWeight:600}}>Title</th>
-                  <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"16px 8px 8px",fontWeight:600}}>Date</th>
-                  <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"16px 8px 8px",fontWeight:600}}>Weight</th>
-                  <th style={{width:36}}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(r=>(
-                  <React.Fragment key={r.key}>
-                  <tr style={r.dup?{background:"var(--amber-bg)"}:undefined}>
-                    <td style={{padding:"7px 8px"}}>
-                      <select value={r.courseName} onChange={e=>updateRow(r.key,"courseName",e.target.value)} style={{fontSize:12,padding:"4px 6px",maxWidth:130}}>
-                        {!courses.find(c=>c.name===r.courseName)&&r.courseName&&<option value={r.courseName}>{r.courseName}</option>}
-                        {courses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                      </select>
-                    </td>
-                    <td style={{padding:"7px 8px"}}>
-                      <select value={r.type} onChange={e=>updateRow(r.key,"type",e.target.value)}
-                        style={{fontSize:12,padding:"4px 6px",width:100,
-                          borderColor:r.type==="exam"?"var(--red)":"var(--blue)",
-                          color:r.type==="exam"?"var(--red)":"var(--blue)"}}>
-                        <option value="homework">Homework</option>
-                        <option value="exam">Exam</option>
-                      </select>
-                    </td>
-                    <td style={{padding:"7px 8px"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)} style={{fontSize:13,padding:"4px 6px",width:"100%"}}/>
-                        {/* Generated from a stated weekly recurring pattern (rule 11 /
-                            expandRecurringSeries), not a date the AI read directly off the page —
-                            real distinction the student should see before trusting the date. */}
-                        {r.generated&&(
-                          <span className="tt" data-tt="Generated from a stated weekly pattern (e.g. 'due every Tuesday') — not an explicit date in the document. Double-check it, especially the first/last few."
-                            style={{flexShrink:0,fontSize:10,padding:"2px 6px",borderRadius:5,background:"var(--blue-bg)",color:"var(--blue)",whiteSpace:"nowrap"}}>
-                            ↻ generated
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{padding:"7px 8px"}}>
-                      <input type="date" value={r.date||""} onChange={e=>updateRow(r.key,"date",e.target.value)} style={{fontSize:12,padding:"4px 6px"}}/>
-                    </td>
-                    <td style={{padding:"7px 8px"}}>
-                      <input type="number" min="0" max="100" step="0.5" value={r.weight??""} onChange={e=>updateRow(r.key,"weight",e.target.value===""?null:+e.target.value)}
-                        placeholder="—" style={{fontSize:12,padding:"4px 6px",width:60}}/>
-                    </td>
-                    <td style={{padding:"7px 8px"}}>
-                      <button className="tt" data-tt="Remove this item" onClick={()=>removeRow(r.key)}
-                        style={{padding:"4px 6px",borderRadius:6,border:"none",cursor:"pointer",background:"transparent",color:"var(--red)"}}>
-                        <i className="ti ti-x" style={{fontSize:14}}/>
-                      </button>
-                    </td>
-                  </tr>
-                  {/* Probable-duplicate resolution — the actual ask: visible, per-item, a real
-                      choice instead of a silent auto-skip (which is what finalizeSync's OLD
-                      exact-match check still does, quietly, for the cases fuzzy enough to slip
-                      past this one — see findProbableDuplicate in lib/syllabus.js). */}
-                  {r.dup&&(
-                    <tr style={{background:"var(--amber-bg)"}}>
-                      <td colSpan={6} style={{padding:"0 8px 10px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",fontSize:12.5,color:"var(--amber)"}}>
-                          <i className="ti ti-alert-triangle" style={{fontSize:13,flexShrink:0}}/>
-                          <span>
-                            Looks like <strong>{r.dup.title}</strong> ({r.dup[r.type==="exam"?"date":"dueDate"]}), already saved.
-                          </span>
-                          <select value={r.dupResolution} onChange={e=>updateRow(r.key,"dupResolution",e.target.value)}
-                            style={{fontSize:12,padding:"4px 8px",marginLeft:"auto",borderColor:"var(--amber)",color:"var(--amber)"}}>
-                            <option value="replace">Keep recent (recommended)</option>
-                            <option value="both">Keep both</option>
-                            <option value="skip">Skip this one</option>
-                          </select>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  </React.Fragment>
+            {result?.coursesFound?.length>0&&(
+              <div>
+                <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Courses found in this document</div>
+                {result.coursesFound.map((c,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<result.coursesFound.length-1?"1px solid var(--b1)":"none"}}>
+                    <span style={{fontSize:14}}>{c}</span>
+                    <span style={{fontSize:13,color:"var(--t3)"}}>{result.itemsByCourse?.[c]?.assignments||0} assignments, {result.itemsByCourse?.[c]?.exams||0} exams</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
+          </>)}
+        </div>
+      ):step==="summary"?(
+        // The complete readout, itemized — not just a count — before anything is actually
+        // written. Real follow-up: "when are we showing the complete readout of the items?"
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:14}}>
+            {plan.addedItems.length} new item{plan.addedItems.length!==1?"s":""} will be uploaded
+            {plan.replacedItems.length>0?`, ${plan.replacedItems.length} existing item${plan.replacedItems.length!==1?"s":""} updated`:""}
+            {plan.removedItems.length>0?`, ${plan.removedItems.length} removed`:""}.
+          </div>
+          {[
+            {label:"New",items:plan.addedItems,color:"var(--green)"},
+            {label:"Updated",items:plan.replacedItems,color:"var(--teal)"},
+            {label:"Removed",items:plan.removedItems,color:"var(--red)"},
+          ].filter(g=>g.items.length>0).map(g=>(
+            <div key={g.label} style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em",color:g.color,marginBottom:6}}>{g.label} ({g.items.length})</div>
+              {g.items.map((it,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"6px 0",borderBottom:i<g.items.length-1?"1px solid var(--b1)":"none",fontSize:13}}>
+                  <span style={{color:"var(--t1)"}}>{it.title||"(untitled)"}</span>
+                  <span style={{color:"var(--t3)",flexShrink:0}}>{it.courseName}{it.date?` · ${it.date}`:""}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          {plan.addedItems.length===0&&plan.replacedItems.length===0&&plan.removedItems.length===0&&(
+            <div style={{color:"var(--t3)",fontSize:13}}>Nothing will change — every duplicate was left as-is.</div>
           )}
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10,marginBottom:16}} onClick={addRow}>
-            <i className="ti ti-plus" style={{marginRight:5}}/>Add missing item
-          </button>
         </div>
-        <div style={{padding:"14px 24px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"flex-end",gap:8,flexShrink:0}}>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>Cancel — don't save anything</button>
-          <button className="btn btn-action" onClick={handleConfirm} disabled={saving}>
-            {saving?<><Sp/> Saving...</>:<><i className="ti ti-check" style={{marginRight:6}}/>Looks good, save all</>}
-          </button>
+      ):rows.length===0?(
+        <div style={{color:"var(--t3)",padding:"20px 0"}}>Nothing was found to import.</div>
+      ):(
+        <div style={{marginTop:14}}>
+          {/* Fixed-width column header, real .ev-* grid (globals.css) — the SAME columns every
+              row lines up against, table-style, whether it's a plain single-line item or one half
+              of an Existing/New comparison pair. Hidden on mobile, where the grid swaps to a
+              3-line layout instead. */}
+          <div className="ev-header">
+            <div/><div>Class</div><div>Type</div><div>Title</div><div>Date</div><div>Wt %</div><div>Keep</div>
+          </div>
+          {rows.map(r=>(
+            // Small breathing room + a clear divider between every couple — real feedback: "add
+            // small space between each couple for better readability."
+            <div key={r.key} className="ev-item">
+              {r.dup?(<>
+                {/* A possible duplicate is two READ-ONLY rows — Existing directly above New, in
+                    the exact same columns, nothing editable here — real feedback: "display two
+                    lines... in a way to see exactly how they compare... EXACTLY under the
+                    existing, without shift right or left." The checkbox is the only control;
+                    correcting a value (if the New one needs it) happens after saving, in Courses. */}
+                <div className="ev-row ev-row-saved">
+                  <div className="ev-f-tag">Existing</div>
+                  <div className="ev-f-course ev-plain">{r.courseName}</div>
+                  <div className="ev-f-type"><span>{r.dupExistingType==="exam"?"Exam":"HW"}</span></div>
+                  <div className="ev-f-title ev-plain" title={r.dup.title}>{r.dup.title}</div>
+                  <div className="ev-f-date ev-plain">{r.dup[r.dupDateField]||"—"}</div>
+                  <div className="ev-f-weight ev-plain">{r.dup.weight??"—"}</div>
+                  <div className={`chk ev-f-check tt${r.existingChecked?" on":""}`} data-tt="Check to save, uncheck to remove/skip" onClick={()=>updateRow(r.key,"existingChecked",!r.existingChecked)}>
+                    {r.existingChecked&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}
+                  </div>
+                </div>
+                <div className="ev-row ev-row-new">
+                  <div className="ev-f-tag">New</div>
+                  <div className="ev-f-course ev-plain">{r.courseName}</div>
+                  <div className="ev-f-type"><span>{r.type==="exam"?"Exam":"HW"}</span></div>
+                  <div className="ev-f-title ev-plain" title={r.title}>{r.title}</div>
+                  <div className="ev-f-date ev-plain">{r.date||"—"}</div>
+                  <div className="ev-f-weight ev-plain">{r.weight??"—"}</div>
+                  <div className={`chk ev-f-check tt${r.newChecked?" on":""}`} data-tt="Check to save, uncheck to remove/skip" onClick={()=>updateRow(r.key,"newChecked",!r.newChecked)}>
+                    {r.newChecked&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}
+                  </div>
+                </div>
+              </>):(
+                // No existing match — one fully editable row, same as before.
+                <div className="ev-row ev-row-new">
+                  <div className="ev-f-tag">New</div>
+                  <select className="ev-f-course" value={r.courseName} onChange={e=>updateRow(r.key,"courseName",e.target.value)}>
+                    {!courses.find(c=>c.name===r.courseName)&&r.courseName&&<option value={r.courseName}>{r.courseName}</option>}
+                    {courses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                  {/* Single-click buttons, not a <select> — a neutral "selected" highlight, not
+                      amber (real feedback, twice: an amber fill on every row's type button read as
+                      loud/alarming — amber now stays reserved for the Existing/New pairing itself). */}
+                  <div className="ev-f-type">
+                    <button type="button" className={r.type==="homework"?"on":""} onClick={()=>updateRow(r.key,"type","homework")}>HW</button>
+                    <button type="button" className={r.type==="exam"?"on":""} onClick={()=>updateRow(r.key,"type","exam")}>Exam</button>
+                  </div>
+                  <div className="ev-f-title">
+                    <input value={r.title||""} onChange={e=>updateRow(r.key,"title",e.target.value)}/>
+                  </div>
+                  {/* min-width:0 (in .ev-row/.ev-f-date, globals.css) is load-bearing — without it
+                      a native date input's intrinsic content width won't shrink to its grid track,
+                      which is what caused a previously reported horizontal scrollbar. */}
+                  <input className="ev-f-date" type="date" value={r.date||""} onChange={e=>updateRow(r.key,"date",e.target.value)}/>
+                  <input className="ev-f-weight" type="number" min="0" max="100" step="0.5" value={r.weight??""} onChange={e=>updateRow(r.key,"weight",e.target.value===""?null:+e.target.value)} placeholder="—"/>
+                  {/* The checkbox is now the ONLY way to exclude a row — the old per-row remove
+                      (✕) button is gone; leaving this unchecked has the same effect. */}
+                  <div className={`chk ev-f-check tt${r.newChecked?" on":""}`} data-tt="Check to save, uncheck to remove/skip" onClick={()=>updateRow(r.key,"newChecked",!r.newChecked)}>
+                    {r.newChecked&&<i className="ti ti-check" style={{fontSize:10,color:"var(--green)"}}/>}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
+      )}
+      {step==="review"&&(
+        <button className="btn btn-ghost btn-sm" style={{marginTop:2,marginBottom:16}} onClick={addRow}>
+          <i className="ti ti-plus" style={{marginRight:5}}/>Add missing item
+        </button>
+      )}
+      {/* Sticky footer, pinned to the drawer's own edges (negative margins cancel SideDrawer's
+          body padding) so the buttons stay reachable without scrolling through every row. Three
+          steps, three button sets — real request: "'Looks good, save all' > we shall have 'Looks
+          good, Next step' > summary... then Confirm or Back," plus "keep the rest of the flow over
+          the same side-page rather than jumping to popup" (the done step below, replacing what
+          used to be a separate SyncResultModal popup once finalizeSync finished). */}
+      <div style={{position:"sticky",bottom:-24,margin:"0 -24px -24px",padding:"14px 24px",
+        background:"var(--card)",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"flex-end",gap:10}}>
+        {step==="review"?(<>
+          <button className="btn btn-ghost" style={{padding:"8px 20px"}} onClick={onCancel}>Cancel</button>
+          <button className="btn btn-action" style={{padding:"8px 20px"}} onClick={goToSummary}>
+            <i className="ti ti-check" style={{marginRight:6}}/>Looks good, next step
+          </button>
+        </>):step==="summary"?(<>
+          <button className="btn btn-ghost" style={{padding:"8px 20px"}} onClick={()=>setStep("review")} disabled={saving}>Back</button>
+          <button className="btn btn-action" style={{padding:"8px 20px"}} onClick={handleConfirm} disabled={saving}>
+          {saving?<><Sp/> Saving...</>:<><i className="ti ti-check" style={{marginRight:6}}/>Confirm</>}
+          </button>
+        </>):(<>
+          <button className="btn btn-ghost" style={{padding:"8px 20px"}} onClick={onCancel}>
+            {result?.added>0&&!result?.error?"Not now":"Close"}
+          </button>
+          {result?.added>0&&!result?.error&&onPlanNow&&(
+            <button className="btn btn-action" style={{padding:"8px 20px"}} onClick={onPlanNow} disabled={planning}>
+              {planning?<><Sp sz={13}/> Planning...</>:<><i className="ti ti-sparkles" style={{marginRight:6}}/>Create study plan</>}
+            </button>
+          )}
+        </>)}
       </div>
-    </div>
+    </SideDrawer>
   );
 }
 
@@ -401,7 +551,7 @@ export function BlockEditModal({dateStr,block,courses,weekDates,onSave,onDelete,
 
 export function SyncResultModal({result,onClose,onPlanNow,planning}){
   if(!result)return null;
-  const {added,skippedDuplicate,replaced,coursesFound,coursesCreated,itemsByCourse,fileNames,error}=result;
+  const {added,skippedDuplicate,replaced,removed,coursesFound,coursesCreated,itemsByCourse,fileNames,error}=result;
   const hasNewItems=added>0&&!error;
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -438,6 +588,12 @@ export function SyncResultModal({result,onClose,onPlanNow,planning}){
                 <div style={{background:"var(--amber-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
                   <div style={{fontSize:24,fontWeight:700,color:"var(--amber)"}}>{skippedDuplicate}</div>
                   <div style={{fontSize:12,color:"var(--t2)"}}>already existed, skipped</div>
+                </div>
+              )}
+              {removed>0&&(
+                <div style={{background:"var(--red-bg)",borderRadius:10,padding:"10px 16px",flex:1,minWidth:120}}>
+                  <div style={{fontSize:24,fontWeight:700,color:"var(--red)"}}>{removed}</div>
+                  <div style={{fontSize:12,color:"var(--t2)"}}>removed (unchecked in review)</div>
                 </div>
               )}
             </div>

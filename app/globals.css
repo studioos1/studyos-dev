@@ -281,6 +281,83 @@
     .opt-btn.sel{background:var(--amber-bg); color:var(--amber); border-color:var(--amber);}
     .opt-btn:hover:not(.sel){border-color:var(--b2); color:var(--t2);}
 
+    /* ── SYLLABUS VERIFY TABLE (ExtractionVerifyModal) ──────────────────────────
+       Real, iterative feedback across several rounds, latest: "display TWO lines per finding —
+       the current uploaded (saved) and the new one — so they can be compared directly... ALL
+       items in a fixed structure of columns... replace the 3 buttons with checkboxes: existing
+       checked by default, user can also check the new line to keep both, or uncheck both to
+       drop the existing entirely." One shared 7-column grid (tag/course/type/title/date/wt/check)
+       — same "CSS Grid + media-query column swap" technique this app already uses for Focus
+       Time's list (.ft-actions/.ft-time/.ft-assignment above). A plain (non-dup) item is one row
+       of this grid; a possible-duplicate is two rows sharing it — a muted read-only "Saved" line
+       (what's already stored) directly above an editable "New" line (what was just parsed) — so
+       every field lines up column-for-column and the difference (if any) is visible at a glance. */
+    /* Tag column widened 44→66px — real, confirmed bug: "Existing" at this font/weight doesn't
+       fit 44px, and a fixed-px grid track never grows to fit overflowing content, so the text
+       bled visibly into the Class column next to it. */
+    .ev-header,.ev-row{display:grid; grid-template-columns:66px 78px 76px minmax(0,1fr) 108px 54px 30px; gap:6px; align-items:center;}
+    .ev-header{padding-bottom:6px; margin-bottom:2px; border-bottom:1px solid var(--b1); font-size:10.5px; color:var(--t3); text-transform:uppercase; letter-spacing:.04em;}
+    /* Column-by-column header alignment MUST match that column's actual content alignment — real
+       feedback: "Type column - the content shall be centered under the title," generalized to
+       every column here rather than just Type. Class/Title/Date stay left (their content is left-
+       aligned text); Type/Wt%/Keep are centered (their content is buttons/a checkbox/a short
+       number, all centered in their own cells below). */
+    .ev-header>div:nth-child(3),.ev-header>div:nth-child(6),.ev-header>div:nth-child(7){text-align:center;}
+    /* Real feedback: "place the line separator between EVERY couple and add small space between
+       each couple for better readability" — a visible divider plus real breathing room around it,
+       not the tight 6px this started at. */
+    .ev-item{padding:10px 0; border-bottom:1px solid var(--b1); margin-bottom:4px;}
+    .ev-item:last-child{border-bottom:none; margin-bottom:0;}
+    .ev-row+.ev-row{margin-top:3px;}
+    .ev-row select,.ev-row input{font-size:12.5px; padding:5px 6px; width:100%; min-width:0; box-sizing:border-box;}
+    /* No grid-area on these at the base breakpoint — deliberately. Setting grid-area to a name
+       that doesn't match any grid-template-areas string does NOT fall back to normal auto-flow
+       placement (a real, confirmed bug hit here): an unmatched named custom-ident instead creates
+       its own new implicit grid line, silently pulling every field into its own extra column and
+       breaking the explicit desktop layout entirely. Desktop relies purely on DOM order matching
+       the explicit tracks above; grid-area is assigned ONLY inside the media query below, where
+       grid-template-areas actually defines those names. */
+    .ev-f-tag{font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap;}
+    /* Small nudge off the tag column — real feedback: "move the class name slightly to the right,
+       there is large space on the right side of the class name." Applies to both the editable
+       <select> (an ExtractionVerifyModal-only override of the shared .ev-row select padding just
+       above) and the read-only text cell alike, so a duplicate's Existing/New pair and a plain
+       editable row line up identically. */
+    .ev-f-course{padding-left:4px;}
+    .ev-row select.ev-f-course{padding-left:10px;}
+    /* Wt% is a short number in a narrow column — centered, matching its header, rather than
+       flush against the column's left edge like a full-width text value would be. */
+    .ev-f-weight{text-align:center;}
+    .ev-f-type{display:flex; gap:3px; min-width:0;}
+    /* Type "selected" state is a plain neutral highlight, not amber — real feedback, twice: an
+       amber fill on every single row's type button read as loud/alarming, the same visual weight
+       as a real call-to-action. Amber stays reserved for duplicate-related things only. */
+    .ev-f-type button{flex:1; padding:5px 0; border-radius:6px; font-size:11px; font-family:inherit; cursor:pointer; border:1px solid var(--b1); background:var(--card2); color:var(--t3);}
+    .ev-f-type button.on{background:var(--b2); color:var(--t1); border-color:var(--b2);}
+    .ev-f-type span{flex:1; text-align:center; font-size:11px; color:var(--t3);}
+    /* Not flex — this cell holds either an <input> or a plain read-only .ev-plain text div, never
+       both together, so it doesn't need to lay out multiple children side by side. Plain block
+       lets .ev-plain's own text-overflow:ellipsis actually take effect on the read-only rows. */
+    .ev-f-title{min-width:0;}
+    .ev-f-title input{width:100%; min-width:0;}
+    .ev-f-date,.ev-f-weight{min-width:0;}
+    .ev-row-saved{opacity:.72;}
+    .ev-row-saved .ev-f-tag{color:var(--t3);}
+    .ev-row-new .ev-f-tag{color:var(--blue);}
+    .ev-plain{font-size:12.5px; color:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .ev-f-check{justify-self:center;}
+    @media (max-width:640px){
+      .ev-header{display:none;}
+      .ev-row{grid-template-columns:52px 1fr 70px 30px; grid-template-areas:"tag course type check" ". title title title" ". date date weight"; row-gap:4px;}
+      .ev-f-tag{grid-area:tag;}
+      .ev-f-course{grid-area:course;}
+      .ev-f-type{grid-area:type;}
+      .ev-f-check{grid-area:check;}
+      .ev-f-title{grid-area:title;}
+      .ev-f-date{grid-area:date;}
+      .ev-f-weight{grid-area:weight;}
+    }
+
     /* Pills */
     .badge{display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:400; gap:4px;}
     .badge-blue  {background:var(--blue-bg);   color:var(--blue);}
