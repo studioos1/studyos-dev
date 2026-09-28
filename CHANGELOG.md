@@ -1,5 +1,35 @@
 # StudyOS Changelog
 
+## v2.88.48 — 2026-09-28
+
+**Fix: the exam calendar block always showed 9:00-11:00am, ignoring the syllabus's real time**
+
+Real, reported case: a student correctly noticed their calendar showed a final exam at
+"8:30-11:00am" and asked why, having been told (accurately) that their own syllabus states
+3:00-6:00 PM. Traced to `lib/calendar/build.js`'s `buildBlocks`: the "EXAM: <course>" block was a
+flat, unconditional `s:540,e:660` (9:00-11:00am) for every exam, completely disconnected from any
+real time — including the `endTime` field added in v2.88.47, which only ever fed the planner's
+post-exam-cutoff logic, never the calendar's own rendering. This bug predates that work entirely;
+it's just what finally surfaced it.
+
+Fixed at both ends:
+1. `buildBlocks` now uses the exam's real `startTime`/`endTime` when both are present and valid
+   (falls back to the 9-11am placeholder only when no real time is known — still the common case
+   for older records, or a syllabus that never states one).
+2. The extraction prompt (`lib/syllabus.js`'s rule 13, all three upload call sites) now asks for
+   BOTH `startTime` and `endTime` — v2.88.47 only asked for `endTime`, since the planner-cutoff use
+   case only ever needed the end. Threaded through the same save paths as `endTime` already was
+   (`ExtractionVerifyModal`, `finalizeSync`, `Onboard.jsx`'s `parseSyl`).
+
+New `lib/calendar/build.test.js` (no prior test coverage existed for `buildBlocks` exam rendering
+at all) — 5 tests: real times used when both present, placeholder fallback when neither/only one is
+known, placeholder fallback on reversed/invalid times, and the real exam window is correctly part
+of the protected zone nothing else gets scheduled into.
+
+Known follow-up: a student's ALREADY-SAVED exam that only has the v2.88.47-era `endTime` (no
+`startTime`) still shows the 9-11am placeholder until a fresh re-sync captures both — re-uploading
+the syllabus (or waiting for the next natural sync) backfills it correctly.
+
 ## v2.88.47 — 2026-09-28
 
 **Planner: back-to-back exams no longer lose the day between them**
