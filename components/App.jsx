@@ -18,6 +18,7 @@ import {
   migrateLegacyTermIfNeeded,
   migrateTermStatusIfNeeded,
   migrateTermDataIsolationIfNeeded,
+  migrateCourseDataNestingIfNeeded,
   applyTermScopedPatch,
   backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
@@ -346,6 +347,20 @@ function App(){
     const fix=migrateTermDataIsolationIfNeeded(data);
     if(fix)upd(fix);
   },[data?.terms?.length]); // eslint-disable-line
+
+  // Step 1/6 of the unify-term-course-data refactor (see lib/data/schema.js's COURSE_DATA_KEYS
+  // comment): one-time migration that materializes every term's own nested courses/assignments/
+  // exams for the first time, from the still-authoritative flat termId-tagged arrays. Nothing reads
+  // these nested fields yet (that's step 3) — this purely seeds them so applyTermScopedPatch's
+  // refreshNestedCourseData shim has something to keep fresh from the very next write onward, even
+  // for an account that loads read-only and never triggers a write itself. Runs after
+  // repairTermLinkageIfNeeded (above) so any orphan-termId courses are already correctly linked
+  // before partitioning by termId.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateCourseDataNestingIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length,data?.courses?.length,data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields

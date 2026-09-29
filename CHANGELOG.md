@@ -1,5 +1,45 @@
 # StudyOS Changelog
 
+## v2.89.0 — 2026-09-29
+
+**Internal (step 1/6): courses/assignments/exams now also stored nested per term — no behavior change yet**
+
+First step of the unify-term-course-data refactor — a real architecture question, not a bug report:
+courses/assignments/exams have always lived in one flat, account-wide array each, tagged with a
+`termId` (filter-based isolation), while everything else per-term (study plan, completion log,
+Pomodoro/gym/daily logs, notifications, syllabus history) already lives as a genuinely separate,
+nested copy on each term object (structural isolation). Two real, confirmed bugs already came from
+that inconsistency: an unscoped `courses` list matching syllabus-sync items to the wrong course
+across terms (fixed this branch's earlier work), and a write path that would have silently deleted
+every other term's assignments on the first check-in submitted (`Prog.jsx`/`PlanDrawer.jsx`, fixed
+in an earlier audit via a second `rawData` prop threaded through by hand). Full scoping (28 write
+sites across `Acad.jsx`/`Onboard.jsx`/`SchoolInfo.jsx`, 8 read categories, 3 cross-cutting repair
+functions) found real value in unifying — full plan not repeated here, see session notes.
+
+This step is deliberately inert: it adds `courses`/`assignments`/`exams` fields to every term object
+(`migrateCourseDataNestingIfNeeded`, one-time, idempotent) and keeps them fresh on every subsequent
+write (`refreshNestedCourseData`, called from `applyTermScopedPatch`) — but nothing reads from them
+yet, and the old flat arrays remain the live, authoritative source of truth. Deliberately kept
+**separate** from the existing `TERM_SCOPED_KEYS`/`applyTermScopedPatch` mirror mechanism (new
+`COURSE_DATA_KEYS`/`COURSE_DATA_DEFAULTS`, `lib/data/schema.js`) rather than folding straight in:
+that mechanism assumes a written patch value IS one term's own slice, but every existing write site
+still constructs its patch as the complete, cross-term, tagged array — flipping the switch before
+every write site is converted would have nested everyone's courses into just one term's slot on the
+very next write. The two stay separate until every write site is converted (step 4), at which point
+`COURSE_DATA_KEYS` folds into `TERM_SCOPED_KEYS`, this transitional shim is deleted, and so are the
+old flat arrays + `termId` on courses (step 6).
+
+Verified against the real account (read-only comparison, zero data mutated): every term's freshly
+migrated `courses`/`assignments`/`exams` exactly matches what the old flat-array-filtered-by-termId
+approach would produce — confirmed field-by-field via the Supabase REST API, both the archived
+"Fall 2026 TEST" term (3 courses / 34 assignments / 7 exams) and the real current "Fall 2026" term
+(3 courses / 58 assignments / 20 exams), zero mismatches. App itself renders and behaves completely
+unchanged, as expected for a purely additive step.
+
+7 new tests (`lib/data/terms.test.js`) for `migrateCourseDataNestingIfNeeded` and
+`refreshNestedCourseData`; 2 pre-existing `applyTermScopedPatch` tests updated to reflect terms now
+also carrying the nested course-data slice. 363 tests passing.
+
 ## v2.88.49 — 2026-09-29
 
 **Assumed exam/assignment times are now marked on the calendar, and flagged until fixed**
