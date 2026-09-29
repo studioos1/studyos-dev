@@ -151,6 +151,23 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // this a small diff — it's real, App.jsx-driven state now, not the alias it briefly was.
   const viewedTerm=viewedTermProp||currentTerm;
   const viewingTermId=viewedTerm?.id||null;
+  // Scoped to whichever term is being viewed — used for everything: lists, dropdowns, counts, GPA,
+  // AND every save/delete operation throughout this file (step 4/6 of the unify-term-course-data
+  // refactor: writes now patch just this term's own new slice, e.g. termAssignments.map(...),
+  // instead of the full, all-terms data.assignments — updViewed (App.jsx) already routes every
+  // write here via targetTermId=viewedTerm.id, through applyTermScopedPatch's COURSE_DATA_KEYS
+  // handling, so there's no more "must remember to use the full flat array or silently drop
+  // another term's data" risk; it's now structurally impossible to touch another term's
+  // courses/assignments/exams from here).
+  //
+  // Declared early (not lazily, near first use) on purpose — a real bug caught here: an early
+  // draft referenced termAssignments/termExams inside a useEffect's DEPENDENCY ARRAY (evaluated
+  // synchronously at that point in render, unlike the effect's own deferred body) declared further
+  // down the file, a genuine temporal-dead-zone ReferenceError the moment Courses loaded.
+  const termCourses=viewedTerm?.courses||[];
+  const termCourseIds=new Set(termCourses.map(c=>c.id));
+  const termAssignments=viewedTerm?.assignments||[];
+  const termExams=viewedTerm?.exams||[];
   // Deliberately no status-based restriction here (real correction: "Term switching SHOULD BE
   // ORTHOGONAL to the terms' status... It's independent tag and NOT related at all to the
   // functionality of the viewer") — this tab views + edits whichever term is selected in the header
@@ -211,10 +228,19 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
       // needing a Save. estimateStudyHours is a cheap sync lookup, so we always refresh it from
       // the item's EFFECTIVE rating (student override if any, else the AI rating); estimateDifficulty
       // (async, may hit the network later) still only runs for items that have never had a rating.
+      // Step 4/6 of the unify-term-course-data refactor: scoped to termAssignments/termExams (the
+      // viewed term's own items, already read from the nested per-term data since step 3) instead
+      // of the full, all-terms data.assignments/data.exams. Real, pre-existing side effect this
+      // fixes, not just a mechanical conversion: diffRatings' DISPLAY was already filtered to the
+      // viewed term (termCourseIds.has(r.courseId), below) but this computation loop wasn't — it
+      // was running estimateDifficulty (a real AI call for items with no cached estimate yet) for
+      // EVERY term's items on every visit to this tab, not just the ones actually shown. Also means
+      // saveDifficulty()/setItemType() below no longer silently touch another term's cached
+      // estimatorValue/aiHours/reviewedAt when Study Preferences is saved while viewing this one.
       const freshA={},freshE={};
-      for(const a of data.assignments){
+      for(const a of termAssignments){
         if(a.status==="done")continue;
-        const course=data.courses.find(c=>c.id===a.courseId);
+        const course=termCourses.find(c=>c.id===a.courseId);
         const key=`a_${a.id}`;
         let estimatorValue=a.estimatorValue;
         if(estimatorValue==null){
@@ -227,8 +253,8 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
           weight:a.weight,dueDate:a.dueDate,estimatorValue,userValue,aiHours,userHours:a.userHours??null};
         if(a.estimatorValue==null||aiHours!==a.aiHours)freshA[a.id]={estimatorValue,aiHours};
       }
-      for(const e of data.exams){
-        const course=data.courses.find(c=>c.id===e.courseId);
+      for(const e of termExams){
+        const course=termCourses.find(c=>c.id===e.courseId);
         const key=`e_${e.id}`;
         let estimatorValue=e.estimatorValue;
         if(estimatorValue==null){
@@ -269,14 +295,18 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
         });
         if(Object.keys(freshA).length||Object.keys(freshE).length){
           upd({
-            assignments:data.assignments.map(a=>freshA[a.id]?{...a,...freshA[a.id]}:a),
-            exams:data.exams.map(e=>freshE[e.id]?{...e,...freshE[e.id]}:e),
+            assignments:termAssignments.map(a=>freshA[a.id]?{...a,...freshA[a.id]}:a),
+            exams:termExams.map(e=>freshE[e.id]?{...e,...freshE[e.id]}:e),
           });
         }
       }
     })();
     return()=>{cancelled=true;};
-  },[data.assignments.length,data.exams.length]); // eslint-disable-line
+    // termAssignments/termExams.length (not data.assignments/exams.length — the full, all-terms
+    // counts) so this correctly re-fires on a genuine item-count change for the VIEWED term;
+    // viewingTermId also included so switching to a different term with the same item count still
+    // re-fires (a length-only dependency wouldn't catch that).
+  },[termAssignments.length,termExams.length,viewingTermId]); // eslint-disable-line
 
   // Changing the difficulty band is a fresh statement that the current hours aren't right — so it
   // re-derives the suggestion (aiHours) AND drops any hours the student had typed, letting the new
@@ -285,7 +315,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   function setDiffOverride(key,value){
     setDiffRatings(r=>{
       const row=r[key];
-      const course=data.courses.find(c=>c.id===row.courseId);
+      const course=termCourses.find(c=>c.id===row.courseId);
       const aiHours=estimateStudyHours({weight:row.weight},course,row.kind==="exam"?"exam":"homework",value||row.estimatorValue);
       return{...r,[key]:{...row,userValue:value,aiHours,userHours:null}};
     });
@@ -302,7 +332,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   function setItemType(key,rawId,newType){
     setDiffRatings(r=>({...r,[key]:{...r[key],type:newType}}));
     upd({
-      assignments:data.assignments.map(a=>a.id===rawId?{...a,type:newType==="project"?"project":undefined}:a),
+      assignments:termAssignments.map(a=>a.id===rawId?{...a,type:newType==="project"?"project":undefined}:a),
       planStale:true,
     });
   }
@@ -320,8 +350,8 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
       if(r.kind==="assignment")aUpdates[r.id]=payload;else eUpdates[r.id]=payload;
     });
     upd({
-      assignments:data.assignments.map(a=>aUpdates[a.id]?{...a,...aUpdates[a.id]}:a),
-      exams:data.exams.map(e=>eUpdates[e.id]?{...e,...eUpdates[e.id]}:e),
+      assignments:termAssignments.map(a=>aUpdates[a.id]?{...a,...aUpdates[a.id]}:a),
+      exams:termExams.map(e=>eUpdates[e.id]?{...e,...eUpdates[e.id]}:e),
       planStale:true,
     });
     setDiffBaseline(JSON.stringify(Object.fromEntries(Object.entries(diffRatings).map(([k,r])=>[k,{u:r.userValue,h:r.userHours}]))));
@@ -360,7 +390,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const changed=(info.difficultyScore&&info.difficultyScore!==course.difficulty)
       ||(info.weeklyStudyHours&&info.weeklyStudyHours!==course.weeklyHours)
       ||(info.startExamPrepDays&&info.startExamPrepDays!==course.startExamPrepDays);
-    upd({courses:data.courses.map(c=>c.id===course.id?{...c,
+    upd({courses:termCourses.map(c=>c.id===course.id?{...c,
       difficulty:info.difficultyScore||c.difficulty,
       difficultyLabel:info.difficultyLabel||c.difficultyLabel,
       weeklyHours:info.weeklyStudyHours||c.weeklyHours,
@@ -403,25 +433,19 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     if(total===0){toast2("Nothing academic to clear for this term — you're already starting fresh.");return;}
     const ok=await confirm(`Clear ${termCourses.length} course${termCourses.length!==1?"s":""}, ${termAssignments.length} assignment${termAssignments.length!==1?"s":""}, and ${termExams.length} exam${termExams.length!==1?"s":""} for this term only — including this term's own study plan on the calendar? Other terms, your profile, routine settings, History, and habit logs (gym/check-ins/focus sessions) will NOT be touched. This can't be undone.`);
     if(!ok)return;
+    // Step 4/6: courses/assignments/exams are just this term's own new (empty) slice now — no more
+    // "filter this term out of the full flat array" needed, since updViewed already routes this
+    // write into viewedTerm's own nested copy (targetTermId, see App.jsx's updViewed).
     upd({
-      courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
-      assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
-      exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
+      courses:[],
+      assignments:[],
+      exams:[],
       studyPlan:{weeks:{}},
       briefCache:null,briefPeriod:null,
     });
     toast2("This term's academic data and study plan cleared — other terms, profile, and history kept!");
   }
   const [ncCourse,setNcCourse]=useState({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
-
-  // Read-only, scoped to whichever term is being viewed — used for everything the student SEES
-  // (lists, dropdowns, counts, GPA). Every save/delete operation below continues to use the full
-  // data.courses/assignments/exams directly, since replacing those arrays with a term-filtered
-  // subset would silently drop every other term's data on the next save.
-  const termCourses=data.courses.filter(c=>c.termId===viewingTermId);
-  const termCourseIds=new Set(termCourses.map(c=>c.id));
-  const termAssignments=data.assignments.filter(a=>termCourseIds.has(a.courseId));
-  const termExams=data.exams.filter(e=>termCourseIds.has(e.courseId));
 
   const missing=termAssignments.filter(a=>!a.dueDate&&a.status!=="done");
   function sortAssignments(list){
@@ -445,7 +469,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   function groupByCourse(list){
     const byCourse=new Map();
     list.forEach(item=>{
-      if(!byCourse.has(item.courseId))byCourse.set(item.courseId,{courseId:item.courseId,courseName:courseNameFor(data.courses,item.courseId),items:[]});
+      if(!byCourse.has(item.courseId))byCourse.set(item.courseId,{courseId:item.courseId,courseName:courseNameFor(termCourses,item.courseId),items:[]});
       byCourse.get(item.courseId).items.push(item);
     });
     return[...byCourse.values()].map(g=>{
@@ -474,7 +498,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
 
   function startEdit(a){
     setEditId(a.id);
-    const cn=courseNameFor(data.courses,a.courseId);
+    const cn=courseNameFor(termCourses,a.courseId);
     setEd({course:cn!=="(unknown course)"?cn:"",title:a.title||"",dueDate:a.dueDate||"",dueTime:a.dueTime||"",estimatedHours:a.estimatedHours||2});
     setShowAddAssign(false); // close add form if open
   }
@@ -483,7 +507,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     if(!ed.title||!ed.course)return;
     const course=findMatchingCourse(termCourses,ed.course);
     if(!course){toast2("Couldn't find that course",true);return;}
-    upd({assignments:data.assignments.map(x=>x.id===editId?{...x,courseId:course.id,title:ed.title,dueDate:ed.dueDate,dueTime:ed.dueTime||null,estimatedHours:ed.estimatedHours}:x)});
+    upd({assignments:termAssignments.map(x=>x.id===editId?{...x,courseId:course.id,title:ed.title,dueDate:ed.dueDate,dueTime:ed.dueTime||null,estimatedHours:ed.estimatedHours}:x)});
     cancelEdit();toast2("Saved!");
   }
   async function addAssignment(){
@@ -491,7 +515,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,na.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:na.dueDate},course,"homework");
-    upd({assignments:[...data.assignments,{id:uid(),courseId:course.id,title:na.title,dueDate:na.dueDate,dueTime:na.dueTime||null,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
+    upd({assignments:[...termAssignments,{id:uid(),courseId:course.id,title:na.title,dueDate:na.dueDate,dueTime:na.dueTime||null,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
     setNa({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2,status:"not-started"});
     setShowAddAssign(false);toast2("Assignment added!");
   }
@@ -500,13 +524,13 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,ne.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:ne.date},course,"exam");
-    upd({exams:[...data.exams,{id:uid(),courseId:course.id,title:ne.title||"",date:ne.date,startTime:ne.startTime||null,endTime:ne.endTime||null,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
+    upd({exams:[...termExams,{id:uid(),courseId:course.id,title:ne.title||"",date:ne.date,startTime:ne.startTime||null,endTime:ne.endTime||null,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
     setNe({course:"",date:"",startTime:"",endTime:"",topics:"",prepDays:7});
     setShowAddExam(false);toast2("Exam added!");
   }
   function startEditExam(e){
     setEditExamId(e.id);
-    const cn=courseNameFor(data.courses,e.courseId);
+    const cn=courseNameFor(termCourses,e.courseId);
     setEe({course:cn!=="(unknown course)"?cn:"",topics:e.topics||"",date:e.date||"",startTime:e.startTime||"",endTime:e.endTime||"",prepDays:e.prepDays||7});
     setShowAddExam(false);
   }
@@ -515,7 +539,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     if(!ee.course||!ee.date)return;
     const course=findMatchingCourse(termCourses,ee.course);
     if(!course){toast2("Couldn't find that course",true);return;}
-    upd({exams:data.exams.map(x=>x.id===editExamId?{...x,courseId:course.id,topics:ee.topics,date:ee.date,startTime:ee.startTime||null,endTime:ee.endTime||null,prepDays:ee.prepDays}:x)});
+    upd({exams:termExams.map(x=>x.id===editExamId?{...x,courseId:course.id,topics:ee.topics,date:ee.date,startTime:ee.startTime||null,endTime:ee.endTime||null,prepDays:ee.prepDays}:x)});
     cancelEditExam();toast2("Exam updated!");
   }
 
@@ -671,7 +695,12 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
     // this UPDATES it in place rather than adding a second entry.
     const replaceAssignments=new Map(),replaceExams=new Map();
     const itemsByCourse={};
-    let workingCourses=[...data.courses];
+    // Step 4/6: starts from termCourses (just this term's own courses, already read from the
+    // nested per-term data since step 3) instead of the full, all-terms data.courses — sync only
+    // ever matches/creates within viewingTermId anyway (the old code re-derived that exact same
+    // subset via its own .filter(c=>c.termId===viewingTermId) below, from a differently-sourced
+    // starting point), so this is the same real scope, just no longer needing that filter.
+    let workingCourses=[...termCourses];
 
     for(const c of (p.courses||[])){
       // Prefer a "Lecture" meeting time as the course's primary schedule; fall back to
@@ -679,7 +708,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
       const meetings=c.meetingTimes||[];
       const primary=meetings.find(m=>/lecture/i.test(m.type||""))||meetings[0]||null;
 
-      let course=findMatchingCourse(workingCourses.filter(c=>c.termId===viewingTermId),c.courseName);
+      let course=findMatchingCourse(workingCourses,c.courseName);
       if(!course){
         // No matching course exists yet — create one instead of silently dropping its
         // assignments/exams. This is the common case right after a fresh reset or when a
@@ -727,7 +756,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
           replaceAssignments.set(a._replaceId,{title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight??null,estimatedHours:est.aiHours,...(looksLikeProject?{type:"project"}:{}),...est});
           replaced++;itemsByCourse[c.courseName].assignments++;continue;
         }
-        const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
+        const isDup=termAssignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
         if(isDup){skippedDuplicate++;continue;}
         nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
@@ -739,7 +768,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
           replaceExams.set(e._replaceId,{title:e.title,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,estimatedHours:est.aiHours,...est});
           replaced++;itemsByCourse[c.courseName].exams++;continue;
         }
-        const isDup=data.exams.find(x=>x.courseId===course.id&&x.date===e.date);
+        const isDup=termExams.find(x=>x.courseId===course.id&&x.date===e.date);
         if(isDup){skippedDuplicate++;continue;}
         nE.push({id:uid(),courseId:course.id,title:e.title,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
         added++;itemsByCourse[c.courseName].exams++;
@@ -751,8 +780,8 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
       // Deleted-existing items are dropped first; replacements are then applied over what's left
       // (preserving id/status/completedAt on whichever item matched) before the genuinely-new
       // items are appended.
-      assignments:[...data.assignments.filter(x=>!delA.has(x.id)).map(x=>replaceAssignments.has(x.id)?{...x,...replaceAssignments.get(x.id)}:x),...nA],
-      exams:[...data.exams.filter(x=>!delE.has(x.id)).map(x=>replaceExams.has(x.id)?{...x,...replaceExams.get(x.id)}:x),...nE],
+      assignments:[...termAssignments.filter(x=>!delA.has(x.id)).map(x=>replaceAssignments.has(x.id)?{...x,...replaceAssignments.get(x.id)}:x),...nA],
+      exams:[...termExams.filter(x=>!delE.has(x.id)).map(x=>replaceExams.has(x.id)?{...x,...replaceExams.get(x.id)}:x),...nE],
       lastSyllabusSync:{at:new Date().toISOString(),files:fileNames,added,coursesFound:p.courses?.map(c=>c.courseName)||[]},
       // Every upload gets its own history entry (lastSyllabusSync above only ever keeps the single
       // most recent one) — feeds the Update Syllabus tab's "doc directory" list. storagePath stays
@@ -1080,7 +1109,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                       <div
                         title="Mark as completed"
                         onClick={e=>{
-                          upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"done",completedAt:x.completedAt||new Date().toISOString()}:x)});
+                          upd({assignments:termAssignments.map(x=>x.id===a.id?{...x,status:"done",completedAt:x.completedAt||new Date().toISOString()}:x)});
                           sparkleBurst(e.currentTarget,"task");
                         }}
                         style={{width:20,height:20,borderRadius:6,border:"2px solid var(--t3)",
@@ -1115,7 +1144,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     </td>
                     <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{a.weight!=null?a.weight+"%":"—"}</td>
                     <td style={{padding:"6px 8px"}}>
-                      <GradeInput value={a.grade} onChange={v=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
+                      <GradeInput value={a.grade} onChange={v=>upd({assignments:termAssignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
                     </td>
                     <td style={{padding:"9px 6px",whiteSpace:"nowrap",textAlign:"right"}}>
                       <button
@@ -1128,7 +1157,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                       </button>
                       <button
                         className="tt" data-tt="Delete this assignment"
-                        onClick={async()=>{if(await confirm(`Delete "${a.title}"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({assignments:data.assignments.filter(x=>x.id!==a.id)});}}
+                        onClick={async()=>{if(await confirm(`Delete "${a.title}"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({assignments:termAssignments.filter(x=>x.id!==a.id)});}}
                         style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
                           background:"var(--red)",color:"#fff",
                           fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
@@ -1193,12 +1222,12 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     <td style={{padding:"9px 8px",fontSize:12,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.dueDate?new Date(a.dueDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—"}</td>
                     <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",whiteSpace:"nowrap"}}>{a.weight!=null?a.weight+"%":"—"}</td>
                     <td style={{padding:"6px 8px"}}>
-                      <GradeInput value={a.grade} onChange={v=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
+                      <GradeInput value={a.grade} onChange={v=>upd({assignments:termAssignments.map(x=>x.id===a.id?{...x,grade:v}:x)})}/>
                     </td>
                     <td style={{padding:"9px 6px",whiteSpace:"nowrap",textAlign:"right"}}>
                       <button
                         className="tt" data-tt="Move back to active"
-                        onClick={()=>upd({assignments:data.assignments.map(x=>x.id===a.id?{...x,status:"not-started"}:x)})}
+                        onClick={()=>upd({assignments:termAssignments.map(x=>x.id===a.id?{...x,status:"not-started"}:x)})}
                         style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
                           background:"var(--card2)",color:"var(--t3)",fontFamily:"inherit",marginRight:6,
                           display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
@@ -1206,7 +1235,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                       </button>
                       <button
                         className="tt" data-tt="Delete permanently"
-                        onClick={async()=>{if(await confirm(`Delete "${a.title}"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({assignments:data.assignments.filter(x=>x.id!==a.id)});}}
+                        onClick={async()=>{if(await confirm(`Delete "${a.title}"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({assignments:termAssignments.filter(x=>x.id!==a.id)});}}
                         style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
                           background:"var(--red)",color:"#fff",fontFamily:"inherit",
                           display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
@@ -1290,7 +1319,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                 </div>
               )}
 
-              {data.exams.length===0&&!showAddExam&&(
+              {termExams.length===0&&!showAddExam&&(
                 <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"12px 0"}}>
                   No exams yet — press <strong style={{color:"var(--amber)"}}>+</strong> to add one
                 </div>
@@ -1308,7 +1337,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     <tr key={e.id}>
                       <td colSpan={6} style={{padding:0}}>
                       <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",margin:"6px 0"}}>
-                        <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {courseNameFor(data.courses,e.courseId)}</div>
+                        <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {courseNameFor(termCourses,e.courseId)}</div>
                         <div style={{marginBottom:8}}>
                           <label>Course</label>
                           <select value={ee.course} onChange={ev=>setEe(x=>({...x,course:ev.target.value}))}>
@@ -1366,7 +1395,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                       </td>
                       <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{e.weight!=null?e.weight+"%":"—"}</td>
                       <td style={{padding:"6px 8px"}}>
-                        <GradeInput value={e.grade} onChange={v=>upd({exams:data.exams.map(x=>x.id===e.id?{...x,grade:v}:x)})}/>
+                        <GradeInput value={e.grade} onChange={v=>upd({exams:termExams.map(x=>x.id===e.id?{...x,grade:v}:x)})}/>
                       </td>
                       <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                         <button className="tt" data-tt="Edit this exam" onClick={()=>startEditExam(e)}
@@ -1375,7 +1404,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                             fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
                           <i className="ti ti-pencil" style={{fontSize:15}}/>
                         </button>
-                        <button className="tt" data-tt="Delete this exam" onClick={async()=>{if(await confirm(`Delete "${courseNameFor(data.courses,e.courseId)} — Exam"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({exams:data.exams.filter(x=>x.id!==e.id)});}}
+                        <button className="tt" data-tt="Delete this exam" onClick={async()=>{if(await confirm(`Delete "${courseNameFor(termCourses,e.courseId)} — Exam"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({exams:termExams.filter(x=>x.id!==e.id)});}}
                           style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
                             background:"var(--red)",color:"#fff",
                             fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
@@ -1470,7 +1499,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                   <div style={{width:10,height:10,borderRadius:"50%",background:c.color.border}}/>
                   <span style={{...TITLE_TEXT,color:"var(--t1)",fontSize:16,textTransform:"none",letterSpacing:"normal",fontWeight:500}}>{c.name}</span>
                 </div>
-                <DelBtn onClick={()=>upd({courses:data.courses.filter(x=>x.id!==c.id)})} title="Remove course"/>
+                <DelBtn onClick={()=>upd({courses:termCourses.filter(x=>x.id!==c.id)})} title="Remove course"/>
               </div>
               <div style={DIVIDER}/>
               <div style={INNER}>
@@ -1569,12 +1598,12 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                           <td style={{padding:"6px 8px"}}>
                             <input type="number" min="0" max="100" placeholder="e.g. 91" style={{fontSize:13,padding:"5px 7px",width:74}}
                               value={c.grade??""}
-                              onChange={e=>upd({courses:data.courses.map(x=>x.id===c.id?{...x,grade:e.target.value===""?null:+e.target.value}:x)})}/>
+                              onChange={e=>upd({courses:termCourses.map(x=>x.id===c.id?{...x,grade:e.target.value===""?null:+e.target.value}:x)})}/>
                           </td>
                           <td style={{padding:"6px 8px"}}>
                             <input type="number" min="0.5" max="10" step="0.5" placeholder="4" style={{fontSize:13,padding:"5px 7px",width:58}}
                               value={c.credits??4}
-                              onChange={e=>upd({courses:data.courses.map(x=>x.id===c.id?{...x,credits:e.target.value===""?4:+e.target.value}:x)})}/>
+                              onChange={e=>upd({courses:termCourses.map(x=>x.id===c.id?{...x,credits:e.target.value===""?4:+e.target.value}:x)})}/>
                           </td>
                           <td style={{padding:"6px 8px"}}>
                             <span className={`badge ${c.grade!=null&&c.grade!==""?"badge-amber":"badge-blue"}`} style={{fontSize:13}}>{letter}</span>
@@ -1907,7 +1936,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                   // Same deterministic sanity checks ExtractionVerifyModal runs before a real
                   // save — shown here too since this diagnostic is the tool the student's meant
                   // to reach for first when checking whether an upload looks right.
-                  const{issues:diagIssues}=checkSyllabusExtraction(p,{courses:data.courses,sourceText:rawExtractResult.sourceText});
+                  const{issues:diagIssues}=checkSyllabusExtraction(p,{courses:termCourses,sourceText:rawExtractResult.sourceText});
                   return(
                     <>
                       <div style={{fontSize:14,marginBottom:10,color:"var(--t1)"}}>
@@ -1989,8 +2018,8 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                   onClick={()=>{
                     if(!ncCourse.name)return;
                     if(ncCourse.format!=="async"&&!ncCourse.days.length)return;
-                    if(findMatchingCourse(data.courses.filter(c=>c.termId===viewingTermId),ncCourse.name)){toast2("A course with that name already exists",true);return;}
-                    upd({courses:[...data.courses,{...ncCourse,name:prettyCourseCode(ncCourse.name),id:uid(),termId:viewingTermId,color:CC[data.courses.length%CC.length]}]});
+                    if(findMatchingCourse(termCourses,ncCourse.name)){toast2("A course with that name already exists",true);return;}
+                    upd({courses:[...termCourses,{...ncCourse,name:prettyCourseCode(ncCourse.name),id:uid(),termId:viewingTermId,color:CC[termCourses.length%CC.length]}]});
                     setNcCourse({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
@@ -2015,8 +2044,8 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
           courses={termCourses}
           termStart={data.profile?.termStart}
           termEnd={data.profile?.termEnd}
-          existingAssignments={data.assignments}
-          existingExams={data.exams}
+          existingAssignments={termAssignments}
+          existingExams={termExams}
           sourceText={pendingVerify.sourceText}
           onConfirm={correctedParsed=>finalizeSync(correctedParsed,pendingVerify.fileNames)}
           onCancel={()=>{setPendingVerify(null);setSylPdfs([]);}}

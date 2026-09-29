@@ -148,7 +148,7 @@ function DoneCheckbox({ checked, onToggle }) {
 // Non-modal right-side slide-over for plan status, diagnostics, and quick fixes. Opened by the
 // Weekly-tab "Plan status" button and auto-opened after a replan that leaves items short. The grid
 // stays visible and usable behind it — close via the X or Esc.
-export function PlanDrawer({ open, onClose, data, upd, rawData, refreshQuarterPlan, viewedTerm }) {
+export function PlanDrawer({ open, onClose, data, upd, refreshQuarterPlan, viewedTerm }) {
   const [sel, setSel] = useState(() => new Set());          // "today forward" rows ticked for Prioritise
   const [toComplete, setToComplete] = useState(() => new Set()); // Overdue rows staged as completed (not yet saved)
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -198,17 +198,23 @@ export function PlanDrawer({ open, onClose, data, upd, rawData, refreshQuarterPl
   const t = diag?.totals;
 
   // ── mutations ──────────────────────────────────────────────────────────────
-  // Real, audit-caught CRITICAL bug: all three mutation functions below used to map over `data`
-  // (assignments/exams) — but `data` here is the VIEWED term's already-filtered projection
-  // (viewedData), not the true complete array. Writing that filtered subset back would have
-  // silently replaced the WHOLE stored assignments/exams array with only the viewed term's items,
-  // deleting every other term's data on the very first edit made from this drawer. Every write
-  // below maps over `rawData` (the true, unfiltered array) instead — an id not targeted by this
-  // specific edit (including every other term's items) always passes through untouched.
+  // Step 4/6 of the unify-term-course-data refactor: all three mutation functions below map over
+  // `data[k]` (viewedData's own assignments/exams — the viewed term's nested slice, since step 3)
+  // and rely on `upd` (App.jsx's updViewed) to route the write into that SAME term via
+  // targetTermId=viewedTerm.id, through applyTermScopedPatch's COURSE_DATA_KEYS handling — no
+  // `rawData` prop needed anymore. Safe specifically because `diag`'s items (computed via
+  // computePlanDiagnostics → termScopedForPlanning above) are ALWAYS drawn from this one term,
+  // never a mix — an id from another term is never in play here to begin with.
+  //
+  // Before this: mapped over `rawData` (the true, unfiltered array) instead, because writing the
+  // viewed term's filtered subset back through the OLD flat, non-scoped courses/assignments/exams
+  // mechanism would have silently replaced the WHOLE stored array with only the viewed term's
+  // items — a real, audit-caught bug. That whole class of mistake is what COURSE_DATA_KEYS routing
+  // now makes structurally impossible, here and everywhere else it was converted.
   const arrKey = it => (it.kind === "exam" ? "exams" : "assignments");
   const patch = (it, fields, extra = {}) => {
     const k = arrKey(it);
-    upd({ [k]: rawData[k].map(x => (x.id === it.rawId ? { ...x, ...fields } : x)), ...extra });
+    upd({ [k]: data[k].map(x => (x.id === it.rawId ? { ...x, ...fields } : x)), ...extra });
   };
   const setHours = (it, v) => patch(it, { userHours: v }, { planStale: true });
   const setForced = (it, val) => patch(it, { forced: val }, { planStale: true });
@@ -222,8 +228,8 @@ export function PlanDrawer({ open, onClose, data, upd, rawData, refreshQuarterPl
     const aIds = new Set(chosen.filter(c => c.kind === "assignment").map(c => c.rawId));
     const eIds = new Set(chosen.filter(c => c.kind === "exam").map(c => c.rawId));
     upd({
-      assignments: rawData.assignments.map(a => (aIds.has(a.id) ? { ...a, status: "done" } : a)),
-      exams: rawData.exams.map(e => (eIds.has(e.id) ? { ...e, status: "done" } : e)),
+      assignments: data.assignments.map(a => (aIds.has(a.id) ? { ...a, status: "done" } : a)),
+      exams: data.exams.map(e => (eIds.has(e.id) ? { ...e, status: "done" } : e)),
     });
     setToComplete(new Set());
   }
@@ -238,8 +244,8 @@ export function PlanDrawer({ open, onClose, data, upd, rawData, refreshQuarterPl
     const aIds = new Set(chosen.filter(c => c.kind === "assignment").map(c => c.rawId));
     const eIds = new Set(chosen.filter(c => c.kind === "exam").map(c => c.rawId));
     upd({
-      assignments: rawData.assignments.map(a => (aIds.has(a.id) ? { ...a, forced: true } : a)),
-      exams: rawData.exams.map(e => (eIds.has(e.id) ? { ...e, forced: true } : e)),
+      assignments: data.assignments.map(a => (aIds.has(a.id) ? { ...a, forced: true } : a)),
+      exams: data.exams.map(e => (eIds.has(e.id) ? { ...e, forced: true } : e)),
     });
     setSel(new Set());
     setPendingAutoReplan(true);

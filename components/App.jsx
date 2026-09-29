@@ -18,6 +18,7 @@ import {
   migrateLegacyTermIfNeeded,
   migrateTermStatusIfNeeded,
   migrateTermDataIsolationIfNeeded,
+  migrateCourseDataNestingIfNeeded,
   applyTermScopedPatch,
   backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
@@ -208,7 +209,11 @@ function App(){
   // direct write to one of them into that term's own isolated copy. This is what makes every term
   // "a complete isolated term... no cross-talking" (real request) without every one of the ~50
   // call sites across the app that read/write these fields needing to change at all.
-  function upd(p){setD(prev=>{const n=applyTermScopedPatch(prev,p);save(n);return n;});}
+  // Optional 2nd arg (unused by every pre-existing call site — always Current, unchanged behavior):
+  // step 4/6 of the unify-term-course-data refactor, SchoolInfo.jsx's resetTermData/
+  // deleteTermEntirely need to target an ARBITRARY term (whichever the student clicked Reset/
+  // Delete on), not necessarily Current — same targetTermId applyTermScopedPatch already supports.
+  function upd(p,targetTermId){setD(prev=>{const n=applyTermScopedPatch(prev,p,targetTermId);save(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
 
   // Term-viewer: which term Today + Academics + Calendar currently DISPLAY — separate from which
@@ -239,12 +244,13 @@ function App(){
   // below). The background notification effects further down intentionally keep using raw `data` —
   // see above.
   const viewedData=projectTermForPlanning(data,viewedTerm,viewedSchool);
-  // Write side: routes a scoped-key write (a plan being (re)generated) into the VIEWED term's own
-  // isolated copy — applyTermScopedPatch's targetTermId already only actually diverts anything when
-  // the target ISN'T current (mirrors straight into the flat fields exactly as plain upd() would
-  // when it is), so always passing viewedTerm.id here is the same "no special case" simplification
-  // as viewedData above. Non-scoped writes (course/assignment/exam edits — never term-isolated to
-  // begin with) already work unchanged via plain upd() regardless of which term is being viewed.
+  // Write side: routes a scoped-key write (a plan being (re)generated, or — since the unify-term-
+  // course-data refactor's step 4 — a course/assignment/exam edit too, now that COURSE_DATA_KEYS
+  // routes through this same mechanism) into the VIEWED term's own isolated copy —
+  // applyTermScopedPatch's targetTermId already only actually diverts anything when the target
+  // ISN'T current (mirrors straight into the flat fields exactly as plain upd() would when it is),
+  // so always passing viewedTerm.id here is the same "no special case" simplification as viewedData
+  // above.
   function updViewed(p){
     setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm?.id);save(n);return n;});
   }
@@ -346,6 +352,20 @@ function App(){
     const fix=migrateTermDataIsolationIfNeeded(data);
     if(fix)upd(fix);
   },[data?.terms?.length]); // eslint-disable-line
+
+  // Step 1/6 of the unify-term-course-data refactor (see lib/data/schema.js's COURSE_DATA_KEYS
+  // comment): one-time migration that materializes every term's own nested courses/assignments/
+  // exams for the first time, from the still-authoritative flat termId-tagged arrays. Nothing reads
+  // these nested fields yet (that's step 3) — this purely seeds them so applyTermScopedPatch's
+  // refreshNestedCourseData shim has something to keep fresh from the very next write onward, even
+  // for an account that loads read-only and never triggers a write itself. Runs after
+  // repairTermLinkageIfNeeded (above) so any orphan-termId courses are already correctly linked
+  // before partitioning by termId.
+  useEffect(()=>{
+    if(!data)return;
+    const fix=migrateCourseDataNestingIfNeeded(data);
+    if(fix)upd(fix);
+  },[data?.terms?.length,data?.courses?.length,data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
 
   // Keeps profile's termStart/termEnd/schoolName/schoolAddress/schoolType/collegeCalendar
   // mirrored to whichever term is currently active — every existing consumer of those fields
@@ -935,9 +955,9 @@ function App(){
         {!data.onboarded
           ?<Onboard data={data} upd={upd} updP={updP} ai={ai} busy={busy} toast2={toast2} setTab={setTab} setProgress={setProgress}/>
           :tab==="today"   ?<Today    data={viewedData} upd={updViewed} ai={ai} busy={busy} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} planning={planning} setTab={setTab} onCheckIn={goCheckIn}/>
-          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} rawData={data} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen} viewedTerm={viewedTerm}/>
+          :tab==="week"    ?<Week     data={viewedData} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} refreshQuarterPlan={refreshQuarterPlan} refreshWeekPlan={refreshWeekPlan} planMsg={planMsg} planDrawerOpen={planDrawerOpen} setPlanDrawerOpen={setPlanDrawerOpen} viewedTerm={viewedTerm}/>
           :tab==="acad"    ?<Acad     data={data} upd={updViewed} ai={ai} busy={busy} planning={planning} toast2={toast2} progress={progress} setProgress={setProgress} refreshQuarterPlan={refreshQuarterPlan} planMsg={planMsg} helpJump={helpJump} viewedTerm={viewedTerm}/>
-          :tab==="prog"    ?<Prog     data={viewedData} upd={updViewed} rawData={data} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
+          :tab==="prog"    ?<Prog     data={viewedData} upd={updViewed} toast2={toast2} ai={ai} busy={busy} backTo={progBackTo} onBack={()=>go("today")}/>
           :tab==="school"  ?<SchoolInfo data={data} upd={upd} updP={updP} toast2={toast2}/>
           :tab==="help"    ?<Help data={data} updP={updP} onJump={jumpTo}/>
           :tab==="bugs"    ?(isAdmin?<BugReports toast2={toast2}/>:null)

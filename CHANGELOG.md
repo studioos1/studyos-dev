@@ -1,5 +1,124 @@
 # StudyOS Changelog
 
+## v2.89.2 — 2026-09-29
+
+**Internal (step 4/6): writes now target the nested per-term course data**
+
+Step 4 of the unify-term-course-data refactor (step 1: v2.89.0, step 3: v2.89.1). Converts all 28
+write sites (`Acad.jsx` ×22, `Onboard.jsx` ×4, `SchoolInfo.jsx` ×2) plus `PlanDrawer.jsx`/`Prog.jsx`'s
+check-in writes from "spread/filter the full, cross-term flat array" (a manual, unenforced
+discipline — the exact class of mistake that already caused two real bugs earlier this project:
+cross-term course matching, and a write that would have silently deleted every other term's
+assignments) to patching just the viewed/current term's own new slice.
+
+Mechanism: `courses`/`assignments`/`exams` (`COURSE_DATA_KEYS`) now route through
+`applyTermScopedPatch`'s existing `targetTermId` mechanism — the same one `studyPlan` etc. already
+used — as a **parallel** list to `TERM_SCOPED_KEYS`, not merged into it (`migrateTermDataIsolation
+IfNeeded` has a different, incompatible one-time-seed semantic that would otherwise misfire). The
+transitional `refreshNestedCourseData` shim from step 1 is now deleted — no longer needed once every
+write constructs a correctly-scoped patch itself. `App.jsx`'s base `upd()` gained an optional
+`targetTermId` param (backward compatible) so `SchoolInfo.jsx` can act on an arbitrary term (whichever
+the student clicked Reset/Delete on), not just Current. `PlanDrawer`/`Prog.jsx` dropped their
+`rawData` prop entirely — safe because the diagnostic items they write from are already
+single-term-scoped upstream, so no id-grouping-by-term was needed.
+
+Real, pre-existing side effect fixed along the way, not just a mechanical conversion: the Difficulty
+tab's estimate-computation loop (`Acad.jsx`) was iterating every term's assignments/exams on every
+visit — including real `estimateDifficulty` AI calls for items not even being shown (the display was
+already correctly filtered to the viewed term; the computation feeding it wasn't) — and `saveDifficulty
+()`/`setItemType()` would silently touch another term's cached values too. Narrowed to the viewed
+term's own items, fixing both the wasted AI calls and the cross-term write.
+
+**Real bug caught and fixed before shipping**: an early version of this crashed the Courses tab
+outright — `ReferenceError: Cannot access 'termAssignments' before initialization`. A `useEffect`'s
+dependency array is evaluated synchronously at that point in render (unlike the effect's own body,
+which is deferred) — referencing `termAssignments`/`termExams` there before their `const` declaration
+later in the same file threw immediately. Fixed by moving the declarations to the top of the
+component, right after `viewingTermId`.
+
+Verified against the real account with actual writes, not just reads: added a real test assignment
+("DSC 10", due 12/31) via the UI, confirmed via the Supabase REST API it landed correctly in the
+current term (57→58) while the archived "Fall 2026 TEST" term stayed **exactly** 3 courses/34
+assignments/7 exams — the same numbers verified in steps 1 and 3, now proven stable under a real
+write, not just a read. Deleted the test item, confirmed the current term returned to 57 and the
+archived term was still untouched. Also confirmed the flat top-level mirror (now vestigial, no
+longer read by anything — deletion is step 6) collapses to just the current term's value for
+whichever key a write actually touches, exactly as designed.
+
+Tests: 2 `applyTermScopedPatch` tests updated for the new `COURSE_DATA_KEYS` routing behavior (no
+longer "leaves courses untouched" — now "routes courses same as studyPlan"), one reverted to its
+pre-step-1 form (no more shim side effect to account for), the obsolete `refreshNestedCourseData`
+test block removed. 362 tests passing.
+
+## v2.89.1 — 2026-09-29
+
+**Internal (step 3/6): reads now use the nested per-term course data — no behavior change**
+
+Step 3 of the unify-term-course-data refactor (step 1: v2.89.0). Converts every read call site to
+pull `courses`/`assignments`/`exams` from a term's own nested copy (populated in step 1) instead of
+live-filtering the flat, `termId`-tagged arrays. Writes are untouched — still the old flat arrays —
+that's step 4.
+
+`termScopedForPlanning` was the real choke point: it's the single function 6 independent read call
+sites already funneled through (`projectTermForPlanning` — and through it `Today`/`Week`/`Prog`'s
+`viewedData` — plus the planner, calendar build, `planningRange`, `planDiagnostics`, notifications,
+the daily-summary cron route), so swapping its internals converted all of them in one place, no
+per-file changes needed. The two remaining read sites that bypassed it entirely — `Acad.jsx`'s own
+local `viewingTermId` filtering, and `SchoolInfo.jsx`'s two duplicated inline filters (used for its
+Reset/Delete confirm-dialog counts) — were converted directly to read `viewedTerm.courses` /
+`t.courses` etc.
+
+Verified against the real account, not just tests: School Info's Delete confirmation for the
+archived "Fall 2026 TEST" term now reads "3 courses, 34 assignments, and 7 exams" — exact match to
+step 1's independently-verified real-account numbers, sourced through the entirely new read path
+this time. Courses tab and Calendar render identically to before. Cancelled the delete — no data
+touched.
+
+9 tests updated/added in `lib/data/terms.js` (3 fixtures updated to carry realistic post-migration
+nested data; 2 new edge-case tests for `termScopedForPlanning` — a stale passed-in term reference
+re-resolves against live data, a genuinely detached term falls back to its own fields). 365 tests
+passing.
+
+## v2.89.0 — 2026-09-29
+
+**Internal (step 1/6): courses/assignments/exams now also stored nested per term — no behavior change yet**
+
+First step of the unify-term-course-data refactor — a real architecture question, not a bug report:
+courses/assignments/exams have always lived in one flat, account-wide array each, tagged with a
+`termId` (filter-based isolation), while everything else per-term (study plan, completion log,
+Pomodoro/gym/daily logs, notifications, syllabus history) already lives as a genuinely separate,
+nested copy on each term object (structural isolation). Two real, confirmed bugs already came from
+that inconsistency: an unscoped `courses` list matching syllabus-sync items to the wrong course
+across terms (fixed this branch's earlier work), and a write path that would have silently deleted
+every other term's assignments on the first check-in submitted (`Prog.jsx`/`PlanDrawer.jsx`, fixed
+in an earlier audit via a second `rawData` prop threaded through by hand). Full scoping (28 write
+sites across `Acad.jsx`/`Onboard.jsx`/`SchoolInfo.jsx`, 8 read categories, 3 cross-cutting repair
+functions) found real value in unifying — full plan not repeated here, see session notes.
+
+This step is deliberately inert: it adds `courses`/`assignments`/`exams` fields to every term object
+(`migrateCourseDataNestingIfNeeded`, one-time, idempotent) and keeps them fresh on every subsequent
+write (`refreshNestedCourseData`, called from `applyTermScopedPatch`) — but nothing reads from them
+yet, and the old flat arrays remain the live, authoritative source of truth. Deliberately kept
+**separate** from the existing `TERM_SCOPED_KEYS`/`applyTermScopedPatch` mirror mechanism (new
+`COURSE_DATA_KEYS`/`COURSE_DATA_DEFAULTS`, `lib/data/schema.js`) rather than folding straight in:
+that mechanism assumes a written patch value IS one term's own slice, but every existing write site
+still constructs its patch as the complete, cross-term, tagged array — flipping the switch before
+every write site is converted would have nested everyone's courses into just one term's slot on the
+very next write. The two stay separate until every write site is converted (step 4), at which point
+`COURSE_DATA_KEYS` folds into `TERM_SCOPED_KEYS`, this transitional shim is deleted, and so are the
+old flat arrays + `termId` on courses (step 6).
+
+Verified against the real account (read-only comparison, zero data mutated): every term's freshly
+migrated `courses`/`assignments`/`exams` exactly matches what the old flat-array-filtered-by-termId
+approach would produce — confirmed field-by-field via the Supabase REST API, both the archived
+"Fall 2026 TEST" term (3 courses / 34 assignments / 7 exams) and the real current "Fall 2026" term
+(3 courses / 58 assignments / 20 exams), zero mismatches. App itself renders and behaves completely
+unchanged, as expected for a purely additive step.
+
+7 new tests (`lib/data/terms.test.js`) for `migrateCourseDataNestingIfNeeded` and
+`refreshNestedCourseData`; 2 pre-existing `applyTermScopedPatch` tests updated to reflect terms now
+also carrying the nested course-data slice. 363 tests passing.
+
 ## v2.88.49 — 2026-09-29
 
 **Assumed exam/assignment times are now marked on the calendar, and flagged until fixed**
