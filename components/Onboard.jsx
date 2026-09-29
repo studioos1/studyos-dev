@@ -104,7 +104,7 @@ SCHEDULE:\n${t.slice(0,6000)}`);
     setProgress?.({label:"Looking up course difficulty...",detail:`${pSched.courses.length} class(es)`});
     const courses=await Promise.all(pSched.courses.filter(c=>c.name&&c.days).map(async(c,i)=>{
       const info=await CI(c.name,c.code,p.schoolName);
-      return{id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,name:prettyCourseCode(c.code||c.name),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],difficultyConfidence:info.confidence||"low",difficultyRationale:info.rationale||"",color:CC[i%CC.length]};
+      return{id:uid(),name:prettyCourseCode(c.code||c.name),days:c.days||[],startTime:c.startTime||"09:00",endTime:c.endTime||"10:00",professor:c.professor||"",room:c.room||"",units:c.units||3,difficulty:info.difficultyScore||5,difficultyLabel:info.difficultyLabel||"Medium",weeklyHours:info.weeklyStudyHours||5,startExamPrepDays:info.startExamPrepDays||5,description:info.description||"",tips:info.tips||[],difficultyConfidence:info.confidence||"low",difficultyRationale:info.rationale||"",color:CC[i%CC.length]};
     }));
     // Dedup by stable course code (e.g. "DSC10"), not full display name — AI wording varies between
     // calls, but the department+number code is the actual stable identity.
@@ -371,7 +371,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
                   onClick={()=>{
                     if(!nc.name)return;
                     if(nc.format!=="async"&&!nc.days.length)return;
-                    upd({courses:[...currentTermCourses,{...nc,name:prettyCourseCode(nc.name),id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[currentTermCourses.length%CC.length]}]});
+                    upd({courses:[...currentTermCourses,{...nc,name:prettyCourseCode(nc.name),id:uid(),color:CC[currentTermCourses.length%CC.length]}]});
                     setNc({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
