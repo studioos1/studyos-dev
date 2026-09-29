@@ -1,5 +1,50 @@
 # StudyOS Changelog
 
+## v2.89.3 — 2026-09-29
+
+**Internal: `termId` removed — a course's term is now just which term.courses array it's in**
+
+First half of step 6/6 of the unify-term-course-data refactor (step 1: v2.89.0, step 3: v2.89.1,
+step 4: v2.89.2). The last piece of the pre-refactor isolation-by-tagging scheme: courses no
+longer carry a `termId` field at all — nothing has read it for scoping since step 3, so this
+removes the write side (stop setting it on new courses) and the code that only existed to repair
+it.
+
+- `Acad.jsx`/`Onboard.jsx`: dropped `termId:...` from all 4 course-creation sites.
+- `repairTermLinkageIfNeeded` → renamed `repairDatelessTermIfNeeded`, trimmed to just its still-real
+  job (filling a term with no start/end from the profile). Its other half — relinking a course with
+  a missing/dangling `termId` — is now impossible by construction: a course can't dangle from a
+  foreign key that doesn't exist.
+- `migrateLegacyTermIfNeeded` (synthesizes an account's very first term from old single-term
+  profile fields): any pre-existing course/assignment/exam is now adopted directly into the new
+  term's own nested copy, instead of being tagged with a freshly-generated `termId` for a later
+  pass to link up — the new term is unambiguously the only place they could belong at that point.
+- `canDeleteTerm(term, courses)` → `canDeleteTerm(term)`: attached-course count now reads the
+  term's own nested `courses` field directly, not a separately-passed list filtered by a `termId`
+  tag (never called from real app code — School Info's actual Reset/Delete already had their own
+  inline logic — but kept correct since it's a real, tested exported utility).
+- `migrateCourseDataNestingIfNeeded` (the one-time legacy-data migration from step 1) is
+  deliberately **kept**, `termId`-filtering internals and all — same as every other one-time
+  migration in this codebase, it stays as a permanent safety net rather than being deleted once
+  "done" for the one real account. Its job is specifically bridging FROM the old tagged shape, so a
+  scoped, historical use of `termId` there is correct, not leftover cruft.
+
+Verified against the real account with an actual write through the new code path: added a real
+test course via "Add class manually," confirmed via the Supabase REST API it landed in the current
+term with **no `termId` field on it at all**, current term count went 3→4 while the archived "Fall
+2026 TEST" term stayed exactly 3 courses/34 assignments/7 exams. Deleted it, confirmed clean
+rollback and continued isolation.
+
+Second half of step 6 (removing the old flat top-level `courses`/`assignments`/`exams` fields) is
+separate, later work — not done here.
+
+7 tests updated: `repairTermLinkageIfNeeded`'s 5 tests replaced with `repairDatelessTermIfNeeded`'s
+4 (only the dateless-term case now exists to test); `canDeleteTerm`'s tests updated to the new
+signature (one case — "courses exist but belong to a different term" — is no longer even
+expressible, since a course belonging to another term simply isn't in this term's own array to
+begin with); 2 new tests added for `migrateLegacyTermIfNeeded`'s course-adoption behavior. 362
+tests passing.
+
 ## v2.89.2 — 2026-09-29
 
 **Internal (step 4/6): writes now target the nested per-term course data**

@@ -716,7 +716,6 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
         const info=await CI(c.courseName,null,data.profile?.schoolName);
         course={
           id:uid(),
-          termId:viewingTermId,
           name:prettyCourseCode(c.courseName),
           days:primary?.days||[],
           startTime:primary?.startTime||"09:00",
@@ -1837,10 +1836,12 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
             </p>
 
             {/* Real request: "upload syllabus to create academic plan shall not be activated if no
-                term created." Every course a sync creates is tagged termId:viewingTermId (see
-                syncSyl below) — with no Current term, that's null, producing exactly the orphaned-
-                course state repairTermLinkageIfNeeded exists to heal elsewhere. Blocking upload
-                here instead is the direct fix: nothing to attach a syllabus to until a term exists. */}
+                term created." Every course a sync creates lands in viewedTerm's own nested copy,
+                written via updViewed → applyTermScopedPatch with no explicit target — falling back
+                to whichever term is Current. With no Current term at all, that write has nowhere
+                to route to and silently no-ops (applyTermScopedPatch's own "no current/target
+                term" guard). Blocking upload here instead is the direct fix: nothing to attach a
+                syllabus to until a term exists. */}
             {!currentTerm?(
               <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"20px 0"}}>
                 No term set up yet — add one in School Info before uploading a syllabus.
@@ -2019,7 +2020,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     if(!ncCourse.name)return;
                     if(ncCourse.format!=="async"&&!ncCourse.days.length)return;
                     if(findMatchingCourse(termCourses,ncCourse.name)){toast2("A course with that name already exists",true);return;}
-                    upd({courses:[...termCourses,{...ncCourse,name:prettyCourseCode(ncCourse.name),id:uid(),termId:viewingTermId,color:CC[termCourses.length%CC.length]}]});
+                    upd({courses:[...termCourses,{...ncCourse,name:prettyCourseCode(ncCourse.name),id:uid(),color:CC[termCourses.length%CC.length]}]});
                     setNcCourse({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}

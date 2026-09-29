@@ -23,7 +23,7 @@ import {
   backfillTermsInitializedIfNeeded,
   dedupeItemIdsIfNeeded,
   normalizeCourseNamesIfNeeded,
-  repairTermLinkageIfNeeded,
+  repairDatelessTermIfNeeded,
   syncActiveTermToProfilePatch,
   computeTermStatuses,
   getActiveTermAndSchool,
@@ -313,13 +313,15 @@ function App(){
     if(fix)upd(fix);
   },[data?.courses?.length]); // eslint-disable-line
 
-  // Heal a broken term/course linkage (dateless term, or courses not linked to it) — otherwise the
-  // planner scopes to nothing and the plan comes out empty. See repairTermLinkageIfNeeded.
+  // Heal a dateless term — otherwise the planner can't tell it's "current" and the plan comes out
+  // empty. See repairDatelessTermIfNeeded. (Used to also relink orphan courses to a broken/missing
+  // termId here too — moot since step 6 of the unify-term-course-data refactor, a course's "term"
+  // is which term.courses array it lives in, not a termId that can dangle.)
   useEffect(()=>{
     if(!data)return;
-    const fix=repairTermLinkageIfNeeded(data);
+    const fix=repairDatelessTermIfNeeded(data);
     if(fix)upd(fix);
-  },[data?.terms?.length,data?.courses?.length,data?.profile?.termStart,data?.profile?.termEnd]); // eslint-disable-line
+  },[data?.terms?.length,data?.profile?.termStart,data?.profile?.termEnd]); // eslint-disable-line
 
   // One-time backfill for accounts that already had terms before status became a stored, manually-
   // set field — see migrateTermStatusIfNeeded. Real request: "add a field to manage the term
@@ -353,14 +355,14 @@ function App(){
     if(fix)upd(fix);
   },[data?.terms?.length]); // eslint-disable-line
 
-  // Step 1/6 of the unify-term-course-data refactor (see lib/data/schema.js's COURSE_DATA_KEYS
-  // comment): one-time migration that materializes every term's own nested courses/assignments/
-  // exams for the first time, from the still-authoritative flat termId-tagged arrays. Nothing reads
-  // these nested fields yet (that's step 3) — this purely seeds them so applyTermScopedPatch's
-  // refreshNestedCourseData shim has something to keep fresh from the very next write onward, even
-  // for an account that loads read-only and never triggers a write itself. Runs after
-  // repairTermLinkageIfNeeded (above) so any orphan-termId courses are already correctly linked
-  // before partitioning by termId.
+  // One-time migration (unify-term-course-data refactor, step 1/6 — see lib/data/schema.js's
+  // COURSE_DATA_KEYS comment) that materializes every term's own nested courses/assignments/exams
+  // for the first time, for any account that predates this architecture — from whatever's still
+  // sitting in the old flat arrays. Every real read/write already goes through the nested data
+  // (steps 3-4); this purely seeds it on an account that's never triggered a write of its own
+  // (a read-only visit). Permanently idempotent once every term has its own `courses` field —
+  // kept here as a safety net, same as every other one-time migration in this chain, not removed
+  // once "done" for the one real account.
   useEffect(()=>{
     if(!data)return;
     const fix=migrateCourseDataNestingIfNeeded(data);
