@@ -25,6 +25,14 @@ const STEPS=[
 const IDX=Object.fromEntries(STEPS.map((s,i)=>[s.k,i]));
 
 export function Onboard({data,upd,updP,ai,busy,toast2,setTab,setProgress}){
+  // Step 4/6 of the unify-term-course-data refactor: onboarding's `upd` is the plain, base upd
+  // (App.jsx) — always targets whichever term is CURRENT, no viewedTerm concept here (nothing to
+  // view yet). currentTermCourses/Assignments/Exams read/write against just that term's own
+  // nested slice, same structurally-safe pattern as Acad.jsx's termCourses/etc.
+  const currentTerm=getActiveTermAndSchool(data).term;
+  const currentTermCourses=currentTerm?.courses||[];
+  const currentTermAssignments=currentTerm?.assignments||[];
+  const currentTermExams=currentTerm?.exams||[];
   const [step,setStep]=useState(()=>Math.min(data.profile.onboardStep||0,STEPS.length-1));
   const [sPdf,setSPdf]=useState([]);
   const [sylPdfs,setSylPdfs]=useState([]);
@@ -100,9 +108,9 @@ SCHEDULE:\n${t.slice(0,6000)}`);
     }));
     // Dedup by stable course code (e.g. "DSC10"), not full display name — AI wording varies between
     // calls, but the department+number code is the actual stable identity.
-    const newOnes=courses.filter(c=>!findMatchingCourse(data.courses,c.name));
+    const newOnes=courses.filter(c=>!findMatchingCourse(currentTermCourses,c.name));
     const skipped=courses.length-newOnes.length;
-    upd({courses:[...data.courses,...newOnes]});
+    upd({courses:[...currentTermCourses,...newOnes]});
     setSImported(true);
     setProgress?.(null);
     toast2(skipped>0?`${newOnes.length} classes imported (${skipped} already added, skipped)`:`${newOnes.length} classes imported!`);
@@ -164,7 +172,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
         const{courses:withRecurring}=applyRecurringSeries(reclassified,{termStart:p.termStart,termEnd:p.termEnd});
         const fixed={...parsed,courses:withRecurring};
         setPSyl(fixed);
-        setSylIssues(checkSyllabusExtraction(fixed,{courses:data.courses,termStart:p.termStart,termEnd:p.termEnd,sourceText:texts.join("\n")}).issues);
+        setSylIssues(checkSyllabusExtraction(fixed,{courses:currentTermCourses,termStart:p.termStart,termEnd:p.termEnd,sourceText:texts.join("\n")}).issues);
       }
     }catch{toast2("Couldn't parse",true);}
     setParsing(false);
@@ -179,12 +187,12 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
       // Resolve to an actual course by stable code, not a re-typed string — if the syllabus names
       // a course that wasn't found in the schedule import, skip its items rather than saving an
       // orphan string reference that can never be linked correctly later.
-      const course=findMatchingCourse(data.courses,c.courseName);
+      const course=findMatchingCourse(currentTermCourses,c.courseName);
       if(!course){unmatchedCourses++;return;}
       (c.assignments||[]).forEach((a,i)=>{if(a.dueDate)nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight||null,estimatedHours:a.estimatedHours||2,status:"not-started"});});
       (c.exams||[]).forEach((e,i)=>{if(e.date)nE.push({id:uid(),courseId:course.id,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight||null,prepDays:e.prepDays||7,title:e.title,status:"not-started"});});
     });
-    upd({assignments:[...data.assignments,...nA],exams:[...data.exams,...nE]});
+    upd({assignments:[...currentTermAssignments,...nA],exams:[...currentTermExams,...nE]});
     setSylImported(true);
     toast2(unmatchedCourses>0
       ? `${nA.length} assignments + ${nE.length} exams imported! (${unmatchedCourses} course(s) in syllabus not found in schedule — import your schedule first)`
@@ -318,17 +326,17 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
               </div>
             </div>
           )}
-          {sImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"#fff"}}><i className="ti ti-circle-check" style={{color:"var(--green)"}}/> {data.courses.length} classes imported!</div>}
+          {sImported&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 13px",background:"var(--green-bg)",borderRadius:9,marginBottom:10,fontSize:13,color:"#fff"}}><i className="ti ti-circle-check" style={{color:"var(--green)"}}/> {currentTermCourses.length} classes imported!</div>}
           <details style={{marginTop:10}}>
             <summary style={{padding:"8px 13px",background:"var(--card2)",borderRadius:9,fontSize:13,color:"var(--t2)",marginBottom:8}}>
               <i className="ti ti-pencil" style={{marginRight:7}}/>Add class manually
             </summary>
             <div style={{marginTop:8}}>
-              {data.courses.map((c,i)=>(
+              {currentTermCourses.map((c,i)=>(
                 <div key={c.id} className="list-item" style={{paddingLeft:0}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:c.color.border,flexShrink:0}}/>
                   <div style={{flex:1,fontSize:13,color:"var(--t1)"}}>{c.name}<span style={{color:"var(--t3)",marginLeft:8,fontSize:11}}>{c.days.map(d=>DS[d]).join(",")}</span></div>
-                  <DelBtn onClick={()=>upd({courses:data.courses.filter(x=>x.id!==c.id)})}/>
+                  <DelBtn onClick={()=>upd({courses:currentTermCourses.filter(x=>x.id!==c.id)})}/>
                 </div>
               ))}
               <div className="card" style={{marginTop:8}}>
@@ -363,7 +371,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
                   onClick={()=>{
                     if(!nc.name)return;
                     if(nc.format!=="async"&&!nc.days.length)return;
-                    upd({courses:[...data.courses,{...nc,name:prettyCourseCode(nc.name),id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[data.courses.length%CC.length]}]});
+                    upd({courses:[...currentTermCourses,{...nc,name:prettyCourseCode(nc.name),id:uid(),termId:getActiveTermAndSchool(data).term?.id||null,color:CC[currentTermCourses.length%CC.length]}]});
                     setNc({name:"",days:[],startTime:"09:00",endTime:"10:30",difficulty:5,weeklyHours:4,format:"in-person"});
                     toast2("Class added");
                   }}
@@ -375,7 +383,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
           </details>
           <div className="row" style={{marginTop:14}}>
             <button className="btn btn-ghost" onClick={()=>go(IDX.term)}><i className="ti ti-arrow-left"/></button>
-            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.syllabi)} disabled={!data.courses.length&&!sImported}>Continue <i className="ti ti-arrow-right"/></button>
+            <button className="btn btn-action" style={{flex:1}} onClick={()=>go(IDX.syllabi)} disabled={!currentTermCourses.length&&!sImported}>Continue <i className="ti ti-arrow-right"/></button>
             <button className="btn btn-ghost btn-sm" onClick={()=>go(IDX.syllabi)}>Skip</button>
           </div>
         </div>
@@ -544,8 +552,8 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
           <p style={{marginBottom:20,lineHeight:1.7}}>Your assistant knows your classes, deadlines, gym schedule, and how you study best.</p>
           <div className="card" style={{textAlign:"left",maxWidth:340,margin:"0 auto 20px"}}>
             {[
-              [`${data.courses.length} classes configured`,"ti-school"],
-              [`${data.assignments.length} assignments + ${data.exams.length} exams`,"ti-calendar"],
+              [`${currentTermCourses.length} classes configured`,"ti-school"],
+              [`${currentTermAssignments.length} assignments + ${currentTermExams.length} exams`,"ti-calendar"],
               [`${(p.gymDays||GYM0).filter(g=>g.on).length} gym days/week`,"ti-barbell"],
               [`${p.focusMins}min focus · ${f12(p.energyPeakTime)} peak`,"ti-brain"],
               [p.schoolName,"ti-building"],

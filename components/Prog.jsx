@@ -18,7 +18,7 @@ import { StatCard, SecHead, Sp } from "@/components/shared";
 // Courses (courses/assignments/exams are flat arrays spanning every term by design, filtered by
 // whoever reads them — this wasn't a violation of per-term data isolation, just a gap in this one
 // file that predates it).
-export function Prog({data,upd,rawData,toast2,ai,busy,backTo,onBack}){
+export function Prog({data,upd,toast2,ai,busy,backTo,onBack}){
   const logs=data.dailyLogs||[],gymLogs=data.gymLogs||[],p=data.profile;
   const td=iso(),gymD=(p.gymDays||GYM0).filter(g=>g.on),gymTarget=gymD.length;
   const streak=(()=>{let s=0;for(let i=0;i<30;i++){const d=iso(new Date(Date.now()-i*864e5));const l=logs.find(x=>x.date===d);if(l&&l.completed?.length>0)s++;else if(i>0)break;}return s;})();
@@ -86,13 +86,18 @@ export function Prog({data,upd,rawData,toast2,ai,busy,backTo,onBack}){
       // completedAt stamps the first time an assignment goes done — needed for the On-time
       // Assignments metric (Today.jsx) to tell on-time from late. This flow is one-way (no
       // unmark-done control exists), so a guarded set is enough — never overwritten once set.
-      // Real, audit-caught CRITICAL bug: this used to map over `data.assignments` — but `data` here
-      // is the VIEWED term's already-filtered projection (viewedData), not the real full array.
-      // Writing that filtered subset back as "assignments" would have silently replaced the WHOLE
-      // stored array with only the viewed term's items, deleting every other term's assignments on
-      // the very first check-in submitted. Maps over rawData (the true, complete, unfiltered array)
-      // instead — every id not in doneA (including every other term's) passes through untouched.
-      ...(doneA.size?{assignments:rawData.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
+      // Step 4/6 of the unify-term-course-data refactor: maps over data.assignments (viewedData's
+      // own nested slice, since step 3) — upd (updViewed) routes the write into that SAME term via
+      // targetTermId, through applyTermScopedPatch's COURSE_DATA_KEYS handling. Safe because `comp`
+      // (and so `doneA`) is built from `tasks`, itself derived from this same already-scoped
+      // `data.assignments` — an id from another term is never in play here to begin with.
+      //
+      // Before this: mapped over `rawData` (the true, unfiltered array) instead — a real, audit-
+      // caught bug meant writing the viewed term's filtered subset back through the OLD flat,
+      // non-scoped assignments mechanism would have silently replaced the WHOLE stored array with
+      // only the viewed term's items. COURSE_DATA_KEYS routing makes that class of mistake
+      // structurally impossible now, here and everywhere else it was converted.
+      ...(doneA.size?{assignments:data.assignments.map(a=>doneA.has(a.id)?{...a,status:"done",completedAt:a.completedAt||new Date().toISOString()}:a)}:{}),
     });
     const savedMsg=caughtCount?`Check-in saved — ${caughtCount} session${caughtCount!==1?"s":""} caught up! 🎯`:"Check-in saved! 🎯";
     if(existingFeedback){

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { computeTermStatuses, datesOverlap, TERM_DATA_DEFAULTS } from "@/lib/data";
+import { computeTermStatuses, datesOverlap, TERM_DATA_DEFAULTS, COURSE_DATA_DEFAULTS } from "@/lib/data";
 import { fetchCollegeCalendar } from "@/lib/colleges";
 import { Sp, CollegeAutocomplete, useConfirm } from "@/components/shared";
 
@@ -104,24 +104,20 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // terms.js), so resetting is just setting THIS term's copy back to empty — no more date-range
   // scrubbing of a shared flat store needed, whether or not t happens to be the current term.
   async function resetTermData(t){
-    // Step 3/6 of the unify-term-course-data refactor: counts/ids read from t's own NESTED
-    // courses/assignments/exams (kept fresh by refreshNestedCourseData, step 1) instead of
-    // filtering the flat, termId-tagged arrays by hand. termCourseIds is still needed below for
-    // the WRITE, which still operates on the full flat arrays — write-side conversion is step 4,
-    // not done yet.
-    const termCourseIds=new Set((t.courses||[]).map(c=>c.id));
-    const courseCount=termCourseIds.size;
+    // Step 4/6 of the unify-term-course-data refactor: counts read from t's own nested
+    // courses/assignments/exams directly. The actual reset below writes a complete new `t` object
+    // (TERM_DATA_DEFAULTS + COURSE_DATA_DEFAULTS both spread in) as a single `terms` patch — NOT
+    // separate top-level courses/assignments/exams keys, because applyTermScopedPatch's "terms in
+    // patch" branch short-circuits before its COURSE_DATA_KEYS routing ever runs; a combined patch
+    // would silently leave t's nested course data untouched. Building the reset term object
+    // directly sidesteps that entirely — no scoped-key routing needed for this case.
+    const courseCount=(t.courses||[]).length;
     const assignmentCount=(t.assignments||[]).length;
     const examCount=(t.exams||[]).length;
     if(!courseCount&&!assignmentCount&&!examCount){toast2(`"${t.name}" has no academic data to reset — it's already empty.`);return;}
     const ok=await confirm(`Reset "${t.name}" back to empty? This permanently erases ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} for this term only — like it was just created. Other terms are never touched.`,{confirmLabel:"Reset",confirmIcon:"ti-eraser"});
     if(!ok)return;
-    upd({
-      courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
-      assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
-      exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-      terms:data.terms.map(x=>x.id===t.id?{...x,...TERM_DATA_DEFAULTS}:x),
-    });
+    upd({terms:data.terms.map(x=>x.id===t.id?{...x,...TERM_DATA_DEFAULTS,...COURSE_DATA_DEFAULTS}:x)});
     toast2(`"${t.name}" reset — back to a clean, newly-created term.`);
   }
 
@@ -142,22 +138,17 @@ export function SchoolInfo({data,upd,updP,toast2}){
       toast2(`"${t.name}" is your Current term, so it can't be deleted directly. Change its status first (Change Status → Upcoming or Archive), then delete it.`,true);
       return;
     }
-    // Step 3/6: same nested-read conversion as resetTermData above.
-    const termCourseIds=new Set((t.courses||[]).map(c=>c.id));
-    const courseCount=termCourseIds.size;
+    // Step 4/6: same nested-read conversion as resetTermData above.
+    const courseCount=(t.courses||[]).length;
     const assignmentCount=(t.assignments||[]).length;
     const examCount=(t.exams||[]).length;
     const dataWarning=courseCount?` This also permanently deletes ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} attached to it.`:"";
     const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
     if(!ok)return;
-    // No separate scrub needed for studyPlan/completionLog/pomodoroLogs/etc — each term owns its
-    // own isolated copy now, so removing the term object below removes its data with it.
-    upd({
-      terms:data.terms.filter(x=>x.id!==t.id),
-      courses:data.courses.filter(c=>!termCourseIds.has(c.id)),
-      assignments:data.assignments.filter(a=>!termCourseIds.has(a.courseId)),
-      exams:data.exams.filter(e=>!termCourseIds.has(e.courseId)),
-    });
+    // No separate scrub needed for studyPlan/completionLog/pomodoroLogs/etc, OR (step 4/6) for
+    // courses/assignments/exams — every one of those now lives nested INSIDE the term object, so
+    // removing the term object below removes all of its data with it, no separate keys needed.
+    upd({terms:data.terms.filter(x=>x.id!==t.id)});
     toast2(`"${t.name}" deleted.`);
   }
 
@@ -234,7 +225,7 @@ export function SchoolInfo({data,upd,updP,toast2}){
       // moment it exists (see applyTermScopedPatch, lib/data/terms.js) — a real, separate object,
       // not a date-range view of shared data, so it can't inherit anything from any other term
       // regardless of whether its dates happen to overlap one. No scrubbing needed anymore.
-      const newTerm={id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming",...TERM_DATA_DEFAULTS};
+      const newTerm={id:"term_"+Date.now(),schoolId,name:newName||"New term",type:newType,start:newStart,end:newEnd,holidays:newHolidays,source:newSource,fetchedAt:newSource?new Date().toISOString():null,status:"upcoming",...TERM_DATA_DEFAULTS,...COURSE_DATA_DEFAULTS};
       patch.terms=[...(data.terms||[]),newTerm];
       // Permanently marks this account as having entered the real terms system, so
       // migrateLegacyTermIfNeeded can never resurrect a deleted term from stale profile fields
