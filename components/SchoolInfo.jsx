@@ -104,10 +104,15 @@ export function SchoolInfo({data,upd,updP,toast2}){
   // terms.js), so resetting is just setting THIS term's copy back to empty — no more date-range
   // scrubbing of a shared flat store needed, whether or not t happens to be the current term.
   async function resetTermData(t){
-    const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
+    // Step 3/6 of the unify-term-course-data refactor: counts/ids read from t's own NESTED
+    // courses/assignments/exams (kept fresh by refreshNestedCourseData, step 1) instead of
+    // filtering the flat, termId-tagged arrays by hand. termCourseIds is still needed below for
+    // the WRITE, which still operates on the full flat arrays — write-side conversion is step 4,
+    // not done yet.
+    const termCourseIds=new Set((t.courses||[]).map(c=>c.id));
     const courseCount=termCourseIds.size;
-    const assignmentCount=data.assignments.filter(a=>termCourseIds.has(a.courseId)).length;
-    const examCount=data.exams.filter(e=>termCourseIds.has(e.courseId)).length;
+    const assignmentCount=(t.assignments||[]).length;
+    const examCount=(t.exams||[]).length;
     if(!courseCount&&!assignmentCount&&!examCount){toast2(`"${t.name}" has no academic data to reset — it's already empty.`);return;}
     const ok=await confirm(`Reset "${t.name}" back to empty? This permanently erases ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} for this term only — like it was just created. Other terms are never touched.`,{confirmLabel:"Reset",confirmIcon:"ti-eraser"});
     if(!ok)return;
@@ -137,10 +142,11 @@ export function SchoolInfo({data,upd,updP,toast2}){
       toast2(`"${t.name}" is your Current term, so it can't be deleted directly. Change its status first (Change Status → Upcoming or Archive), then delete it.`,true);
       return;
     }
-    const termCourseIds=new Set(data.courses.filter(c=>c.termId===t.id).map(c=>c.id));
+    // Step 3/6: same nested-read conversion as resetTermData above.
+    const termCourseIds=new Set((t.courses||[]).map(c=>c.id));
     const courseCount=termCourseIds.size;
-    const assignmentCount=data.assignments.filter(a=>termCourseIds.has(a.courseId)).length;
-    const examCount=data.exams.filter(e=>termCourseIds.has(e.courseId)).length;
+    const assignmentCount=(t.assignments||[]).length;
+    const examCount=(t.exams||[]).length;
     const dataWarning=courseCount?` This also permanently deletes ${courseCount} course${courseCount!==1?"s":""}, ${assignmentCount} assignment${assignmentCount!==1?"s":""}, and ${examCount} exam${examCount!==1?"s":""} attached to it.`:"";
     const ok=await confirm(`Delete "${t.name}" (${t.start} – ${t.end})?${dataWarning} This can't be undone.`,{confirmLabel:"Delete",confirmIcon:"ti-trash"});
     if(!ok)return;

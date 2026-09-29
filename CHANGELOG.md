@@ -1,5 +1,34 @@
 # StudyOS Changelog
 
+## v2.89.1 — 2026-09-29
+
+**Internal (step 3/6): reads now use the nested per-term course data — no behavior change**
+
+Step 3 of the unify-term-course-data refactor (step 1: v2.89.0). Converts every read call site to
+pull `courses`/`assignments`/`exams` from a term's own nested copy (populated in step 1) instead of
+live-filtering the flat, `termId`-tagged arrays. Writes are untouched — still the old flat arrays —
+that's step 4.
+
+`termScopedForPlanning` was the real choke point: it's the single function 6 independent read call
+sites already funneled through (`projectTermForPlanning` — and through it `Today`/`Week`/`Prog`'s
+`viewedData` — plus the planner, calendar build, `planningRange`, `planDiagnostics`, notifications,
+the daily-summary cron route), so swapping its internals converted all of them in one place, no
+per-file changes needed. The two remaining read sites that bypassed it entirely — `Acad.jsx`'s own
+local `viewingTermId` filtering, and `SchoolInfo.jsx`'s two duplicated inline filters (used for its
+Reset/Delete confirm-dialog counts) — were converted directly to read `viewedTerm.courses` /
+`t.courses` etc.
+
+Verified against the real account, not just tests: School Info's Delete confirmation for the
+archived "Fall 2026 TEST" term now reads "3 courses, 34 assignments, and 7 exams" — exact match to
+step 1's independently-verified real-account numbers, sourced through the entirely new read path
+this time. Courses tab and Calendar render identically to before. Cancelled the delete — no data
+touched.
+
+9 tests updated/added in `lib/data/terms.js` (3 fixtures updated to carry realistic post-migration
+nested data; 2 new edge-case tests for `termScopedForPlanning` — a stale passed-in term reference
+re-resolves against live data, a genuinely detached term falls back to its own fields). 365 tests
+passing.
+
 ## v2.89.0 — 2026-09-29
 
 **Internal (step 1/6): courses/assignments/exams now also stored nested per term — no behavior change yet**

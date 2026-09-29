@@ -417,11 +417,17 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // Read-only, scoped to whichever term is being viewed — used for everything the student SEES
   // (lists, dropdowns, counts, GPA). Every save/delete operation below continues to use the full
   // data.courses/assignments/exams directly, since replacing those arrays with a term-filtered
-  // subset would silently drop every other term's data on the next save.
-  const termCourses=data.courses.filter(c=>c.termId===viewingTermId);
+  // subset would silently drop every other term's data on the next save (write-side conversion is
+  // step 4 of the unify-term-course-data refactor — not done yet).
+  //
+  // Step 3/6: reads viewedTerm's own NESTED courses/assignments/exams (kept fresh by
+  // refreshNestedCourseData, step 1) instead of locally filtering the flat, termId-tagged arrays by
+  // viewingTermId — same result (viewedTerm is derived fresh from data.terms every render in
+  // App.jsx), no longer a scan over every course/assignment/exam in the whole account.
+  const termCourses=viewedTerm?.courses||[];
   const termCourseIds=new Set(termCourses.map(c=>c.id));
-  const termAssignments=data.assignments.filter(a=>termCourseIds.has(a.courseId));
-  const termExams=data.exams.filter(e=>termCourseIds.has(e.courseId));
+  const termAssignments=viewedTerm?.assignments||[];
+  const termExams=viewedTerm?.exams||[];
 
   const missing=termAssignments.filter(a=>!a.dueDate&&a.status!=="done");
   function sortAssignments(list){
