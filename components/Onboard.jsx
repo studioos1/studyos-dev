@@ -131,6 +131,7 @@ CRITICAL RULES:
 11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
 12. Also extract the instructor and any teaching assistant(s), if the syllabus states them (commonly near the top, in a "Course Staff", "Instructor(s)", "Teaching Team", or "Contacts" section) — "instructor" (the primary instructor's name, or null if not stated) and "ta" (name(s) of TA(s)/tutors, comma-separated if multiple, or null if not stated) on the course object, alongside courseName. Never guess a name that isn't explicitly written in the document.
 13. If an exam's own start/end time is stated (not the regular lecture time — an actual scheduled exam time, e.g. "Final Exam: Dec 8, 3:00-6:00 PM" or a finals-week schedule table), include BOTH "startTime" and "endTime" on that exam in 24-hour HH:MM format (e.g. "15:00" and "18:00"). Shown on the calendar and used to avoid scheduling study time too soon after a student finishes taking that exam. Leave both null if no time is stated — never guess one from the course's regular class time, and never fill in just one of the two (they're a pair — either the document states a real start AND end, or neither).
+14. If an assignment's due TIME is explicitly stated (e.g. "due by 11:59 PM", "submit before 5:00 PM on Canvas") — not just a date — include "dueTime" on that assignment in 24-hour HH:MM format (e.g. "23:59"). Leave it null if only a date is stated with no time mentioned at all — never guess a conventional end-of-day time on the assignment's behalf; the app applies its own fallback display for that case, it does not need you to fill it in.
 
 Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","instructor":"Dr. Jane Smith","ta":"Alex Chen, Priya Patel","meetingTimes":[
@@ -144,7 +145,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Problem Set 5","dueDate":"2026-10-30","estimatedHours":2,"weight":3},
   {"title":"Problem Set 6","dueDate":"2026-11-06","estimatedHours":2,"weight":3},
   {"title":"Problem Set 7","dueDate":"2026-11-13","estimatedHours":2,"weight":3},
-  {"title":"Problem Set 8","dueDate":"2026-12-04","estimatedHours":2,"weight":3}
+  {"title":"Problem Set 8","dueDate":"2026-12-04","dueTime":"23:59","estimatedHours":2,"weight":3}
 ],"exams":[
   {"title":"Reading Quiz 1","date":"2026-09-28","topics":"Ch 1","prepDays":2,"weight":2},
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
@@ -180,7 +181,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(Math.min(sylPdfs.length,
       // orphan string reference that can never be linked correctly later.
       const course=findMatchingCourse(data.courses,c.courseName);
       if(!course){unmatchedCourses++;return;}
-      (c.assignments||[]).forEach((a,i)=>{if(a.dueDate)nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight||null,estimatedHours:a.estimatedHours||2,status:"not-started"});});
+      (c.assignments||[]).forEach((a,i)=>{if(a.dueDate)nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight||null,estimatedHours:a.estimatedHours||2,status:"not-started"});});
       (c.exams||[]).forEach((e,i)=>{if(e.date)nE.push({id:uid(),courseId:course.id,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight||null,prepDays:e.prepDays||7,title:e.title,status:"not-started"});});
     });
     upd({assignments:[...data.assignments,...nA],exams:[...data.exams,...nE]});
