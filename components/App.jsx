@@ -676,6 +676,16 @@ function App(){
   // term's own assignments; counting across every term here would show a number that didn't match
   // what clicking through actually revealed.
   const missing=viewedData.assignments.filter(a=>!a.dueDate&&a.status!=="done").length;
+  // Assumed-time count — a SEPARATE, deliberately distinct alert from `missing` above: these items
+  // DO have a real date, just no real time the syllabus stated, so the calendar is showing a
+  // placeholder (exam: 9-11am; assignment: 11:59pm — see lib/calendar/build.js's timeAssumed flag)
+  // rather than the syllabus's actual stated time. Stays visible until the student fills in the
+  // real time (or confirms the placeholder) via the exam/assignment edit form in Academics — same
+  // "persistent until fixed" pattern as `missing`, same click-through destination. Only counts
+  // still-relevant items: upcoming/dateless exams (a past exam's placeholder no longer matters) and
+  // not-yet-done assignments (mirrors `missing`'s own status filter).
+  const assumedTimeCount=viewedData.exams.filter(e=>(!e.date||e.date>=td)&&!(e.startTime&&e.endTime)).length
+    +viewedData.assignments.filter(a=>a.dueDate&&!a.dueTime&&a.status!=="done").length;
   const checkedInToday=(data.dailyLogs||[]).some(l=>l.date===td);
   const notifLog=data.notifications||[];
   const unreadCount=notifLog.filter(n=>!n.read).length;
@@ -812,6 +822,7 @@ function App(){
               UPCOMING'... in mobile view we need to display this in one line under 'STUDYOS'." */}
           <div className="topbar-term-inline">{renderTermBadge()}</div>
           {missing>0&&<span className="badge badge-amber topbar-missing" style={{cursor:"pointer"}} onClick={()=>go("acad")}>⚠ {missing} missing due date{missing>1?"s":""}</span>}
+          {assumedTimeCount>0&&<span className="tt badge badge-amber topbar-missing" data-tt="Calendar is showing a placeholder time — the real syllabus didn't state one. Click to review and fill it in." style={{cursor:"pointer"}} onClick={()=>go("acad")}>⏱ {assumedTimeCount} assumed time{assumedTimeCount>1?"s":""}</span>}
           {/* The "click to report complete" text + × only appear once the nudge is actually
               active — the icon itself (below, in the right-hand icon group) is always there. */}
           {nudgeShown&&(

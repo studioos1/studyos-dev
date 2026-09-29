@@ -142,7 +142,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                   const LANE_STEP=BLOCK_H+LABEL_H+GAP+4; // vertical space each stacked lane needs
                   const bottom=BASELINE-(b.lane*LANE_STEP); // bar's bottom edge — lane 0 sits ON the baseline
                   const containerTop=bottom-BLOCK_H-LABEL_H-GAP;
-                  const tooltip=`${f12(m2t(b.s))} – ${f12(m2t(b.e))} · ${b.label}${b.autoMoved?" — auto-shifted to avoid a class/exam conflict":""}${b.completed?" ✓ completed":""}`;
+                  const tooltip=`${f12(m2t(b.s))} – ${f12(m2t(b.e))} · ${b.label}${b.autoMoved?" — auto-shifted to avoid a class/exam conflict":""}${b.completed?" ✓ completed":""}${b.timeAssumed?" — time not stated in the syllabus, placeholder shown":""}`;
                   const posPct=(b.s-START*60)/TOTAL*100;
                   const ttClass=posPct>75?"tt tt-right":posPct<15?"tt tt-left":"tt";
                   const editable=!!b.id&&dateStr>=todayStr; // only real (id-bearing) blocks, and only on today-or-later — past days are read-only history
@@ -166,7 +166,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                           paddingLeft:3,marginBottom:GAP,
                           whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%",
                         }}>
-                          {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.label}
+                          {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.timeAssumed&&"⏱ "}{b.label}
                         </div>
                       )}
                       {STUDY_KINDS.has(b.type)?(
@@ -194,7 +194,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                   const course=data.courses.find(c=>c.id===b.courseId);
                   const courseName=course?course.name:"(unknown course)";
                   const dueLabel=f12(m2t(b.dueMin));
-                  const tooltip=`${courseName} · ${b.title} · Due ${dueLabel}`;
+                  const tooltip=`${courseName} · ${b.title} · Due ${dueLabel}${b.timeAssumed?" (assumed — no time stated in the syllabus)":""}`;
                   const posPct=(b.s-START*60)/TOTAL*100;
                   const ttClass=posPct>75?"tt tt-right":posPct<15?"tt tt-left":"tt";
                   return(
@@ -212,7 +212,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                         background:"#c04020",
                         transform:"rotate(45deg)",
                         borderRadius:2,
-                        boxShadow:"0 0 0 2px var(--card)",
+                        boxShadow:b.timeAssumed?"0 0 0 2px var(--card), 0 0 0 3.5px var(--amber)":"0 0 0 2px var(--card)",
                       }}/>
                     </div>
                   );

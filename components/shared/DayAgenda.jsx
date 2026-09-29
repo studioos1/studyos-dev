@@ -34,6 +34,10 @@ export function DayAgenda({data,dateStr}){
               </div>
               <div style={{flex:1,minWidth:0,fontSize:14,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {b.completed&&"✓ "}{b.autoMoved&&"↻ "}{b.label}
+                {b.timeAssumed&&(b.type==="exam"||isDeadline)&&(
+                  <i className="ti ti-clock-exclamation tt" data-tt="Time not found in the syllabus — this is a placeholder. Edit the real time in Academics."
+                    style={{fontSize:12,color:"var(--amber)",marginLeft:6}}/>
+                )}
               </div>
             </div>
           );

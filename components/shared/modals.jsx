@@ -50,11 +50,11 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
         // field/list `dup` itself actually lives on. A cross-type hit (this looks like an exam
         // already saved) can't be safely replaced in place — an assignment's fields
         // (weight/estimatedHours) don't line up with an exam's (topics/prepDays).
-        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"dueDate"):null,dupExistingType:dup?(dup._crossType?"exam":"homework"):null,existingChecked:!!dup,newChecked:!dup});
+        out.push({key:`a_${ci}_${ai}`,courseName:c.courseName,type:"homework",title:a.title,date:a.dueDate,dueTime:a.dueTime||null,weight:a.weight??null,estimatedHours:a.estimatedHours,topics:null,prepDays:null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"dueDate"):null,dupExistingType:dup?(dup._crossType?"exam":"homework"):null,existingChecked:!!dup,newChecked:!dup});
       });
       (c.exams||[]).forEach((e,ei)=>{
         const dup=course?findProbableDuplicate(existingExams,course.id,e.title,e.date,"date",existingAssignments,"dueDate"):null;
-        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,endTime:e.endTime||null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"date"):null,dupExistingType:dup?(dup._crossType?"homework":"exam"):null,existingChecked:!!dup,newChecked:!dup});
+        out.push({key:`e_${ci}_${ei}`,courseName:c.courseName,type:"exam",title:e.title,date:e.date,weight:e.weight??null,estimatedHours:null,topics:e.topics||"",prepDays:e.prepDays||7,startTime:e.startTime||null,endTime:e.endTime||null,dup,dupDateField:dup?(dup._crossType?dup._crossDateField:"date"):null,dupExistingType:dup?(dup._crossType?"homework":"exam"):null,existingChecked:!!dup,newChecked:!dup});
       });
     });
     return out;
@@ -111,9 +111,9 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
         (r.existingChecked?addedItems:replacedItems).push({courseName:r.courseName,title:r.title,date:r.date});
         if(!byCourse[r.courseName])byCourse[r.courseName]={courseName:r.courseName,assignments:[],exams:[]};
         if(r.type==="homework"){
-          byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
+          byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,dueTime:r.dueTime||null,weight:r.weight,estimatedHours:r.estimatedHours||2,...dupMeta});
         }else{
-          byCourse[r.courseName].exams.push({title:r.title,date:r.date,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
+          byCourse[r.courseName].exams.push({title:r.title,date:r.date,startTime:r.startTime||null,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7,...dupMeta});
         }
         return;
       }
@@ -121,9 +121,9 @@ export function ExtractionVerifyModal({parsed,courses,termStart,termEnd,existing
       addedItems.push({courseName:r.courseName,title:r.title,date:r.date});
       if(!byCourse[r.courseName])byCourse[r.courseName]={courseName:r.courseName,assignments:[],exams:[]};
       if(r.type==="homework"){
-        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,weight:r.weight,estimatedHours:r.estimatedHours||2});
+        byCourse[r.courseName].assignments.push({title:r.title,dueDate:r.date,dueTime:r.dueTime||null,weight:r.weight,estimatedHours:r.estimatedHours||2});
       }else{
-        byCourse[r.courseName].exams.push({title:r.title,date:r.date,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
+        byCourse[r.courseName].exams.push({title:r.title,date:r.date,startTime:r.startTime||null,endTime:r.endTime||null,weight:r.weight,topics:r.topics||"",prepDays:r.prepDays||7});
       }
     });
     // Preserve meetingTimes from the original parse untouched — this screen only verifies duties.

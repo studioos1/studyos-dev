@@ -1,5 +1,87 @@
 # StudyOS Changelog
 
+## v2.88.49 — 2026-09-29
+
+**Assumed exam/assignment times are now marked on the calendar, and flagged until fixed**
+
+Real request, direct follow-up to v2.88.48's exam-time fix: "we should use the REAL time and REAL
+dates from syllabus reading. If not exist - we shall place it on calendar with assumption and mark
+it for user to notice. I would also create an alert until user fix it." Scoped via a clarifying
+question to TIME only — the existing "never invent a date" rule is untouched; only *time* ever gets
+a marked placeholder.
+
+Four parts, all live-verified against the real account with zero data mutated:
+
+1. **Extraction now also captures an assignment's due TIME**, not just its date, when the syllabus
+   states one (e.g. "due by 11:59 PM") — new rule 14 in the extraction prompt (all three upload call
+   sites: `Acad.jsx`'s `syncSyl`/`rawExtract`, `Onboard.jsx`'s `parseSyl`), threaded through every
+   save path `startTime`/`endTime` already went through (`ExtractionVerifyModal`'s row init and
+   `buildPlan()`, `finalizeSync`'s `nA.push`/`replaceAssignments.set`, `Onboard.jsx`'s `nA.push`).
+   Same discipline as always: never guessed, left `null` when genuinely unstated.
+2. **Calendar visually marks any block using a fallback time**, not a real one — `lib/calendar/
+   build.js` now returns `timeAssumed:true` on the exam block (no real `startTime`+`endTime` pair)
+   and the assignment deadline marker (no real `dueTime`) whenever it falls back to the 9-11am /
+   11:59pm placeholder. Surfaced in every calendar view that renders these: WeekGrid (⏱ prefix on
+   the exam bar's label, an amber ring around the assignment-due diamond, both with an updated
+   tooltip spelling out "time not stated in the syllabus, placeholder shown"), Timeline (same ⏱
+   marker + amber ring, same tooltip), and DayAgenda (a small clock-exclamation icon with the same
+   tooltip, used by Today's "View day calendar" and Calendar's own day-detail pane).
+3. **A new persistent header badge** — "⏱ N assumed times" — next to the existing "⚠ N missing due
+   dates" one, deliberately kept separate rather than merged into it: `missing` counts items with NO
+   date at all, this counts items that DO have a real date but a placeholder time. Counts upcoming/
+   dateless exams missing a real `startTime`+`endTime` pair, plus not-done assignments with a
+   `dueDate` but no `dueTime` — same "stays visible until fixed, click through to Academics"
+   pattern as `missing` already established.
+4. **Manual fix**: Start time/End time fields added to the exam add/edit forms, Due time added to
+   the assignment add/edit forms (both in `components/Acad.jsx`) — reusing the existing `g2`/`g3`
+   grid layouts already in place, each labeled "(if known)" so leaving it blank is clearly a valid,
+   deliberate choice, not an omission.
+
+**Real, honest finding from live-testing against the account, worth knowing going in:** the new
+badge showed **77** assumed times on first load — the overwhelming majority are assignments, since
+most real syllabi simply never state a due *time* (just a date), only a handful are exams. This is
+accurate, not a bug — but it means the badge will realistically stay "on" almost permanently for
+most terms unless assignments are manually filled in one by one, which may or may not be the
+experience actually wanted here. Flagging this rather than silently shipping a badge that reads as
+broken because it never goes away — worth a real decision (e.g. scoping the badge/marker to exams
+only, since that's the case that actually affects where something lands on the calendar; an
+assignment's due-time marker is a much lower-stakes milestone position) rather than assuming the
+current all-items scope is right.
+
+New/extended test coverage: `lib/calendar/build.test.js` gained 4 tests (`timeAssumed:true/false` on
+the exam block; the assignment deadline marker's real-`dueTime` vs 11:59pm-fallback cases). Full
+suite: 356 tests passing.
+
+## v2.88.48 — 2026-09-28
+
+**Fix: the exam calendar block always showed 9:00-11:00am, ignoring the syllabus's real time**
+
+Real, reported case: a student correctly noticed their calendar showed a final exam at
+"8:30-11:00am" and asked why, having been told (accurately) that their own syllabus states
+3:00-6:00 PM. Traced to `lib/calendar/build.js`'s `buildBlocks`: the "EXAM: <course>" block was a
+flat, unconditional `s:540,e:660` (9:00-11:00am) for every exam, completely disconnected from any
+real time — including the `endTime` field added in v2.88.47, which only ever fed the planner's
+post-exam-cutoff logic, never the calendar's own rendering. This bug predates that work entirely;
+it's just what finally surfaced it.
+
+Fixed at both ends:
+1. `buildBlocks` now uses the exam's real `startTime`/`endTime` when both are present and valid
+   (falls back to the 9-11am placeholder only when no real time is known — still the common case
+   for older records, or a syllabus that never states one).
+2. The extraction prompt (`lib/syllabus.js`'s rule 13, all three upload call sites) now asks for
+   BOTH `startTime` and `endTime` — v2.88.47 only asked for `endTime`, since the planner-cutoff use
+   case only ever needed the end. Threaded through the same save paths as `endTime` already was
+   (`ExtractionVerifyModal`, `finalizeSync`, `Onboard.jsx`'s `parseSyl`).
+
+New `lib/calendar/build.test.js` (no prior test coverage existed for `buildBlocks` exam rendering
+at all) — 5 tests: real times used when both present, placeholder fallback when neither/only one is
+known, placeholder fallback on reversed/invalid times, and the real exam window is correctly part
+of the protected zone nothing else gets scheduled into.
+
+Known follow-up: a student's ALREADY-SAVED exam that only has the v2.88.47-era `endTime` (no
+`startTime`) still shows the 9-11am placeholder until a fresh re-sync captures both — re-uploading
+the syllabus (or waiting for the next natural sync) backfills it correctly.
+
 ## v2.88.47 — 2026-09-28
 
 **Planner: back-to-back exams no longer lose the day between them**

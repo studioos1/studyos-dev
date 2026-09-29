@@ -138,9 +138,9 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const [showAddAssign,setShowAddAssign]=useState(false);
   const [showAddExam,setShowAddExam]=useState(false);
   const [editId,setEditId]=useState(null);
-  const [na,setNa]=useState({course:"",title:"",dueDate:"",estimatedHours:2,status:"not-started"});
-  const [ed,setEd]=useState({course:"",title:"",dueDate:"",estimatedHours:2}); // separate edit state
-  const [ne,setNe]=useState({course:"",date:"",topics:"",prepDays:7});
+  const [na,setNa]=useState({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2,status:"not-started"});
+  const [ed,setEd]=useState({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2}); // separate edit state
+  const [ne,setNe]=useState({course:"",date:"",startTime:"",endTime:"",topics:"",prepDays:7});
   const [editExamId,setEditExamId]=useState(null);
   const termStatuses=computeTermStatuses(data.terms);
   const currentTerm=termStatuses.find(t=>t.status==="current")||null;
@@ -155,7 +155,7 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   // ORTHOGONAL to the terms' status... It's independent tag and NOT related at all to the
   // functionality of the viewer") — this tab views + edits whichever term is selected in the header
   // dropdown identically, whether it's current, upcoming, or archived.
-  const [ee,setEe]=useState({course:"",topics:"",date:"",prepDays:7});
+  const [ee,setEe]=useState({course:"",topics:"",date:"",startTime:"",endTime:"",prepDays:7});
   const [sylPdfs,setSylPdfs]=useState([]);
   const [syncing,setSyncing]=useState(false);
   const [syncResult,setSyncResult]=useState(null);
@@ -475,15 +475,15 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   function startEdit(a){
     setEditId(a.id);
     const cn=courseNameFor(data.courses,a.courseId);
-    setEd({course:cn!=="(unknown course)"?cn:"",title:a.title||"",dueDate:a.dueDate||"",estimatedHours:a.estimatedHours||2});
+    setEd({course:cn!=="(unknown course)"?cn:"",title:a.title||"",dueDate:a.dueDate||"",dueTime:a.dueTime||"",estimatedHours:a.estimatedHours||2});
     setShowAddAssign(false); // close add form if open
   }
-  function cancelEdit(){setEditId(null);setEd({course:"",title:"",dueDate:"",estimatedHours:2});}
+  function cancelEdit(){setEditId(null);setEd({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2});}
   function saveEdit(){
     if(!ed.title||!ed.course)return;
     const course=findMatchingCourse(termCourses,ed.course);
     if(!course){toast2("Couldn't find that course",true);return;}
-    upd({assignments:data.assignments.map(x=>x.id===editId?{...x,courseId:course.id,title:ed.title,dueDate:ed.dueDate,estimatedHours:ed.estimatedHours}:x)});
+    upd({assignments:data.assignments.map(x=>x.id===editId?{...x,courseId:course.id,title:ed.title,dueDate:ed.dueDate,dueTime:ed.dueTime||null,estimatedHours:ed.estimatedHours}:x)});
     cancelEdit();toast2("Saved!");
   }
   async function addAssignment(){
@@ -491,8 +491,8 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,na.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:na.dueDate},course,"homework");
-    upd({assignments:[...data.assignments,{id:uid(),courseId:course.id,title:na.title,dueDate:na.dueDate,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
-    setNa({course:"",title:"",dueDate:"",estimatedHours:2,status:"not-started"});
+    upd({assignments:[...data.assignments,{id:uid(),courseId:course.id,title:na.title,dueDate:na.dueDate,dueTime:na.dueTime||null,weight:null,estimatedHours:na.estimatedHours,status:"not-started",...est,userHours:na.estimatedHours}]});
+    setNa({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2,status:"not-started"});
     setShowAddAssign(false);toast2("Assignment added!");
   }
   async function addExam(){
@@ -500,22 +500,22 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
     const course=findMatchingCourse(termCourses,ne.course);
     if(!course){toast2("Couldn't find that course",true);return;}
     const est=await computeEstimateFields({weight:null,dueDate:ne.date},course,"exam");
-    upd({exams:[...data.exams,{id:uid(),courseId:course.id,title:ne.title||"",date:ne.date,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
-    setNe({course:"",date:"",topics:"",prepDays:7});
+    upd({exams:[...data.exams,{id:uid(),courseId:course.id,title:ne.title||"",date:ne.date,startTime:ne.startTime||null,endTime:ne.endTime||null,topics:ne.topics||"",weight:null,prepDays:ne.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est}]});
+    setNe({course:"",date:"",startTime:"",endTime:"",topics:"",prepDays:7});
     setShowAddExam(false);toast2("Exam added!");
   }
   function startEditExam(e){
     setEditExamId(e.id);
     const cn=courseNameFor(data.courses,e.courseId);
-    setEe({course:cn!=="(unknown course)"?cn:"",topics:e.topics||"",date:e.date||"",prepDays:e.prepDays||7});
+    setEe({course:cn!=="(unknown course)"?cn:"",topics:e.topics||"",date:e.date||"",startTime:e.startTime||"",endTime:e.endTime||"",prepDays:e.prepDays||7});
     setShowAddExam(false);
   }
-  function cancelEditExam(){setEditExamId(null);setEe({course:"",topics:"",date:"",prepDays:7});}
+  function cancelEditExam(){setEditExamId(null);setEe({course:"",topics:"",date:"",startTime:"",endTime:"",prepDays:7});}
   function saveEditExam(){
     if(!ee.course||!ee.date)return;
     const course=findMatchingCourse(termCourses,ee.course);
     if(!course){toast2("Couldn't find that course",true);return;}
-    upd({exams:data.exams.map(x=>x.id===editExamId?{...x,courseId:course.id,topics:ee.topics,date:ee.date,prepDays:ee.prepDays}:x)});
+    upd({exams:data.exams.map(x=>x.id===editExamId?{...x,courseId:course.id,topics:ee.topics,date:ee.date,startTime:ee.startTime||null,endTime:ee.endTime||null,prepDays:ee.prepDays}:x)});
     cancelEditExam();toast2("Exam updated!");
   }
 
@@ -543,7 +543,8 @@ CRITICAL RULES:
 10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Midterm Project — mentioned but no due date stated anywhere in this document"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array. A category with an explicit recurring weekly day-of-week pattern (e.g. "due every Tuesday") is NOT an extractionNotes case — see rule 11.
 11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
 12. Also extract the instructor and any teaching assistant(s), if the syllabus states them (commonly near the top, in a "Course Staff", "Instructor(s)", "Teaching Team", or "Contacts" section) — "instructor" (the primary instructor's name, or null if not stated) and "ta" (name(s) of TA(s)/tutors, comma-separated if multiple, or null if not stated) on the course object, alongside courseName. Never guess a name that isn't explicitly written in the document.
-13. If an exam's own start/end time is stated (not the regular lecture time — an actual scheduled exam time, e.g. "Final Exam: Dec 8, 3:00-6:00 PM" or a finals-week schedule table), include it on that exam as "endTime" in 24-hour HH:MM format (e.g. "18:00"). Used to avoid scheduling study time too soon after a student finishes taking that exam. Leave it null if no time is stated — never guess one from the course's regular class time.
+13. If an exam's own start/end time is stated (not the regular lecture time — an actual scheduled exam time, e.g. "Final Exam: Dec 8, 3:00-6:00 PM" or a finals-week schedule table), include BOTH "startTime" and "endTime" on that exam in 24-hour HH:MM format (e.g. "15:00" and "18:00"). Shown on the calendar and used to avoid scheduling study time too soon after a student finishes taking that exam. Leave both null if no time is stated — never guess one from the course's regular class time, and never fill in just one of the two (they're a pair — either the document states a real start AND end, or neither).
+14. If an assignment's due TIME is explicitly stated (e.g. "due by 11:59 PM", "submit before 5:00 PM on Canvas") — not just a date — include "dueTime" on that assignment in 24-hour HH:MM format (e.g. "23:59"). Leave it null if only a date is stated with no time mentioned at all — never guess a conventional end-of-day time on the assignment's behalf; the app applies its own fallback display for that case, it does not need you to fill it in.
 
 Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","instructor":"Dr. Jane Smith","ta":"Alex Chen, Priya Patel","meetingTimes":[
@@ -557,12 +558,12 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Problem Set 5","dueDate":"2026-10-30","estimatedHours":2,"weight":3},
   {"title":"Problem Set 6","dueDate":"2026-11-06","estimatedHours":2,"weight":3},
   {"title":"Problem Set 7","dueDate":"2026-11-13","estimatedHours":2,"weight":3},
-  {"title":"Problem Set 8","dueDate":"2026-12-04","estimatedHours":2,"weight":3}
+  {"title":"Problem Set 8","dueDate":"2026-12-04","dueTime":"23:59","estimatedHours":2,"weight":3}
 ],"exams":[
   {"title":"Reading Quiz 1","date":"2026-09-28","topics":"Ch 1","prepDays":2,"weight":2},
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
-  {"title":"Final Exam","date":"2026-12-09","endTime":"18:00","topics":"All chapters","prepDays":7,"weight":30}
+  {"title":"Final Exam","date":"2026-12-09","startTime":"15:00","endTime":"18:00","topics":"All chapters","prepDays":7,"weight":30}
 ],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
@@ -598,7 +599,8 @@ CRITICAL RULES:
 10. Before answering, work through the document's own section headers one at a time (Assignments, Homework, Labs, Quizzes, Exams, Projects, Grading/Grades, Schedule/Calendar, or whatever it actually calls them) — for each, either extract its items or note why you didn't. Return that as "extractionNotes": a short array of strings, one per graded category you did NOT get individually dated items for, saying why (e.g. "Midterm Project — mentioned but no due date stated anywhere in this document"). This is a completeness self-report the student will see, not a place to guess — if you genuinely extracted everything gradeable with a real date, return an empty array. A category with an explicit recurring weekly day-of-week pattern (e.g. "due every Tuesday") is NOT an extractionNotes case — see rule 11.
 11. If the syllabus states a recurring WEEKLY due-day pattern for a category without individual per-item dates (e.g. "Labs are due weekly on Tuesdays", "Homework due Thursdays") — a real stated pattern, not a guess — return it as a "recurringSeries" entry instead of either inventing dates (rule 9) or only noting it in extractionNotes (rule 10): {"title":<singular category name, e.g. "Lab" or "Homework">,"dayOfWeek":<0-6, 0=Sunday>,"weightTotal":<category's total % weight from the grading table, or null if not stated>}. The app deterministically generates the actual dated instances from this pattern — do NOT also list guessed individual dates for the same category in "assignments", and do NOT duplicate it in extractionNotes. Only use this for a genuinely stated weekly pattern with a clear day of week; an irregular or unspecified-day category still only gets an extractionNotes line.
 12. Also extract the instructor and any teaching assistant(s), if the syllabus states them (commonly near the top, in a "Course Staff", "Instructor(s)", "Teaching Team", or "Contacts" section) — "instructor" (the primary instructor's name, or null if not stated) and "ta" (name(s) of TA(s)/tutors, comma-separated if multiple, or null if not stated) on the course object, alongside courseName. Never guess a name that isn't explicitly written in the document.
-13. If an exam's own start/end time is stated (not the regular lecture time — an actual scheduled exam time, e.g. "Final Exam: Dec 8, 3:00-6:00 PM" or a finals-week schedule table), include it on that exam as "endTime" in 24-hour HH:MM format (e.g. "18:00"). Used to avoid scheduling study time too soon after a student finishes taking that exam. Leave it null if no time is stated — never guess one from the course's regular class time.
+13. If an exam's own start/end time is stated (not the regular lecture time — an actual scheduled exam time, e.g. "Final Exam: Dec 8, 3:00-6:00 PM" or a finals-week schedule table), include BOTH "startTime" and "endTime" on that exam in 24-hour HH:MM format (e.g. "15:00" and "18:00"). Shown on the calendar and used to avoid scheduling study time too soon after a student finishes taking that exam. Leave both null if no time is stated — never guess one from the course's regular class time, and never fill in just one of the two (they're a pair — either the document states a real start AND end, or neither).
+14. If an assignment's due TIME is explicitly stated (e.g. "due by 11:59 PM", "submit before 5:00 PM on Canvas") — not just a date — include "dueTime" on that assignment in 24-hour HH:MM format (e.g. "23:59"). Leave it null if only a date is stated with no time mentioned at all — never guess a conventional end-of-day time on the assignment's behalf; the app applies its own fallback display for that case, it does not need you to fill it in.
 
 Example of a CORRECT response shape for a course with 8 weekly assignments and 4 exams — note Reading Quiz 1 is an exam, not an assignment, despite its low weight; Labs have a stated weekly pattern (Tuesdays) so they're a recurringSeries entry, not a guessed date or an extractionNotes line; Midterm Project has no date or pattern at all, so it's an extractionNotes line (yours should look like this in structure, with real data from the syllabus):
 {"courses":[{"courseName":"DSC 10","instructor":"Dr. Jane Smith","ta":"Alex Chen, Priya Patel","meetingTimes":[
@@ -612,12 +614,12 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
   {"title":"Problem Set 5","dueDate":"2026-10-30","estimatedHours":2,"weight":3},
   {"title":"Problem Set 6","dueDate":"2026-11-06","estimatedHours":2,"weight":3},
   {"title":"Problem Set 7","dueDate":"2026-11-13","estimatedHours":2,"weight":3},
-  {"title":"Problem Set 8","dueDate":"2026-12-04","estimatedHours":2,"weight":3}
+  {"title":"Problem Set 8","dueDate":"2026-12-04","dueTime":"23:59","estimatedHours":2,"weight":3}
 ],"exams":[
   {"title":"Reading Quiz 1","date":"2026-09-28","topics":"Ch 1","prepDays":2,"weight":2},
   {"title":"Midterm 1","date":"2026-10-23","topics":"Ch 1-3","prepDays":5,"weight":25},
   {"title":"Midterm 2","date":"2026-11-20","topics":"Ch 4-6","prepDays":5,"weight":25},
-  {"title":"Final Exam","date":"2026-12-09","endTime":"18:00","topics":"All chapters","prepDays":7,"weight":30}
+  {"title":"Final Exam","date":"2026-12-09","startTime":"15:00","endTime":"18:00","topics":"All chapters","prepDays":7,"weight":30}
 ],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
@@ -722,24 +724,24 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
         // Homework⇄Project toggle in Study Preferences.
         const looksLikeProject=/\b(project|capstone|portfolio|thesis|dissertation|term paper|research paper|final paper)\b/i.test(a.title||"");
         if(a._replaceId){
-          replaceAssignments.set(a._replaceId,{title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,...(looksLikeProject?{type:"project"}:{}),...est});
+          replaceAssignments.set(a._replaceId,{title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight??null,estimatedHours:est.aiHours,...(looksLikeProject?{type:"project"}:{}),...est});
           replaced++;itemsByCourse[c.courseName].assignments++;continue;
         }
         const isDup=data.assignments.find(x=>x.courseId===course.id&&norm(x.title)===norm(a.title)&&x.dueDate===a.dueDate);
         if(isDup){skippedDuplicate++;continue;}
-        nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
+        nA.push({id:uid(),courseId:course.id,title:a.title,dueDate:a.dueDate,dueTime:a.dueTime||null,weight:a.weight??null,estimatedHours:est.aiHours,status:"not-started",...(looksLikeProject?{type:"project"}:{}),...est});
         added++;itemsByCourse[c.courseName].assignments++;
       }
       for(const[i,e]of(c.exams||[]).entries()){
         if(!e.date)continue;
         const est=await computeEstimateFields(e,course,"exam");
         if(e._replaceId){
-          replaceExams.set(e._replaceId,{title:e.title,date:e.date,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,estimatedHours:est.aiHours,...est});
+          replaceExams.set(e._replaceId,{title:e.title,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,estimatedHours:est.aiHours,...est});
           replaced++;itemsByCourse[c.courseName].exams++;continue;
         }
         const isDup=data.exams.find(x=>x.courseId===course.id&&x.date===e.date);
         if(isDup){skippedDuplicate++;continue;}
-        nE.push({id:uid(),courseId:course.id,title:e.title,date:e.date,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
+        nE.push({id:uid(),courseId:course.id,title:e.title,date:e.date,startTime:e.startTime||null,endTime:e.endTime||null,topics:e.topics||"",weight:e.weight??null,prepDays:e.prepDays||7,status:"not-started",estimatedHours:est.aiHours,...est});
         added++;itemsByCourse[c.courseName].exams++;
       }
     }
@@ -983,13 +985,14 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                   </div>
                   <div className="g3" style={{marginBottom:12}}>
                     <div><label>Due date</label><input type="date" value={na.dueDate} onChange={e=>setNa(a=>({...a,dueDate:e.target.value}))}/></div>
+                    <div><label>Due time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={na.dueTime} onChange={e=>setNa(a=>({...a,dueTime:e.target.value}))}/></div>
                     <div><label>Est. hours</label><input type="number" min="0.5" max="40" step="0.5" value={na.estimatedHours} onChange={e=>setNa(a=>({...a,estimatedHours:+e.target.value}))}/></div>
                   </div>
                   <div style={{display:"flex",gap:9}}>
                     <button className="btn btn-action" style={{flex:1}} onClick={addAssignment} disabled={!na.title||!na.course}>
                       <i className="ti ti-plus"/> Add Assignment
                     </button>
-                    <button className="btn btn-ghost" onClick={()=>{setShowAddAssign(false);setNa({course:"",title:"",dueDate:"",estimatedHours:2,status:"not-started"});}}>
+                    <button className="btn btn-ghost" onClick={()=>{setShowAddAssign(false);setNa({course:"",title:"",dueDate:"",dueTime:"",estimatedHours:2,status:"not-started"});}}>
                       Cancel
                     </button>
                   </div>
@@ -1056,6 +1059,7 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     </div>
                     <div className="g3" style={{marginBottom:12}}>
                       <div><label>Due date</label><input type="date" value={ed.dueDate} onChange={e=>setEd(x=>({...x,dueDate:e.target.value}))}/></div>
+                      <div><label>Due time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ed.dueTime} onChange={e=>setEd(x=>({...x,dueTime:e.target.value}))}/></div>
                       <div><label>Est. hours</label><input type="number" min="0.5" max="40" step="0.5" value={ed.estimatedHours} onChange={e=>setEd(x=>({...x,estimatedHours:+e.target.value}))}/></div>
                     </div>
                     <div style={{display:"flex",gap:9}}>
@@ -1273,11 +1277,15 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                     <div><label>Exam date</label><input type="date" value={ne.date} onChange={e=>setNe(x=>({...x,date:e.target.value}))}/></div>
                     <div><label>Start prep (days before)</label><input type="number" min="1" max="21" value={ne.prepDays} onChange={e=>setNe(x=>({...x,prepDays:+e.target.value}))}/></div>
                   </div>
+                  <div className="g2" style={{marginBottom:12}}>
+                    <div><label>Start time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ne.startTime} onChange={e=>setNe(x=>({...x,startTime:e.target.value}))}/></div>
+                    <div><label>End time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ne.endTime} onChange={e=>setNe(x=>({...x,endTime:e.target.value}))}/></div>
+                  </div>
                   <div style={{display:"flex",gap:9}}>
                     <button className="btn btn-action" style={{flex:1}} onClick={addExam} disabled={!ne.course||!ne.date}>
                       <i className="ti ti-plus"/> Add Exam
                     </button>
-                    <button className="btn btn-ghost" onClick={()=>{setShowAddExam(false);setNe({course:"",date:"",topics:"",prepDays:7});}}>Cancel</button>
+                    <button className="btn btn-ghost" onClick={()=>{setShowAddExam(false);setNe({course:"",date:"",startTime:"",endTime:"",topics:"",prepDays:7});}}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -1315,6 +1323,10 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                         <div className="g2" style={{marginBottom:12}}>
                           <div><label>Exam date</label><input type="date" value={ee.date} onChange={ev=>setEe(x=>({...x,date:ev.target.value}))}/></div>
                           <div><label>Start prep (days before)</label><input type="number" min="1" max="21" value={ee.prepDays} onChange={ev=>setEe(x=>({...x,prepDays:+ev.target.value}))}/></div>
+                        </div>
+                        <div className="g2" style={{marginBottom:12}}>
+                          <div><label>Start time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.startTime} onChange={ev=>setEe(x=>({...x,startTime:ev.target.value}))}/></div>
+                          <div><label>End time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.endTime} onChange={ev=>setEe(x=>({...x,endTime:ev.target.value}))}/></div>
                         </div>
                         <div style={{display:"flex",gap:9}}>
                           <button className="btn btn-action" style={{flex:1}} onClick={saveEditExam} disabled={!ee.course||!ee.date}>

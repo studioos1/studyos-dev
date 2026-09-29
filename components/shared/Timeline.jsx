@@ -81,7 +81,7 @@ export function Timeline({dateStr,data,upd,studyBlocks=[]}){
             const laneStyle=cl>1
               ?{left:`calc(${(100/cl)*b.lane}% + 3px)`,width:`calc(${100/cl}% - 6px)`}
               :{left:4,right:4};
-            const tooltip=`${f12(m2t(b.s))} – ${f12(m2t(b.e))} · ${b.label}${b.autoMoved?" — auto-shifted to avoid a class/exam conflict":""}${b.completed?" ✓ completed":""}`;
+            const tooltip=`${f12(m2t(b.s))} – ${f12(m2t(b.e))} · ${b.label}${b.autoMoved?" — auto-shifted to avoid a class/exam conflict":""}${b.completed?" ✓ completed":""}${b.timeAssumed?" — time not stated in the syllabus, placeholder shown":""}`;
             const ttClass=cl>1?(b.lane===0?"tt tt-left":b.lane===cl-1?"tt tt-right":"tt"):"tt";
             const canShowLabel=height>=32;
 
@@ -101,7 +101,7 @@ export function Timeline({dateStr,data,upd,studyBlocks=[]}){
                 {canShowLabel&&(
                   <div style={{fontSize:12,color:c.text,lineHeight:1.3,overflow:"hidden",
                     display:"-webkit-box",WebkitLineClamp:Math.max(1,Math.floor((height-16)/15)),WebkitBoxOrient:"vertical"}}>
-                    {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.label}
+                    {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.timeAssumed&&"⏱ "}{b.label}
                   </div>
                 )}
               </div>
@@ -113,15 +113,16 @@ export function Timeline({dateStr,data,upd,studyBlocks=[]}){
             const course=data.courses.find(c=>c.id===b.courseId);
             const courseName=course?course.name:"(unknown course)";
             const dueLabel=f12(m2t(b.dueMin));
-            const tooltip=`${courseName} · ${b.title} · Due ${dueLabel}`;
+            const tooltip=`${courseName} · ${b.title} · Due ${dueLabel}${b.timeAssumed?" (assumed — no time stated in the syllabus)":""}`;
             return(
               <div key={`d${i}`} className="tt" data-tt={tooltip} style={{
                 position:"absolute",top:top-6,left:4,right:4,zIndex:5,
                 display:"flex",alignItems:"center",gap:6,cursor:"default",
               }}>
-                <div style={{width:12,height:12,flexShrink:0,background:"#c04020",transform:"rotate(45deg)",borderRadius:2,boxShadow:"0 0 0 2px var(--bg)"}}/>
+                <div style={{width:12,height:12,flexShrink:0,background:"#c04020",transform:"rotate(45deg)",borderRadius:2,
+                  boxShadow:b.timeAssumed?"0 0 0 2px var(--bg), 0 0 0 3.5px var(--amber)":"0 0 0 2px var(--bg)"}}/>
                 <span style={{fontSize:11,color:"#f08060",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                  Due {dueLabel} — {courseName}: {b.title}
+                  {b.timeAssumed&&"⏱ "}Due {dueLabel} — {courseName}: {b.title}
                 </span>
               </div>
             );
