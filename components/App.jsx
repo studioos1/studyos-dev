@@ -213,7 +213,16 @@ function App(){
   // step 4/6 of the unify-term-course-data refactor, SchoolInfo.jsx's resetTermData/
   // deleteTermEntirely need to target an ARBITRARY term (whichever the student clicked Reset/
   // Delete on), not necessarily Current — same targetTermId applyTermScopedPatch already supports.
-  function upd(p,targetTermId){setD(prev=>{const n=applyTermScopedPatch(prev,p,targetTermId);save(n);return n;});}
+  // save() (lib/data/store.js) now retries once internally and returns true/false — a real,
+  // observed failure ("JWT issued at future") used to vanish into a console.error nobody's
+  // watching, with no sign to the student that their change never actually persisted. Fires
+  // AFTER the optimistic "Saved!"/etc toast every action already shows immediately (unchanged),
+  // so a genuine failure surfaces as a second, persistent (non-auto-dismissing) correction a
+  // moment later rather than blocking or delaying the normal instant-feedback UX.
+  function saveAndNotify(n){
+    save(n).then(ok=>{if(!ok)toast2("⚠ Your last change may not have saved — check your connection and try again.",true);});
+  }
+  function upd(p,targetTermId){setD(prev=>{const n=applyTermScopedPatch(prev,p,targetTermId);saveAndNotify(n);return n;});}
   function updP(p){upd({profile:{...data.profile,...p}});}
 
   // Term-viewer: which term Today + Academics + Calendar currently DISPLAY — separate from which
@@ -252,7 +261,7 @@ function App(){
   // so always passing viewedTerm.id here is the same "no special case" simplification as viewedData
   // above.
   function updViewed(p){
-    setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm?.id);save(n);return n;});
+    setD(prev=>{const n=applyTermScopedPatch(prev,p,viewedTerm?.id);saveAndNotify(n);return n;});
   }
   // Routine confirmations ("Added!", "Saved!") still auto-dismiss quickly — fine to miss, low
   // stakes. `e:true` used to mean both "persist + show ×" AND "color it red" at once — but red is
