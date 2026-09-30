@@ -1,5 +1,36 @@
 # StudyOS Changelog
 
+## v2.89.5 — 2026-09-29
+
+**Fix: a failed save used to vanish silently — now retries once and warns if it still fails**
+
+Real, observed bug, unrelated to the unify-term-course-data refactor (surfaced incidentally during
+its testing): a live console error — `StudyOS: failed to save data to Supabase — JWT issued at
+future` — meant a save failed mid-session with **zero** sign anything went wrong. `save()`
+(`lib/data/store.js`) only ever `console.error`'d and returned nothing; its one caller (`upd()`,
+`App.jsx`) never even checked, so whatever change triggered that save just silently never
+persisted, with no toast, no retry, nothing — a real data-loss risk for any failure, this one or a
+plain network blip.
+
+Fixed at both ends:
+1. `save()` now retries **once**, after an explicit `supabase.auth.refreshSession()` — covers a
+   stale/rotated token (the exact case observed) as well as a genuine one-off network hiccup — and
+   returns `true`/`false` instead of nothing, so a caller can actually react to a real failure.
+2. `App.jsx`'s `upd()`/`updViewed()` (the only two callers) now show a toast when `save()`
+   ultimately returns `false`: "⚠ Your last change may not have saved — check your connection and
+   try again." Fires as a *second*, persistent toast a moment after the normal optimistic "Saved!"/
+   etc — the existing instant-feedback UX for the success case is completely unchanged; this only
+   ever appears when something actually went wrong.
+
+Couldn't force the real "JWT issued at future" condition on demand to reproduce it live, so this
+was verified two ways instead: a real add-then-delete write against the account confirms the happy
+path has zero regression (single successful attempt, no spurious warning), and a proper unit test
+suite (new — `save()` had zero test coverage before this, since it touches the real network layer)
+directly exercises the exact failure→retry→recovery sequence, plus the both-attempts-fail and
+no-signed-in-user cases, via a mocked Supabase client.
+
+4 new tests. 383 tests passing.
+
 ## v2.89.4 — 2026-09-29
 
 **Internal: old flat `courses`/`assignments`/`exams` fields removed entirely — nested per-term only**
