@@ -12,7 +12,7 @@ export async function POST(req) {
     // No `temperature`: the current Claude models (Opus 5 / Sonnet 5) have deprecated it and the
     // API rejects requests that send it. Extraction calls used to pass temperature:0 for
     // run-to-run stability; that knob no longer exists at the API level.
-    const body = { model: model || "claude-sonnet-4-5", max_tokens: maxTokens, messages };
+    const body = { model: model || "claude-sonnet-5-5", max_tokens: maxTokens, messages };
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
