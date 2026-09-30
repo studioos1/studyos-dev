@@ -1,5 +1,42 @@
 # StudyOS Changelog
 
+## v2.90.0 — 2026-09-29
+
+**Upgraded every AI call site to the new Claude 5.5 family**
+
+Anthropic released `claude-opus-5-5` (2026-09-22) and `claude-sonnet-5-5` (2026-09-28) — both
+same-or-cheaper per-token price than their v5 predecessors (Opus 5.5: $4/$20 per MTok in/out vs
+Opus 5's $5/$25, a 20% cut; cache reads 60% cheaper) and both noticeably faster (30%+ faster
+output on both).
+
+Validated before touching any real call site, per the exact approach requested: an off-app
+comparison run against the same 3 real syllabus PDFs used throughout this project's testing
+(DSC 10, MATH 180A, LIGN 008), using the app's own `rawExtract` diagnostic (parses with the real
+production prompt but never saves anything). Current model (`claude-opus-5`) vs. the new one
+(`claude-opus-5-5`), same 3 files, same prompt:
+
+- **Speed:** opus-5-5 finished in ~1 minute; the opus-5 baseline took noticeably longer (several
+  minutes) — consistent with the vendor's claimed speedup, more pronounced here.
+- **Accuracy:** opus-5-5 caught a real graded item the baseline missed entirely — DSC 10's
+  "Syllabus Check" (1 participation point, due 9/29, explicitly required in two separate sections
+  of the real PDF) — confirmed genuine by reading the source PDF directly, not a hallucination.
+- **Judgment:** for MATH 180A's homework ("most of them due on Fridays" — not *all*), opus-5-5
+  correctly declined to fabricate a full 10-item weekly series, instead flagging the ambiguity in
+  its notes; opus-5 had generated all 10 Friday dates, which likely got at least one exception
+  wrong. opus-5-5 also caught two real weekday/date mismatches in LIGN 008 (Exit Ticket #1 listed
+  as 9/28, actually a Monday, when the class meets Tue/Thu — likely 9/29) that the baseline never
+  flagged.
+- Every item the two runs agreed on came out identical (LIGN 008's 17 assignments/10 exams; DSC
+  10 and MATH 180A's core exam lists) — no regressions found anywhere.
+
+Net: faster, cheaper, and strictly more accurate on every real syllabus tested. Updated all 6 real
+call sites — `claude-opus-5` → `claude-opus-5-5` for syllabus extraction (`components/Acad.jsx`
+×2, `components/Onboard.jsx`), `claude-sonnet-4-5` → `claude-sonnet-5-5` for the general-purpose
+default (`app/api/ai/route.js`, `app/api/course-info/route.js`, `app/api/college-calendar/route.js`)
+— none of the legacy, dead `server.js`. No test touches these literal strings (they're config
+values, not logic), so `npx vitest run` was unaffected (383 passed); verified via a real build +
+live re-run of the production "Update Syllabus" sync path afterward.
+
 ## v2.89.5 — 2026-09-29
 
 **Fix: a failed save used to vanish silently — now retries once and warns if it still fails**

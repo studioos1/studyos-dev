@@ -591,7 +591,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
 ],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"claude-opus-5-5"});
       if(t){
         const p=JSON.parse(t.replace(/```json|```/g,"").trim());
         setRawExtractResult({parsed:p,fileNames,sourceText:texts.join("\n")});
@@ -647,7 +647,7 @@ Example of a CORRECT response shape for a course with 8 weekly assignments and 4
 ],"recurringSeries":[{"title":"Lab","dayOfWeek":2,"weightTotal":15}],"extractionNotes":["Midterm Project (10%) — mentioned but no due date stated anywhere in this document"]}]}
 
 Now extract the real data from the syllabi below, following that same exhaustive pattern for EACH course found:
-SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"claude-opus-5"});
+SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"claude-opus-5-5"});
       if(t){
         const parsed=JSON.parse(t.replace(/```json|```/g,"").trim());
         const{courses:reclassified,moved}=reclassifyQuizzesAsExams(parsed.courses);
