@@ -1,5 +1,50 @@
 # StudyOS Changelog
 
+## v2.89.4 — 2026-09-29
+
+**Internal: old flat `courses`/`assignments`/`exams` fields removed entirely — nested per-term only**
+
+Second and final half of step 6/6 of the unify-term-course-data refactor (step 1: v2.89.0, step 3:
+v2.89.1, step 4: v2.89.2, step 6a: v2.89.3). The last piece of the old architecture: courses/
+assignments/exams no longer get a flat top-level mirror on `data` at all — unlike `studyPlan` and
+the rest of `TERM_SCOPED_KEYS`, which keep theirs permanently (~50 real call sites still read
+`data.studyPlan` directly), these have had zero direct readers since step 3, so there was nothing
+left for a mirror to serve. `applyTermScopedPatch` now deletes `courses`/`assignments`/`exams` from
+its output unconditionally, on every write, regardless of which branch handles the patch.
+
+`save()` (`lib/data/store.js`) does a full JSONB overwrite, not a partial merge — so no separate
+"scrub the old fields out of storage" migration was needed; the very next write after this shipped
+naturally stopped persisting them.
+
+**Found while doing this, not a separate task:** two other functions still read the flat arrays as
+their whole reason to exist — `dedupeItemIdsIfNeeded` (fixes colliding assignment/exam ids from an
+old id-generation bug) and `normalizeCourseNamesIfNeeded` (collapses full AI-extracted titles to
+course codes). Deleting the flat fields without touching these would have silently blinded both
+forever, rather than leaving them correctly satisfied — both rewritten to scan every term's own
+nested arrays instead. Same for `store.js`'s `migrate()`, which has 3 more defensive shape-coercion
+blocks (course `days`/`weeklyHours`/`difficulty`, assignment `dueDate`, exam `date` validity) that
+ran on every load, unconditionally, against the flat shape — now reach into each term's nested
+copy instead. All three keep their established role as permanent defensive backstops (never
+deleted just because they're already satisfied for the one real account — same as every other
+migration in this codebase), just pointed at the new architecture. None of these three had any
+test coverage before this pass; all three now do.
+
+Verified against the real account, with actual writes, end to end: confirmed the flat fields were
+genuinely absent from storage after a write, added a real test assignment (57→58), confirmed the
+new item landed correctly and the flat fields stayed absent, confirmed the archived "Fall 2026
+TEST" term stayed byte-identical (3 courses/34 assignments/7 exams) throughout. Deleted the test
+item, confirmed clean rollback.
+
+16 new tests (`normalizeCourseNamesIfNeeded`, `dedupeItemIdsIfNeeded`, `migrate()`'s nested shape
+coercion — all previously untested) + 1 `applyTermScopedPatch` test updated for the new no-mirror
+behavior. 379 tests passing.
+
+**This completes the unify-term-course-data refactor.** Courses/assignments/exams are now
+structurally isolated per term exactly like everything else in this app — no tagging, no flat
+mirror, no filter-based scoping anywhere. The architectural inconsistency that caused two real
+bugs earlier in this project (cross-term course matching, a write path that would have deleted
+another term's data) is now categorically impossible, not just fixed in the cases found so far.
+
 ## v2.89.3 — 2026-09-29
 
 **Internal: `termId` removed — a course's term is now just which term.courses array it's in**

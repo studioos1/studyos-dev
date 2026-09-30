@@ -288,12 +288,15 @@ function App(){
     if(migration)upd(migration);
   },[data?.terms?.length,data?.profile.schoolName,data?.profile.termName,data?.profile.termStart,data?.profile.termEnd]); // eslint-disable-line
 
-  // One-time repair for colliding assignment/exam ids from earlier builds (see dedupeItemIdsIfNeeded).
+  // Defensive repair for colliding assignment/exam ids from earlier builds (see
+  // dedupeItemIdsIfNeeded) — scans every term's own nested assignments/exams (unify-term-course-
+  // data refactor, step 6b/6), so keyed on terms.length like the migrations around it rather than
+  // the old flat data.assignments/exams.length (no longer exists at the top level).
   useEffect(()=>{
     if(!data)return;
     const fix=dedupeItemIdsIfNeeded(data);
     if(fix)upd(fix);
-  },[data?.assignments?.length,data?.exams?.length]); // eslint-disable-line
+  },[data?.terms?.length]); // eslint-disable-line
 
   // Seed profile name / phone from what was collected at sign-up (stored in the Supabase user's
   // metadata) the first time this account's data loads without them.
@@ -306,12 +309,14 @@ function App(){
     if(Object.keys(patch).length)updP(patch);
   },[data?.profile?.name,data?.profile?.phone,session?.user?.id]); // eslint-disable-line
 
-  // Collapse full AI course titles to canonical codes ("MATH 180A") so every account renders identically.
+  // Collapse full AI course titles to canonical codes ("MATH 180A") so every account renders
+  // identically — scans every term's own nested courses (step 6b/6), keyed on terms.length like
+  // the migration above rather than the old flat data.courses.length (no longer exists).
   useEffect(()=>{
     if(!data)return;
     const fix=normalizeCourseNamesIfNeeded(data);
     if(fix)upd(fix);
-  },[data?.courses?.length]); // eslint-disable-line
+  },[data?.terms?.length]); // eslint-disable-line
 
   // Heal a dateless term — otherwise the planner can't tell it's "current" and the plan comes out
   // empty. See repairDatelessTermIfNeeded. (Used to also relink orphan courses to a broken/missing
