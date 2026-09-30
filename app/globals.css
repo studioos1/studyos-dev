@@ -217,6 +217,10 @@
     .btn-action{background:var(--amber); color:#1a0e00;}
     .btn-action:hover{opacity:0.85;}
     .btn-action:disabled{opacity:0.3; cursor:not-allowed;}
+    /* A button showing its own spinner is BUSY, not unavailable — keep it fully vivid rather
+       than dimming it like a plain disabled button (real complaint: looked "dimmed amber" while
+       working, easy to mistake for stuck/broken). */
+    .btn-action:disabled:has(.spin){opacity:1;}
 
     /* Ghost */
     .btn-ghost{background:var(--card2); color:var(--t2);}
@@ -575,6 +579,10 @@
 
     /* Spinner */
     .spin{width:16px; height:16px; border:2px solid var(--b2); border-top-color:var(--amber); border-radius:50%; animation:rot 0.7s linear infinite; display:inline-block;}
+    /* On an amber .btn-action button, an amber-highlighted spinner all but disappears against
+       its own amber background — use the button's own dark text color for the moving edge
+       instead, so it actually reads as spinning. */
+    .btn-action .spin{border-color:rgba(26,14,0,0.25); border-top-color:#1a0e00;}
 
     /* Toast */
     /* top:92px matches the two-row desktop header; below 768px the nav row disappears (hamburger
