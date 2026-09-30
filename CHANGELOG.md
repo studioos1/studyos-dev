@@ -1,5 +1,36 @@
 # StudyOS Changelog
 
+## v2.91.0 — 2026-09-29
+
+**Calendar: hover a day to highlight it, double-click it to peek at its full schedule**
+
+Real request: quickly glance at any day's schedule from the week grid without switching away
+from it, the same way Today's "View day calendar" button already works.
+
+- Hovering any day row in the Calendar tab's week grid now gives it a subtle highlight — a thin
+  white overlay (`inset 0 0 0 999px rgba(255,255,255,0.06)`) that works identically over both the
+  "today" row color and the regular row color, rather than needing a second hardcoded hex per case.
+- Double-clicking anywhere on a day (other than directly on an existing activity block, which still
+  opens its own edit modal — unchanged) opens the exact same `SideDrawer` + `DayAgenda` slide-out
+  panel Today's "View day calendar" button uses, titled with that day's full date. Any day looks
+  identical whether you're peeking at it from here or from Today.
+- This is deliberately separate from the existing single-click-a-day-label behavior (which still
+  drills into the full "day" mode, navigating away from the week grid entirely) — the new
+  double-click is a non-navigating quick peek, closable without losing your place in the week.
+
+Implementation: `components/shared/WeekGrid.jsx` tracks a local `hoverDate` and gained a new
+`onDayPeek` prop; the activity-block double-click handler (which already existed, for editing) now
+calls `stopPropagation()` so double-clicking a real block still opens its edit modal instead of
+also triggering the new day-peek drawer — verified live both ways (a real study block still opens
+"Edit Activity"; double-clicking empty space or a fixed/non-editable item like Gym opens the peek
+drawer instead). `components/Week.jsx` owns the `peekDay` state and renders the drawer.
+
+Verified live: hover highlight confirmed via the DOM's own `:hover` ground truth (not just a
+screenshot) on the actually-hovered row only; double-click opened the correct day's real schedule
+in the slider; double-clicking an actual study block still opened "Edit Activity" as before — no
+regression. `npx vitest run`: 383 passed (this is UI wiring, not covered by the existing
+logic-focused test suite).
+
 ## v2.90.0 — 2026-09-29
 
 **Upgraded every AI call site to the new Claude 5.5 family**

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { iso, m2t, f12 } from "@/lib/time";
 import { DS } from "@/lib/constants";
 import {
@@ -11,7 +12,12 @@ import {
 import { BlockEditModal } from "./modals";
 
 // ── Calendar components ──────────────────────────────────────────────────────
-export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editState,setEditState}){
+export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,busy,editState,setEditState}){
+  // Hover highlight + double-click-to-peek state for the day rows below — separate from onDay
+  // (single-click on the day label, which drills into the full "day" mode/leaves this grid
+  // entirely). Double-click opens the same SideDrawer+DayAgenda "slider" Today's "View day
+  // calendar" button uses, as a quick peek that doesn't navigate away from the week grid.
+  const [hoverDate,setHoverDate]=useState(null);
   const START=7,END=24,TOTAL=(END-START)*60;
   function pct(m){return((m-START*60)/TOTAL*100).toFixed(4)+"%";}
   function dpct(m){return(m/TOTAL*100).toFixed(4)+"%";}
@@ -76,9 +82,17 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
           const nowPct=isToday&&nowMins>=(START*60)&&nowMins<=(END*60)?pct(nowMins):null;
 
           return(
-            <div key={di} style={{
-              display:"flex",alignItems:"stretch",
+            <div key={di}
+              onMouseEnter={()=>setHoverDate(dateStr)}
+              onMouseLeave={()=>setHoverDate(h=>h===dateStr?null:h)}
+              onDoubleClick={()=>onDayPeek?.(dateStr)}
+              style={{
+              display:"flex",alignItems:"stretch",cursor:"pointer",
               background:isToday?"#505a72":"#3a4050",
+              // Slightly highlighted on hover — a thin white overlay works the same over either
+              // the "today" or regular row color, rather than hand-picking a second hex per case.
+              boxShadow:hoverDate===dateStr?"inset 0 0 0 999px rgba(255,255,255,0.06)":"none",
+              transition:"box-shadow 0.12s ease",
               borderRadius:di===0?"8px 8px 0 0":di===6?"0 0 8px 8px":0,
             }}>
               {/* Day label */}
@@ -148,7 +162,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
                   const editable=!!b.id&&dateStr>=todayStr; // only real (id-bearing) blocks, and only on today-or-later — past days are read-only history
                   return(
                     <div key={bi} className={ttClass} data-tt={tooltip}
-                      onDoubleClick={editable?()=>setEditState({dateStr,block:b}):undefined}
+                      onDoubleClick={editable?(e)=>{e.stopPropagation();setEditState({dateStr,block:b});}:undefined}
                       style={{
                       position:"absolute",
                       left:pct(b.s),width:dpct(dur),
@@ -248,7 +262,7 @@ export function WeekGrid({data,upd,onDay,weekStart,refreshWeekPlan,busy,editStat
           <span style={{fontSize:12,color:"var(--t2)"}}>Now</span>
         </div>
         <div style={{marginLeft:"auto",fontSize:11,color:"var(--t3)"}}>
-          <i className="ti ti-hand-click" style={{marginRight:5}}/>Double-click an activity to edit
+          <i className="ti ti-hand-click" style={{marginRight:5}}/>Double-click an activity to edit, or anywhere else on a day to view it
         </div>
       </div>
       {editState&&(
