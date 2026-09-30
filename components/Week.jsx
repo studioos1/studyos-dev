@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { iso, t2m, sundayOf, fmtWeekRange } from "@/lib/time";
 import { GYM0, getTermRange } from "@/lib/data";
 import { weekHasBeenPlanned, realDayBlocks, weekStartOf, buildBlocks, tc, saveBlockToDay, deleteBlockFromDay, logCompletion } from "@/lib/calendar";
-import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal, DayAgenda } from "@/components/shared";
+import { Sp, SecHead, useConfirm, Timeline, WeekGrid, BlockEditModal, DayAgenda, SideDrawer, DrawerHeader } from "@/components/shared";
 import { PlanDrawer } from "@/components/PlanDrawer";
 
 // ── WEEK ─────────────────────────────────────────────────────────────────────
@@ -18,6 +18,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
   const [selDay,setSel]=useState(iso()); // "day" mode's day, and month view's selected day
   const [mode,setMode]=useState(()=>isNarrow?"month":"week");
   const [editState,setEditState]=useState(null); // {dateStr, block|null} — lifted up from WeekGrid so the Add Activity button can live in this header row, next to Clear plan/Refresh Plan
+  const [peekDay,setPeekDay]=useState(null); // dateStr or null — WeekGrid's double-click-a-day "peek" (SideDrawer+DayAgenda), separate from onDay/mode="day" which navigates away from the grid entirely
   const [replanMenu,setReplanMenu]=useState(false); // the Replan split-button's ▾ menu
   const p=data.profile;
 
@@ -509,6 +510,17 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
       {modal}
       <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan} viewedTerm={viewedTerm}/>
 
+      {/* Double-click-a-day "peek" from WeekGrid — same SideDrawer+DayAgenda shell as Today's
+          "View day calendar" button, so any day looks identical whether you're viewing it from
+          there or here. Always mounted (not gated on peekDay) so the open/close actually animates;
+          DayAgenda itself is pure read-only rendering off data/peekDay, nothing else to reset. */}
+      <SideDrawer open={!!peekDay} onClose={()=>setPeekDay(null)} width={640}
+        header={<DrawerHeader icon="ti-calendar" title={peekDay?new Date(peekDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"Day"} onClose={()=>setPeekDay(null)}/>}>
+        <div style={{marginTop:4}}>
+          {peekDay&&<DayAgenda data={data} dateStr={peekDay}/>}
+        </div>
+      </SideDrawer>
+
       {mode==="week"&&(
         <div>
           {/* Rounded card, aligned with the nav banner above (no more full-bleed edge-to-edge) */}
@@ -517,7 +529,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
             borderRadius:12,
             padding:"18px 20px",
           }}>
-            <WeekGrid data={data} upd={upd} weekStart={weekStart} onDay={d=>{setSel(d);setMode("day");}} refreshWeekPlan={refreshWeekPlan} busy={busy} editState={editState} setEditState={setEditState}/>
+            <WeekGrid data={data} upd={upd} weekStart={weekStart} onDay={d=>{setSel(d);setMode("day");}} onDayPeek={setPeekDay} refreshWeekPlan={refreshWeekPlan} busy={busy} editState={editState} setEditState={setEditState}/>
           </div>
         </div>
       )}
