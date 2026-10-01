@@ -1,5 +1,46 @@
 # StudyOS Changelog
 
+## v2.92.0 — 2026-10-01
+
+**Planner: a reserved exam-prep day no longer sits idle once its own exam's needs are met**
+
+Real, investigated-live case: DSC 10's Quiz 1 (due 10/9, a 2-day prep window) showed a 3h
+shortfall with zero study time planned anywhere — while the calendar showed the day right next to
+it, Oct 7, with 9.5h genuinely free and only 2h of it used. Traced through the real planner code
+against the real account's data (not a guess): Oct 8 was blocked as LIGN 008's own exam day, Oct 9
+was blocked as DSC 10's own exam day, leaving Oct 7 as the only day in Quiz 1's window — but LIGN
+008's Weekly Quiz #1 (due Oct 8, with the exact same narrow window) claimed Oct 7 as its own
+exclusive eve first, using only 2 of its 9.5 free hours. Quiz 1 was locked out of the other 7.5h
+entirely, with no fallback — not a capacity problem, a reservation-exclusivity rule leaving real,
+free time unusable by design.
+
+Two related fixes to `lib/planner/schedule.js`'s exam-prep pre-pass:
+
+1. **Leftover-sharing on a reserved eve/lead-in day.** Once an exam's own allocation has taken
+   everything it actually needs from its dedicated day, any unused minutes stop being exclusive —
+   another exam that couldn't claim a day of its own (every day in its window already taken) can
+   now draw from it, as a last resort, after every unclaimed free day. An exam still always gets
+   everything it needs from its own day first; only genuine leftover ever gets shared.
+2. **Post-exam-day pool, generalized.** The existing "back-to-back exams" carve-out (an exam's own
+   end time + 3h, never before 3pm) previously only opened when the very next calendar day also
+   had an exam. Generalized to every exam day: any exam whose own start window reaches that date
+   can now draw from its post-cutoff free time, not just the one exam due the literal next day.
+
+No new hardcoded tiering (e.g. "protect Finals/Midterms by name") was needed or added — a Final's
+own large demand already consumes most or all of its dedicated day directly, so it naturally stays
+effectively protected as a consequence of its own size, not a name match; a 20-minute quiz
+naturally leaves hours unused, which is exactly what the fix lets other exams use. Matches this
+project's standing rule against course/exam-name-specific planner branching.
+
+Verified against the real account's actual term data (not synthetic): **total term shortfall
+dropped from 44h/22 items to 17h/16 items** (a 61% reduction) from this change alone; DSC 10's
+Quiz 1 went from 0h planned/3h short to fully covered, while LIGN 008's Weekly Quiz #1 — which was
+already fully covered — kept every minute it had, confirming the sharing is additive, not a
+zero-sum trade between courses. `npx vitest run`: 386 passed (383 existing + 3 new tests
+exercising both the generalized pool and the leftover-sharing case directly; zero existing tests
+needed behavior changes, only one stale comment update on a test whose assertion was still
+correct for the right new reason).
+
 ## v2.91.0 — 2026-09-29
 
 **Calendar: hover a day to highlight it, double-click it to peek at its full schedule**
