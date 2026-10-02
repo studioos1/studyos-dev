@@ -443,9 +443,13 @@ Return JSON:{"oneFocus":"THE single most important thing today — one specific 
                 borderBottom:brief?"1px solid var(--b1)":"none"}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0,marginTop:6}}/>
                 <span style={{fontSize:15,color:"var(--t1)",lineHeight:1.6}}>
-                  {dueToday.length>0&&<><strong style={{color:"var(--red)"}}>Due today:</strong> {dueToday.map(a=>a.title).join(", ")}</>}
+                  {/* Course name leads, same as every other deadline list in this file (Deadline
+                      Awareness below, the weekly digest) — real, reported gap: with two courses
+                      each having their own "Homework 1", this line read "Due today: Homework 1 ·
+                      Due tomorrow: Homework 1" with no way to tell which was which. */}
+                  {dueToday.length>0&&<><strong style={{color:"var(--red)"}}>Due today:</strong> {dueToday.map(a=>`${courseNameFor(data.courses,a.courseId)} — ${a.title}`).join(", ")}</>}
                   {dueToday.length>0&&dueTomorrow.length>0&&"  ·  "}
-                  {dueTomorrow.length>0&&<><strong style={{color:"var(--amber)"}}>Due tomorrow:</strong> {dueTomorrow.map(a=>a.title).join(", ")}</>}
+                  {dueTomorrow.length>0&&<><strong style={{color:"var(--amber)"}}>Due tomorrow:</strong> {dueTomorrow.map(a=>`${courseNameFor(data.courses,a.courseId)} — ${a.title}`).join(", ")}</>}
                 </span>
               </div>
             )}

@@ -1,5 +1,25 @@
 # StudyOS Changelog
 
+## v2.94.1 — 2026-10-01
+
+**Today: "Due today/tomorrow" now names the course too**
+
+Real, reported case: with two courses each having their own "Homework 1" (a common pattern —
+DSC 10 and MATH 180A both number their weekly homeworks the same way), Today's "Top Things To
+Keep In Mind" — the first, deterministic bullet, always shown regardless of whether the AI
+briefing loaded — read "Due today: Homework 1 · Due tomorrow: Homework 1" with no way to tell
+which class either one belonged to.
+
+Root cause: this one line (`components/Today.jsx`) joined `a.title` alone, while every other
+deadline list in the same file (Deadline Awareness just below it, the AI briefing's own weekly
+digest) already resolves and includes the course name via `courseNameFor` — an isolated oversight
+on this specific line, not a design choice. Fixed to match the file's own established pattern:
+"MATH 180A — Homework 1" instead of just "Homework 1".
+
+`npx vitest run`: 388 passed (pure JSX text change, no logic touched — this codebase has no
+component-render test coverage, consistent with how prior UI-only changes this session were
+verified live rather than with a dedicated test).
+
 ## v2.94.0 — 2026-10-01
 
 **Planner: homework is never capped at 2 competing courses a day anymore**
