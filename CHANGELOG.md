@@ -1,5 +1,43 @@
 # StudyOS Changelog
 
+## v2.94.0 — 2026-10-01
+
+**Planner: homework is never capped at 2 competing courses a day anymore**
+
+Direct follow-up, explicit strong rule from the user: "we shall not drop allocation of time if
+there is free time available. It should be a strong rule, never!"
+
+Real, investigated-live case flagged alongside v2.93.0: of that version's remaining 6.5h/6-item
+shortfall, MATH 180A's Homework 3 (due 10/16, needing 1h) was going short on 10/13 despite 710
+minutes genuinely free that day, with only 120 of them used. Root cause: Tier-1 homework placement
+was hard-capped at exactly 2 "competing" courses per day (primary + secondary, by design, to
+minimize topic-switching) — DSC 10 and LIGN 008 both had equally-urgent items that day and claimed
+the only 2 slots, and MATH 180A's item was dropped entirely, not partially — regardless of the 590
+genuinely free minutes left over afterward.
+
+Fixed in `lib/planner/schedule.js`: replaced the fixed primary+secondary pair with a loop over
+every course with a candidate item that day, continuing in priority order until the day's real
+capacity (`hwCeil`) is actually exhausted. The first (highest-priority) course keeps its existing
+65%-of-day budget cap, so one large item still can't alone starve every other course sharing the
+day — everything after it just keeps going instead of stopping after exactly one "secondary". Every
+item reaching this placement step was already filtered to "zero slack left, must happen today" by
+the candidates filter upstream, so this doesn't loosen urgency — it only removes an arbitrary
+course-count wall that had nothing to do with whether the day's capacity was actually exhausted.
+
+Verified against the real account's data: **shortfall dropped from 6.5h/6 items to 4.5h/4 items**;
+MATH 180A's Homework 3 now lands on 10/13 as a genuine third course that day, alongside LIGN 008
+and DSC 10, neither of which lost any of their own time to make room for it. The 4 items still
+short all cluster in the literal final week of the term (Dec 3–9, where 3 different courses' last
+homework/finals converge) — flagged as a likely genuine end-of-term capacity crunch, not
+re-investigated with the same rigor as the other findings this session, so not claimed as
+confirmed. `npx vitest run`: 388 passed (new test in `planHorizon.test.js` directly exercises 3
+courses with equally-urgent same-day homework, confirming all 3 get placed, not just the first 2).
+
+**Cumulative result across this whole investigation (v2.92.0 → v2.94.0):** the term's real study-
+plan shortfall went from **44h / 22 items → 4.5h / 4 items** — a 90% reduction, from three separate,
+real structural bugs (exclusive-reservation capacity waste, slack-deferral blind to exam blackouts,
+and this fixed course-count cap), not one patch.
+
 ## v2.93.0 — 2026-10-01
 
 **Planner: homework no longer defers into days that turn out blocked by an exam**
