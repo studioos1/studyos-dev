@@ -18,7 +18,7 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
   const [selDay,setSel]=useState(iso()); // "day" mode's day, and month view's selected day
   const [mode,setMode]=useState(()=>isNarrow?"month":"week");
   const [editState,setEditState]=useState(null); // {dateStr, block|null} — lifted up from WeekGrid so the Add Activity button can live in this header row, next to Clear plan/Refresh Plan
-  const [peekDay,setPeekDay]=useState(null); // dateStr or null — WeekGrid's double-click-a-day "peek" (SideDrawer+DayAgenda), separate from onDay/mode="day" which navigates away from the grid entirely
+  const [peekDay,setPeekDay]=useState(null); // dateStr or null — WeekGrid's click-a-day "peek" (SideDrawer+DayAgenda), separate from onDay/mode="day" which navigates away from the grid entirely
   const [replanMenu,setReplanMenu]=useState(false); // the Replan split-button's ▾ menu
   const p=data.profile;
 
@@ -510,9 +510,9 @@ export function Week({data,upd,ai,busy,planning,toast2,refreshQuarterPlan,refres
       {modal}
       <PlanDrawer open={planDrawerOpen} onClose={()=>setPlanDrawerOpen(false)} data={data} upd={upd} refreshQuarterPlan={refreshQuarterPlan} viewedTerm={viewedTerm}/>
 
-      {/* Double-click-a-day "peek" from WeekGrid — same SideDrawer+DayAgenda shell as Today's
-          "View day calendar" button, so any day looks identical whether you're viewing it from
-          there or here. Always mounted (not gated on peekDay) so the open/close actually animates;
+      {/* Click-a-day "peek" from WeekGrid — same SideDrawer+DayAgenda shell as Today's "View day
+          calendar" button, so any day looks identical whether you're viewing it from there or
+          here. Always mounted (not gated on peekDay) so the open/close actually animates;
           DayAgenda itself is pure read-only rendering off data/peekDay, nothing else to reset. */}
       <SideDrawer open={!!peekDay} onClose={()=>setPeekDay(null)} width={640}
         header={<DrawerHeader icon="ti-calendar" title={peekDay?new Date(peekDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"Day"} onClose={()=>setPeekDay(null)}/>}>
