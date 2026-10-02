@@ -1,5 +1,51 @@
 # StudyOS Changelog
 
+## v2.95.0 — 2026-10-02
+
+**Courses UI tuning: no more horizontal scroll, Exams splits Completed into its own card, Topics gets more room**
+
+Three real, reported issues on the Assignments/Exams/Difficulty tabs:
+
+**1. Horizontal scroll on all three tabs' tables.** Traced to several different causes, verified
+live via direct DOM measurement (`scrollWidth` vs `clientWidth`) rather than guessing from a
+screenshot:
+- Exams' and Assignments' "actions" column (2 icon buttons) was declared narrower than those
+  buttons actually render at (85px/88px declared vs ~117px/142px needed) — `table-layout:fixed`
+  doesn't forcibly clip oversized cell content, so the undersized column silently forced the whole
+  table wider than its container. Both widened to fit (120px/140px).
+- Difficulty's "student planning" `<select>` needed ~2px more than its declared width (a native
+  browser rendering quirk, not a layout bug) — widened slightly.
+- After fixing the above, Assignments and Difficulty still rendered a small, fixed,
+  content-independent amount wider than their own container (54px and 4px respectively) —
+  confirmed via testing that neither column-width changes nor tooltip-anchoring changed this
+  number at all, ruling out a real per-column space shortage. Fixed with a verified
+  `width:calc(100% - Npx)` on the table itself rather than continuing to guess at a root cause
+  with no reliable way to confirm it — imperceptible visually, and directly verified via the same
+  DOM measurement to bring every affected table to zero overflow.
+
+**2. Exams tab: Completed now has its own card, like Assignments already does.** Previously both
+"Upcoming" and "Completed" lived inside one shared "Exams" card as small inline sub-headings —
+Assignments uses two separate peer-level cards (its own header, own count, own padding) for
+Active/Completed. Exams now matches exactly: the main card is retitled "Upcoming — N" (count in
+the title itself, matching "Active — N remaining"), and Completed is pulled out into its own card
+below with a checkmark-icon header, same as Assignments' Completed card. No "move back to active"
+action on it — an exam completes automatically once its date passes, not via a manual status
+toggle, so there's nothing to move back.
+
+**3. Exams: Topics gets the room it needs, Exam (title) no longer soaks it all up.** The Exam
+title column was the unbounded flexible one — meaning it silently absorbed most of the table's
+leftover width even though real exam titles rarely exceed ~30 characters, while Topics stayed
+capped at a fixed 260px and kept wrapping to 2-3 lines for real topic text ("Readings [3] Nettle &
+Romaine 2000 and [4] Hinton 1994; linguistic analysis, Native California languages") — the exact
+opposite of this table's own documented intent. Swapped: Exam is now a fixed, modestly-sized
+column; Topics is the flexible one that actually gets the leftover room.
+
+`npx vitest run`: 388 passed (pure layout/structure changes, no logic touched — this codebase has
+no component-render test coverage for Acad.jsx, consistent with how other UI-only changes this
+session were verified). Live-verified on the real account: all 5 affected tables (Assignments
+Active + Completed, Exams Upcoming + Completed, Difficulty) measured at exactly zero horizontal
+overflow; Upcoming/Completed split and the wider Topics column both confirmed visually.
+
 ## v2.94.1 — 2026-10-01
 
 **Today: "Due today/tomorrow" now names the course too**

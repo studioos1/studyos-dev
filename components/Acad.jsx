@@ -496,6 +496,119 @@ export function Acad({data,upd,ai,busy,planning,toast2,progress,setProgress,refr
   const examGroupIds=upcomingExamGroups.map(g=>g.courseId);
   const examAllFolded=examGroupIds.length>0&&examGroupIds.every(id=>examFold.folded.has(id));
 
+  // Lifted out of the Exams tab's render (was a one-off IIFE scoped only to the Upcoming table)
+  // so the new separate Completed card can call them too — see the "exams" view below for both.
+  function ExamRow(e,i,arr,isPast){
+    const hasDate=e.date&&e.date.length===10;
+    const d=hasDate?du(e.date):null;
+    const prep=hasDate&&d>0&&d<=e.prepDays;
+    const isEditing=editExamId===e.id;
+
+    if(isEditing) return(
+      <tr key={e.id}>
+        <td colSpan={6} style={{padding:0}}>
+        <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",margin:"6px 0"}}>
+          <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {courseNameFor(termCourses,e.courseId)}</div>
+          <div style={{marginBottom:8}}>
+            <label>Course</label>
+            <select value={ee.course} onChange={ev=>setEe(x=>({...x,course:ev.target.value}))}>
+              <option value="">Select course...</option>
+              {termCourses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:8}}>
+            <label>Topics covered</label>
+            <input value={ee.topics} onChange={ev=>setEe(x=>({...x,topics:ev.target.value}))}/>
+          </div>
+          <div className="g2" style={{marginBottom:12}}>
+            <div><label>Exam date</label><input type="date" value={ee.date} onChange={ev=>setEe(x=>({...x,date:ev.target.value}))}/></div>
+            <div><label>Start prep (days before)</label><input type="number" min="1" max="21" value={ee.prepDays} onChange={ev=>setEe(x=>({...x,prepDays:+ev.target.value}))}/></div>
+          </div>
+          <div className="g2" style={{marginBottom:12}}>
+            <div><label>Start time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.startTime} onChange={ev=>setEe(x=>({...x,startTime:ev.target.value}))}/></div>
+            <div><label>End time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.endTime} onChange={ev=>setEe(x=>({...x,endTime:ev.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:9}}>
+            <button className="btn btn-action" style={{flex:1}} onClick={saveEditExam} disabled={!ee.course||!ee.date}>
+              <i className="ti ti-device-floppy"/> Save changes
+            </button>
+            <button className="btn btn-ghost" onClick={cancelEditExam}>Cancel</button>
+          </div>
+        </div>
+        </td>
+      </tr>
+    );
+
+    return(
+      <tr key={e.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none",opacity:isPast?0.55:1}}>
+        <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)",overflowWrap:"break-word"}}>{e.title||"Exam"}</td>
+        <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",overflowWrap:"break-word"}}>{e.topics||"—"}</td>
+        <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+          {!hasDate?(
+            <span className="tt" data-tt="Click to add exam date" onClick={()=>startEditExam(e)}
+              style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,
+                color:"var(--red)",background:"var(--red-bg)",
+                padding:"3px 8px",borderRadius:7,whiteSpace:"nowrap",
+                cursor:"pointer",userSelect:"none"}}>
+              <i className="ti ti-alert-triangle" style={{fontSize:11}}/>
+              Enter date
+            </span>
+          ):(
+            <span style={{fontSize:12,
+              color:isPast?"var(--t3)":d===0||d<=3?"var(--red)":d<=7?"var(--amber)":"var(--blue)",
+              background:isPast?"var(--card2)":d===0||d<=3?"var(--red-bg)":d<=7?"var(--amber-bg)":"var(--blue-bg)",
+              padding:"3px 8px",borderRadius:7,whiteSpace:"nowrap"}}>
+              {new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+              {!isPast&&d===0&&" · TODAY"}
+            </span>
+          )}
+          {prep&&<div style={{fontSize:11,color:"var(--amber)",marginTop:3}}>Prep starts now — {d}d left</div>}
+        </td>
+        <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{e.weight!=null?e.weight+"%":"—"}</td>
+        <td style={{padding:"6px 8px"}}>
+          <GradeInput value={e.grade} onChange={v=>upd({exams:termExams.map(x=>x.id===e.id?{...x,grade:v}:x)})}/>
+        </td>
+        <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+          <button className="tt" data-tt="Edit this exam" onClick={()=>startEditExam(e)}
+            style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
+              background:"var(--blue-bg)",color:"var(--blue)",marginRight:6,
+              fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+            <i className="ti ti-pencil" style={{fontSize:15}}/>
+          </button>
+          <button className="tt" data-tt="Delete this exam" onClick={async()=>{if(await confirm(`Delete "${courseNameFor(termCourses,e.courseId)} — Exam"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({exams:termExams.filter(x=>x.id!==e.id)});}}
+            style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
+              background:"var(--red)",color:"#fff",
+              fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+            <i className="ti ti-trash" style={{fontSize:15}}/>
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
+  function GroupedExamRows(groups,isPast,fold){
+    return groups.map(g=>{
+      const folded=fold.folded.has(g.courseId);
+      return(
+        <Fragment key={g.courseId}>
+          <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
+            onClick={()=>fold.toggle(g.courseId)}>
+            <td colSpan={6} style={{padding:"8px 8px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
+                <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
+                <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
+                <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
+              </div>
+            </td>
+          </tr>
+          {!folded&&g.items.map((e,i,arr)=>ExamRow(e,i,arr,isPast))}
+        </Fragment>
+      );
+    });
+  }
+
   function startEdit(a){
     setEditId(a.id);
     const cn=courseNameFor(termCourses,a.courseId);
@@ -822,27 +935,43 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
       <col style={{width:104}}/>{/* due */}
       <col style={{width:70}}/>{/* weight */}
       <col style={{width:132}}/>{/* grade */}
-      <col style={{width:88}}/>{/* actions */}
+      <col style={{width:140}}/>{/* actions — measured live: 2 buttons + gap + padding actually
+        need ~142px, not the 88px originally declared; table-layout:fixed doesn't forcibly clip
+        oversized cell content, so the undersized column was silently forcing the whole table
+        wider than its container and triggering exactly the horizontal scroll being fixed (same
+        root cause as the Exams table's own actions column, fixed the same way). */}
     </colgroup>
   );
+  // 612 = the fixed columns' own sum (36+104+70+132+140=482) + a 130px floor for the flexible
+  // title column to stay readable even in the horizontal-scroll fallback.
+  const ASSIGN_TABLE_MIN_WIDTH=612;
 
   // Same table-layout:fixed pattern as ASSIGN_COLS above, and for the same reason: without it,
   // auto layout leaves leftover width unclaimed instead of giving it to the columns that should
-  // flex/grow. Class column removed here too (grouped by class now, same as Assignments) — the
-  // width it freed went to Topics specifically, on request, since real topic text ("Cumulative;
-  // material through Week 4, held during enrolled lecture slot") was wrapping to several lines at
-  // the old 170px; Exam title rarely needs more than a couple words ("Midterm Exam", "Quiz 3") so
-  // it stays the flexible <col/> rather than the one that gets the extra room.
+  // flex/grow. Class column removed here too (grouped by class now, same as Assignments).
+  // Real, reported case: real topic text ("Readings [3] Nettle & Romaine 2000 and [4] Hinton
+  // 1994; linguistic analysis, Native California languages") still wrapped to 2-3 lines even
+  // after an earlier width bump — because Exam title, not Topics, was left as the unbounded
+  // flexible <col/>, so Exam silently absorbed the leftover space Topics was meant to get. Exam
+  // titles rarely run past "Academic Integrity Quiz (Canvas)" (~33 characters, the longest seen
+  // in practice), so Exam gets a fixed width sized to that instead, and Topics — which genuinely
+  // needs the room — is now the one flexible column.
   const EXAM_COLS=(
     <colgroup>
-      <col/>{/* exam title */}
-      <col style={{width:260}}/>{/* topics */}
+      <col style={{width:190}}/>{/* exam title */}
+      <col/>{/* topics */}
       <col style={{width:100}}/>{/* due */}
       <col style={{width:65}}/>{/* weight */}
       <col style={{width:120}}/>{/* grade */}
-      <col style={{width:85}}/>{/* actions */}
+      <col style={{width:120}}/>{/* actions — measured live: 2 buttons + gap + padding actually
+        need ~117px, not the 85px originally declared; table-layout:fixed doesn't forcibly clip
+        oversized cell content, so the undersized column was silently forcing the whole table
+        wider than its own minWidth and triggering exactly the horizontal scroll being fixed. */}
     </colgroup>
   );
+  // 775 = the fixed columns' own sum (190+100+65+120+120=595) + a 180px floor for Topics to stay
+  // readable even in the horizontal-scroll fallback, not an arbitrary round number.
+  const EXAM_TABLE_MIN_WIDTH=775;
 
   // GPA table: unlike Assignments/Exams, a course name doesn't need a genuinely unbounded
   // column — leaving Class as the flexible <col/> made it balloon on the horizontal-scroll
@@ -871,9 +1000,11 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
       <col/>{/* assignment */}
       <col style={{width:100}}/>{/* due */}
       <col style={{width:60}}/>{/* weight */}
-      <col style={{width:130}}/>{/* type */}
+      <col style={{width:120}}/>{/* type — its own <select> is only 110px wide, 120 already has margin */}
       <col style={{width:70}}/>{/* AI planning */}
-      <col style={{width:104}}/>{/* student planning */}
+      <col style={{width:108}}/>{/* student planning — measured live: its <select>'s own native
+        rendering needs ~2px more than a bare 104px gave it, forcing the whole table a few px
+        wider than its container and triggering a scrollbar with nothing actually cut off */}
       <col style={{width:150}}/>{/* hours */}
       <col style={{width:60}}/>{/* priority */}
     </colgroup>
@@ -1035,7 +1166,14 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
 
               {active.length>0&&(
                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:560,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                {/* width:calc(100% - 54px), not a plain 100%: verified live that this table
+                    renders a fixed ~54px wider than its own container regardless of any
+                    individual column's declared width (confirmed by testing several unrelated
+                    adjustments — actions-column width, tooltip anchoring — none moved this
+                    number at all) — a content-independent table-layout:fixed rendering quirk, not
+                    a real per-column space shortage. Same fix as Difficulty's own table below,
+                    which hits the identical issue; the exact px differs per table/column count. */}
+                <table style={{width:"calc(100% - 54px)",minWidth:ASSIGN_TABLE_MIN_WIDTH,borderCollapse:"collapse",tableLayout:"fixed"}}>
                   {ASSIGN_COLS}
                   <thead>
                     <tr style={{borderBottom:"1px solid var(--b1)"}}>
@@ -1190,7 +1328,9 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
               </div>
               <div style={{padding:"4px 20px 14px 20px"}}>
                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table style={{width:"100%",minWidth:560,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                {/* Same calc(100% - 54px) as the Active table above — identical columns, same
+                    rendering quirk. */}
+                <table style={{width:"calc(100% - 54px)",minWidth:ASSIGN_TABLE_MIN_WIDTH,borderCollapse:"collapse",tableLayout:"fixed"}}>
                   {ASSIGN_COLS}
                   <tbody>
                 {doneAssignGroups.map(g=>{
@@ -1258,11 +1398,15 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
       {/* ══════════════ EXAMS ══════════════ */}
       {view==="exams"&&(
         <div>
+          {/* Upcoming — its own card, matching Assignments' "Active — N remaining" pattern
+              exactly (count in the title itself, not a generic "Exams" wrapper). Completed moves
+              to its own separate card below instead of sharing this one as an inner sub-section —
+              same Active/Completed split Assignments already uses. */}
           <div style={BOX}>
             <div style={TITLE_ROW}>
               <div style={TITLE_LEFT}>
                 <i className="ti ti-file-text" style={TITLE_ICON}/>
-                <span style={TITLE_TEXT}>Exams</span>
+                <span style={TITLE_TEXT}>Upcoming — {upcomingExams.length}</span>
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
                 {examGroupIds.length>0&&(
@@ -1318,168 +1462,67 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                 </div>
               )}
 
-              {termExams.length===0&&!showAddExam&&(
+              {/* Scoped to upcoming specifically (matching Assignments' active.length===0 check) —
+                  a term with only past exams left shouldn't show "no exams yet" here when the
+                  Completed card right below has them. */}
+              {upcomingExams.length===0&&!showAddExam&&(
                 <div style={{fontSize:15,color:"var(--t3)",textAlign:"center",padding:"12px 0"}}>
-                  No exams yet — press <strong style={{color:"var(--amber)"}}>+</strong> to add one
+                  No upcoming exams — press <strong style={{color:"var(--amber)"}}>+</strong> to add one
                 </div>
               )}
 
-              {(()=>{
-
-                function ExamRow(e,i,arr,isPast){
-                  const hasDate=e.date&&e.date.length===10;
-                  const d=hasDate?du(e.date):null;
-                  const prep=hasDate&&d>0&&d<=e.prepDays;
-                  const isEditing=editExamId===e.id;
-
-                  if(isEditing) return(
-                    <tr key={e.id}>
-                      <td colSpan={6} style={{padding:0}}>
-                      <div style={{background:"var(--card2)",borderRadius:10,padding:"14px 16px",margin:"6px 0"}}>
-                        <div style={{fontSize:13,color:"var(--amber)",marginBottom:10}}>Editing: {courseNameFor(termCourses,e.courseId)}</div>
-                        <div style={{marginBottom:8}}>
-                          <label>Course</label>
-                          <select value={ee.course} onChange={ev=>setEe(x=>({...x,course:ev.target.value}))}>
-                            <option value="">Select course...</option>
-                            {termCourses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                          </select>
-                        </div>
-                        <div style={{marginBottom:8}}>
-                          <label>Topics covered</label>
-                          <input value={ee.topics} onChange={ev=>setEe(x=>({...x,topics:ev.target.value}))}/>
-                        </div>
-                        <div className="g2" style={{marginBottom:12}}>
-                          <div><label>Exam date</label><input type="date" value={ee.date} onChange={ev=>setEe(x=>({...x,date:ev.target.value}))}/></div>
-                          <div><label>Start prep (days before)</label><input type="number" min="1" max="21" value={ee.prepDays} onChange={ev=>setEe(x=>({...x,prepDays:+ev.target.value}))}/></div>
-                        </div>
-                        <div className="g2" style={{marginBottom:12}}>
-                          <div><label>Start time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.startTime} onChange={ev=>setEe(x=>({...x,startTime:ev.target.value}))}/></div>
-                          <div><label>End time <span style={{color:"var(--t3)",fontWeight:400}}>(if known)</span></label><input type="time" value={ee.endTime} onChange={ev=>setEe(x=>({...x,endTime:ev.target.value}))}/></div>
-                        </div>
-                        <div style={{display:"flex",gap:9}}>
-                          <button className="btn btn-action" style={{flex:1}} onClick={saveEditExam} disabled={!ee.course||!ee.date}>
-                            <i className="ti ti-device-floppy"/> Save changes
-                          </button>
-                          <button className="btn btn-ghost" onClick={cancelEditExam}>Cancel</button>
-                        </div>
-                      </div>
-                      </td>
+              {upcomingExamGroups.length>0&&(
+                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:EXAM_TABLE_MIN_WIDTH,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {EXAM_COLS}
+                  <thead>
+                    <tr style={{borderBottom:"1px solid var(--b1)"}}>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Exam</th>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Topics</th>
+                      <TableHead label="Due" col="due" sortBy={examSort} setSortBy={setExamSort}/>
+                      <TableHead label="Weight" col="weight" sortBy={examSort} setSortBy={setExamSort}/>
+                      <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Grade</th>
+                      <th style={{width:120}}></th>
                     </tr>
-                  );
-
-                  return(
-                    <tr key={e.id} style={{borderBottom:i<arr.length-1?"1px solid var(--b1)":"none",opacity:isPast?0.55:1}}>
-                      <td style={{padding:"9px 8px",fontSize:14,color:"var(--t1)",overflowWrap:"break-word"}}>{e.title||"Exam"}</td>
-                      <td style={{padding:"9px 8px",fontSize:13,color:"var(--t3)",overflowWrap:"break-word"}}>{e.topics||"—"}</td>
-                      <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
-                        {!hasDate?(
-                          <span className="tt" data-tt="Click to add exam date" onClick={()=>startEditExam(e)}
-                            style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,
-                              color:"var(--red)",background:"var(--red-bg)",
-                              padding:"3px 8px",borderRadius:7,whiteSpace:"nowrap",
-                              cursor:"pointer",userSelect:"none"}}>
-                            <i className="ti ti-alert-triangle" style={{fontSize:11}}/>
-                            Enter date
-                          </span>
-                        ):(
-                          <span style={{fontSize:12,
-                            color:isPast?"var(--t3)":d===0||d<=3?"var(--red)":d<=7?"var(--amber)":"var(--blue)",
-                            background:isPast?"var(--card2)":d===0||d<=3?"var(--red-bg)":d<=7?"var(--amber-bg)":"var(--blue-bg)",
-                            padding:"3px 8px",borderRadius:7,whiteSpace:"nowrap"}}>
-                            {new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}
-                            {!isPast&&d===0&&" · TODAY"}
-                          </span>
-                        )}
-                        {prep&&<div style={{fontSize:11,color:"var(--amber)",marginTop:3}}>Prep starts now — {d}d left</div>}
-                      </td>
-                      <td style={{padding:"9px 8px",fontSize:13,color:"var(--t2)",whiteSpace:"nowrap"}}>{e.weight!=null?e.weight+"%":"—"}</td>
-                      <td style={{padding:"6px 8px"}}>
-                        <GradeInput value={e.grade} onChange={v=>upd({exams:termExams.map(x=>x.id===e.id?{...x,grade:v}:x)})}/>
-                      </td>
-                      <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
-                        <button className="tt" data-tt="Edit this exam" onClick={()=>startEditExam(e)}
-                          style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
-                            background:"var(--blue-bg)",color:"var(--blue)",marginRight:6,
-                            fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
-                          <i className="ti ti-pencil" style={{fontSize:15}}/>
-                        </button>
-                        <button className="tt" data-tt="Delete this exam" onClick={async()=>{if(await confirm(`Delete "${courseNameFor(termCourses,e.courseId)} — Exam"?`,{confirmLabel:"Delete",confirmIcon:"ti-trash"}))upd({exams:termExams.filter(x=>x.id!==e.id)});}}
-                          style={{width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",
-                            background:"var(--red)",color:"#fff",
-                            fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
-                          <i className="ti ti-trash" style={{fontSize:15}}/>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                function GroupedExamRows(groups,isPast,fold){
-                  return groups.map(g=>{
-                    const folded=fold.folded.has(g.courseId);
-                    return(
-                      <Fragment key={g.courseId}>
-                        <tr style={{borderBottom:"1px solid var(--b1)",background:"var(--card2)",cursor:"pointer"}}
-                          onClick={()=>fold.toggle(g.courseId)}>
-                          <td colSpan={6} style={{padding:"8px 8px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
-                              <i className={`ti ${folded?"ti-chevron-right":"ti-chevron-down"}`} style={{fontSize:13,color:"var(--t3)",flexShrink:0}}/>
-                              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
-                              <span style={{color:"var(--t1)",fontWeight:600}}>{g.courseName}</span>
-                              <span style={{color:"var(--t3)"}}>· {g.items.length} item{g.items.length!==1?"s":""}</span>
-                              <span style={{marginLeft:"auto",color:"var(--t3)",fontSize:12}}>{folded?"See more":"See less"}</span>
-                            </div>
-                          </td>
-                        </tr>
-                        {!folded&&g.items.map((e,i,arr)=>ExamRow(e,i,arr,isPast))}
-                      </Fragment>
-                    );
-                  });
-                }
-
-                return(
-                  <>
-                    {upcomingExamGroups.length>0&&(
-                      <>
-                        <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,marginTop:4}}>Upcoming</div>
-                        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",marginBottom:20}}>
-                        <table style={{width:"100%",minWidth:780,borderCollapse:"collapse",tableLayout:"fixed"}}>
-                          {EXAM_COLS}
-                          <thead>
-                            <tr style={{borderBottom:"1px solid var(--b1)"}}>
-                              <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Exam</th>
-                              <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Topics</th>
-                              <TableHead label="Due" col="due" sortBy={examSort} setSortBy={setExamSort}/>
-                              <TableHead label="Weight" col="weight" sortBy={examSort} setSortBy={setExamSort}/>
-                              <th style={{fontSize:11,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",padding:"0 8px 8px",fontWeight:600}}>Grade</th>
-                              <th style={{width:85}}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {GroupedExamRows(upcomingExamGroups,false,examFold)}
-                          </tbody>
-                        </table>
-                        </div>
-                      </>
-                    )}
-                    {completedExamGroups.length>0&&(
-                      <>
-                        <div style={{fontSize:12,color:"var(--t3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Completed</div>
-                        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                        <table style={{width:"100%",minWidth:780,borderCollapse:"collapse",tableLayout:"fixed"}}>
-                          {EXAM_COLS}
-                          <tbody>
-                            {GroupedExamRows(completedExamGroups,true,examFold)}
-                          </tbody>
-                        </table>
-                        </div>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+                  </thead>
+                  <tbody>
+                    {GroupedExamRows(upcomingExamGroups,false,examFold)}
+                  </tbody>
+                </table>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* ── Completed exams — separate card, no strikethrough — same Active/Completed split
+              Assignments already uses (see its own "Completed" box above in that tab). An exam
+              "completes" automatically once its date passes (termExams filtered by e.date<today),
+              not via a manual status toggle the way assignments work, so there's no "move back to
+              active" action here — just read-only history (edit/delete still available, same as
+              before this split). ── */}
+          {completedExamGroups.length>0&&(
+            <div style={{background:"var(--card)",borderRadius:12,marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"12px 20px",borderBottom:"1px solid var(--b1)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <i className="ti ti-circle-check" style={{fontSize:16,color:"var(--green)"}}/>
+                  <span style={{fontSize:13,color:"var(--t2)",textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:500}}>
+                    Completed — {completedExams.length}
+                  </span>
+                </div>
+              </div>
+              <div style={{padding:"4px 20px 14px 20px"}}>
+               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:EXAM_TABLE_MIN_WIDTH,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {EXAM_COLS}
+                  <tbody>
+                    {GroupedExamRows(completedExamGroups,true,examFold)}
+                  </tbody>
+                </table>
+               </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1701,7 +1744,15 @@ SYLLABI:\n${texts.join("\n")}`,syllabusExtractMaxTokens(sylPdfs.length),{model:"
                 <div style={{color:"var(--t3)",padding:"20px 0"}}>No active assignments or exams to review.</div>
               ):(
                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                  <table style={{width:"100%",minWidth:820,borderCollapse:"collapse",tableLayout:"fixed"}}>
+                  {/* minWidth 814 nets the Type trim (-10) and the Student Planning <select> bump
+                      (+4) above. width:calc(100% - 4px), not a plain 100%: even with every column
+                      individually accounted for, this table (8 columns, the most of any in this
+                      file) still rendered a consistent few px wider than its own container —
+                      verified live as a fixed, content-independent rounding artifact (unchanged by
+                      either of the two column-width adjustments above), not a real per-column
+                      space shortage. The few px this trims is imperceptible; it's cheaper and more
+                      reliable than chasing an unmovable sub-pixel rounding error column by column. */}
+                  <table style={{width:"calc(100% - 4px)",minWidth:814,borderCollapse:"collapse",tableLayout:"fixed"}}>
                     {DIFF_COLS}
                     <thead>
                       <tr style={{borderBottom:"1px solid var(--b1)"}}>
