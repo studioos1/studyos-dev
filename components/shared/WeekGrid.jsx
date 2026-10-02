@@ -11,12 +11,29 @@ import {
 } from "@/lib/calendar";
 import { BlockEditModal } from "./modals";
 
+// A block's real label already states both the course AND the specific assignment/exam (e.g.
+// "MATH 180A — Homework 2 (due in 3d)", built in lib/planner/schedule.js) — but the week grid's
+// blocks are often only a few dozen pixels wide (duration-proportional), so the trailing due-
+// countdown parenthetical is frequently what gets cut, taking the assignment's own NAME down with
+// it in the process (ellipsis just chops wherever the available width runs out). Real, reported
+// complaint: the course name survives truncation far more often than the actual assignment it's
+// for. The countdown itself isn't lost — it's still in the tooltip on hover — so stripping it from
+// just this compact on-block text buys the load-bearing part (which specific assignment) more
+// room to actually display before truncating. "(project)" is a type tag, not a due-countdown, and
+// is deliberately left alone.
+function compactLabel(label){
+  return(label||"").replace(/\s*\((?:due [^)]*|\d+d left|today!)\)$/,"");
+}
+
 // ── Calendar components ──────────────────────────────────────────────────────
 export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,busy,editState,setEditState}){
-  // Hover highlight + double-click-to-peek state for the day rows below — separate from onDay
-  // (single-click on the day label, which drills into the full "day" mode/leaves this grid
-  // entirely). Double-click opens the same SideDrawer+DayAgenda "slider" Today's "View day
-  // calendar" button uses, as a quick peek that doesn't navigate away from the week grid.
+  // Hover highlight + click-to-peek state for the day rows below — separate from onDay (clicking
+  // the day label specifically, which drills into the full "day" mode/leaves this grid entirely,
+  // its own stopPropagation'd click target). Clicking anywhere else on the row opens the same
+  // SideDrawer+DayAgenda "slider" Today's "View day calendar" button uses, as a quick peek that
+  // doesn't navigate away from the week grid — an activity block is its own click target too
+  // (stopPropagation'd both on single- and double-click), so interacting with it never also
+  // flashes the peek open; double-clicking a block still opens its own edit modal, unchanged.
   const [hoverDate,setHoverDate]=useState(null);
   const START=7,END=24,TOTAL=(END-START)*60;
   function pct(m){return((m-START*60)/TOTAL*100).toFixed(4)+"%";}
@@ -85,7 +102,7 @@ export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,bus
             <div key={di}
               onMouseEnter={()=>setHoverDate(dateStr)}
               onMouseLeave={()=>setHoverDate(h=>h===dateStr?null:h)}
-              onDoubleClick={()=>onDayPeek?.(dateStr)}
+              onClick={()=>onDayPeek?.(dateStr)}
               style={{
               display:"flex",alignItems:"stretch",cursor:"pointer",
               background:isToday?"#505a72":"#3a4050",
@@ -95,8 +112,9 @@ export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,bus
               transition:"box-shadow 0.12s ease",
               borderRadius:di===0?"8px 8px 0 0":di===6?"0 0 8px 8px":0,
             }}>
-              {/* Day label */}
-              <div onClick={()=>onDay(dateStr)} style={{
+              {/* Day label — its own separate click target (drills into full "day" mode, leaving
+                  this grid entirely), stopped from also bubbling up to the row's click-to-peek. */}
+              <div onClick={e=>{e.stopPropagation();onDay(dateStr);}} style={{
                 width:84,flexShrink:0,cursor:"pointer",
                 display:"flex",flexDirection:"column",alignItems:"flex-end",
                 justifyContent:"center",paddingRight:12,height:ROW,
@@ -162,6 +180,10 @@ export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,bus
                   const editable=!!b.id&&dateStr>=todayStr; // only real (id-bearing) blocks, and only on today-or-later — past days are read-only history
                   return(
                     <div key={bi} className={ttClass} data-tt={tooltip}
+                      // Its own click target — stopped from bubbling to the row's click-to-peek,
+                      // so a plain click (or either half of a double-click) here never flashes the
+                      // peek drawer open while you're actually interacting with the block itself.
+                      onClick={e=>e.stopPropagation()}
                       onDoubleClick={editable?(e)=>{e.stopPropagation();setEditState({dateStr,block:b});}:undefined}
                       style={{
                       position:"absolute",
@@ -180,7 +202,7 @@ export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,bus
                           paddingLeft:3,marginBottom:GAP,
                           whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%",
                         }}>
-                          {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.timeAssumed&&"⏱ "}{b.label}
+                          {b.autoMoved&&"↻ "}{b.completed&&"✓ "}{b.timeAssumed&&"⏱ "}{compactLabel(b.label)}
                         </div>
                       )}
                       {STUDY_KINDS.has(b.type)?(
@@ -262,7 +284,7 @@ export function WeekGrid({data,upd,onDay,onDayPeek,weekStart,refreshWeekPlan,bus
           <span style={{fontSize:12,color:"var(--t2)"}}>Now</span>
         </div>
         <div style={{marginLeft:"auto",fontSize:11,color:"var(--t3)"}}>
-          <i className="ti ti-hand-click" style={{marginRight:5}}/>Double-click an activity to edit, or anywhere else on a day to view it
+          <i className="ti ti-hand-click" style={{marginRight:5}}/>Click a day to view it, double-click an activity to edit
         </div>
       </div>
       {editState&&(

@@ -1,5 +1,56 @@
 # StudyOS Changelog
 
+## v2.93.0 — 2026-10-01
+
+**Planner: homework no longer defers into days that turn out blocked by an exam**
+
+Real, investigated-live follow-up to v2.92.0: even after that fix, MATH 180A's Homework 2 (due
+10/9, needing just 1 hour) still showed a shortfall, despite 9.5-13.5h genuinely free on every day
+of its 5-day window. Traced through the real planner code: 2 of its 5 window days are legitimately
+unusable — one is a different course's actual exam day (full blackout), the other that same exam's
+exclusive eve (homework only allowed there if due within a day, and this item still had 2+ days
+left). The real bug: the "do I still have slack to wait" check that decides whether to place a
+homework item today or defer it counted plain CALENDAR days remaining, with no idea 2 of those
+days were never real options for this item — so it deferred, assuming it could still catch them
+later, and ran out of road.
+
+Fixed in `lib/planner/schedule.js`: the slack check now walks the specific days between tomorrow
+and the due-2 target, excluding exactly the two rules that already govern "today" (full exam-day
+blackout, or another exam's exclusive eve where this item is still 2+ days out) — so remaining
+slack only ever counts days the item could actually land on. New `usableHomeworkDaysThrough`
+helper; no new constants, reuses the same rules the candidates filter already enforces for the
+current day, just looked up for future days too.
+
+Verified against the real account's data: of the 6 remaining short items after v2.92.0 alone, 6
+are now fully covered by this fix too — **term shortfall dropped from 17h/16 items to 6.5h/6
+items** (an 89% cumulative reduction from where this investigation started: 44h/22 items).
+`npx vitest run`: 387 passed (new test in `planHorizon.test.js` directly exercises a homework item
+whose preferred-buffer target day turns out to be a different exam's exclusive eve, confirming it
+lands on the last genuinely usable day instead — not earlier, not lost).
+
+**Note:** the remaining 6.5h/6-item shortfall is a different, separate mechanism — Tier-1 homework
+is capped at 2 competing courses per day (deliberately, to minimize topic-switching), and on a day
+where 3+ courses all independently have zero slack left, the lower-priority course can still lose
+out even with real free capacity left over. Confirmed this is happening for the remaining items
+(DSC 10/LIGN 008 claiming the only shared day MATH 180A's Homework 3 could also use) — flagged to
+the user as a distinct, not-yet-fixed finding, not silently left unmentioned.
+
+**Calendar: click a day to peek at it (was double-click); assignment names survive truncation better**
+
+Two follow-ups to the hover/peek feature from v2.91.0, both from direct user feedback:
+- The day-peek gesture in the week grid is now a single click (previously double-click) — an
+  activity block is its own separate click target (stopPropagation'd on single- and double-click),
+  so interacting with a block never also flashes the peek open; the day label's own click (full
+  "day" mode) is likewise stopped from double-firing alongside the peek.
+- A block's label already states both the course AND the specific assignment/exam (e.g. "MATH
+  180A — Homework 2 (due in 3d)"), but the week grid's narrow, duration-proportional blocks often
+  truncated the assignment's own name first, since it comes after the course name in the string.
+  The trailing due-countdown is now stripped from just the compact on-block text (still shown in
+  full on hover, unchanged) — freeing real width for the part that actually varies block-to-block.
+  `DayAgenda` (the shared list view behind Today's peek, Calendar's day-detail, and this week
+  grid's new peek) had the same truncation risk with no tooltip fallback at all to recover it —
+  fixed by letting its label wrap instead of cutting off, since that row has real vertical room.
+
 ## v2.92.0 — 2026-10-01
 
 **Planner: a reserved exam-prep day no longer sits idle once its own exam's needs are met**

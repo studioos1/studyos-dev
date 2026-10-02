@@ -32,7 +32,12 @@ export function DayAgenda({data,dateStr}){
               <div style={{flexShrink:0,minWidth:isDeadline?68:112,fontSize:12,color:c.text,fontWeight:600,whiteSpace:"nowrap"}}>
                 {isDeadline?f12(m2t(b.s)):`${f12(m2t(b.s))} – ${f12(m2t(b.e))}`}
               </div>
-              <div style={{flex:1,minWidth:0,fontSize:14,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {/* No nowrap/ellipsis here (unlike the week grid's tiny fixed-height blocks) — this
+                  row has real vertical room and no tooltip fallback to recover truncated text
+                  from, so a long "course — assignment title" label wraps to a second line instead
+                  of silently cutting off the assignment's own name, which a single-line ellipsis
+                  was doing in practice for anything longer than a short title. */}
+              <div style={{flex:1,minWidth:0,fontSize:14,color:"var(--t1)"}}>
                 {b.completed&&"✓ "}{b.autoMoved&&"↻ "}{b.label}
                 {b.timeAssumed&&(b.type==="exam"||isDeadline)&&(
                   <i className="ti ti-clock-exclamation tt" data-tt="Time not found in the syllabus — this is a placeholder. Edit the real time in Academics."
