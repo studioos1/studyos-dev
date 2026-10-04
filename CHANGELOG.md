@@ -1,5 +1,44 @@
 # StudyOS Changelog
 
+## v2.94.2 — 2026-10-03
+
+**Fix: an admin "Quiz" folded into the homework grade no longer gets misclassified as a real exam**
+
+Critical, real, reported bug: the live account showed a MATH 180A "exam" on 9/30, but the real
+syllabus's Exams section starts Oct 26 — there's no exam anywhere near 9/30. Traced to the real
+syllabus PDF directly: 9/30 is the deadline for an "Academic Integrity Quiz" — a one-time Canvas
+compliance check, unlimited attempts, explicitly stated as **"Your score will count towards your
+homework grade"** and never listed in the syllabus's own Exams section at all (which correctly
+lists only the two midterms and the final).
+
+Root cause, confirmed by re-running the real extraction live against the real syllabus PDF: the
+AI's own raw output placed "Academic Integrity Quiz" directly into `exams` with `weight: null` —
+it had even captured the disqualifying context itself, right in that item's own `topics` field
+("Canvas, unlimited attempts; counts toward homework grade"), and classified it as an exam anyway.
+`reclassifyQuizzesAsExams` (`lib/syllabus.js`), the deterministic safety net meant to catch exactly
+this class of ambiguity, only ever checked items the AI put in `assignments` for promotion — it had
+no check at all for an item the AI filed directly into `exams`, so this one slipped through
+untouched.
+
+Fixed by making the safety net genuinely bidirectional, using the one signal already proven
+reliable on this app's real data either way: a genuine exam-category quiz always carries its own
+explicit grade weight in the syllabus's grading table (true for every real quiz already correctly
+classified on the live account — DSC 10's "Quiz 1", LIGN 008's "Weekly Collective Quiz #1", etc.);
+an admin task whose score is folded into a *different* category's weight has none of its own.
+`reclassifyQuizzesAsExams` now checks quiz-titled items in **both** arrays — promotes a weighted
+one found in `assignments` (the original, already-correct direction), and now also demotes an
+unweighted one found in `exams` straight back to `assignments` — closing the gap regardless of
+which way the AI's own non-deterministic classification happened to land for a given call.
+
+`npx vitest run`: 391 passed (new tests directly exercise the real bug shape confirmed live — a
+no-weight quiz the AI placed straight into `exams` gets demoted, while the two real weighted exams
+on the same course are left untouched; a separate test confirms an already-correctly-classified
+weighted quiz already in `exams` is a true no-op in both directions at once).
+
+**Note:** this fixes the classification going forward (future syllabus uploads); the real
+account's already-stored MATH 180A item needs its own one-time correction, done directly through
+the app's own Exams tab after this ships, not a backend data migration.
+
 ## v2.94.1 — 2026-10-01
 
 **Today: "Due today/tomorrow" now names the course too**
