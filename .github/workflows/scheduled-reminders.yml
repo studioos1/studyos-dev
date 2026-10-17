@@ -11,8 +11,9 @@ name: Scheduled reminders (manual trigger only — see note below)
 # delayed by minutes" — consistently hours, every day, not occasional platform-load jitter.
 #
 # **The actual trigger now lives in Supabase** (`pg_cron` + `pg_net`, scheduled directly from the
-# project's own Postgres instance via the SQL Editor — see CHANGELOG.md v2.94.3 for the exact SQL
-# used). Chosen over this GitHub Actions workflow and over Vercel Cron Jobs (Pro plan, $20/mo):
+# project's own Postgres instance via the SQL Editor — see CHANGELOG.md, "2026-10-17 — infra, no
+# app version change" entry, for the exact SQL used). Chosen over this GitHub Actions workflow and
+# over Vercel Cron Jobs (Pro plan, $20/mo):
 # `pg_cron` fires at the literal database clock second, with no external best-effort scheduler
 # queue in between, on infrastructure this app already depends on for real user data — no new
 # paid plan, no third-party service account.

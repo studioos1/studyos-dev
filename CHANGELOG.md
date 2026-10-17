@@ -1,8 +1,11 @@
 # StudyOS Changelog
 
-## v2.94.3 — 2026-10-17
+## 2026-10-17 — infra, no app version change
 
 **Fix: scheduled SMS reminders landing 2-7+ hours late**
+
+(Infra-only change — no app code, UI, or behavior changed, so no `APP_VERSION` bump: this is a
+GitHub Actions workflow + CHANGELOG update, plus a one-time SQL setup on the Supabase side.)
 
 Real, reported problem: "SMS messages are not coming on time, VERY late." Pulled this repo's own
 `scheduled-reminders.yml` workflow run history straight from the GitHub API (public repo, no auth
