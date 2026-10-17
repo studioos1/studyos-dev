@@ -1,5 +1,70 @@
 # StudyOS Changelog
 
+## v2.94.3 — 2026-10-17
+
+**Fix: scheduled SMS reminders landing 2-7+ hours late**
+
+Real, reported problem: "SMS messages are not coming on time, VERY late." Pulled this repo's own
+`scheduled-reminders.yml` workflow run history straight from the GitHub API (public repo, no auth
+needed) for 2026-10-04 through 2026-10-17 and converted every run to Pacific time to measure it
+directly rather than going on impression:
+
+- The 8:30am daily summary actually landed anywhere from ~11am to ~3:30pm — delays of 2h24m up to
+  7h03m, every single day in the sample, no exceptions.
+- The 8:00pm evening check-in actually landed between ~12:30am and ~3:30am the next morning —
+  delays of 4h33m up to 7h20m, same pattern.
+
+Root cause: GitHub Actions' `schedule` (cron) trigger is documented by GitHub itself as
+best-effort, not guaranteed-on-time, and for this account it was running far worse than the
+"occasional minutes of jitter" that caveat implies — consistently multiple hours late, every day,
+getting worse over the two-week sample rather than better. Nothing was wrong with the cron syntax
+or timezone math in the workflow file; the delay happens inside GitHub's own scheduler queue
+before the job is even dispatched.
+
+Considered and ruled out: (1) GitHub Pro — the delay isn't plan-gated, GitHub documents `schedule`
+as best-effort regardless of billing tier, confirmed nothing in their docs ties scheduler priority
+to account type; (2) Vercel Cron Jobs — would fix it (same host as the app, real SLA) but requires
+upgrading off the Hobby plan ($20/mo) for a problem solvable for free; (3) a third-party cron
+pinger (cron-job.org) — would work, but adds a dependency on an external service's own uptime
+with no support relationship, for something this app's existing infrastructure can already do.
+
+**Fixed by moving the actual trigger to Supabase `pg_cron` + `pg_net`** — the project's own
+Postgres instance (already the app's real backend) fires the HTTP call directly, at the literal
+database clock second, with no external best-effort queue in between. One-time setup, run directly
+in the Supabase SQL Editor (values substituted locally, never passed through chat):
+
+```sql
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select cron.schedule('daily-summary', '30 15 * * *', $$
+  select net.http_get(
+    url := 'https://YOUR_PRODUCTION_URL/api/cron/daily-summary',
+    headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
+  );
+$$);
+
+select cron.schedule('evening-checkin', '0 3 * * *', $$
+  select net.http_get(
+    url := 'https://YOUR_PRODUCTION_URL/api/cron/evening-checkin',
+    headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
+  );
+$$);
+```
+
+Verifiable anytime directly in Supabase: `select * from cron.job_run_details order by start_time
+desc limit 10;`.
+
+`.github/workflows/scheduled-reminders.yml`'s `schedule:` trigger is removed to avoid double-sent
+messages now that Supabase is the real trigger — the workflow is kept, `workflow_dispatch`-only,
+as a manual re-trigger/resend/smoke-test button in GitHub's Actions tab. Same `PRODUCTION_URL`/
+`CRON_SECRET` values, same two API routes (`/api/cron/daily-summary`, `/api/cron/evening-checkin`)
+either way — no app code changed, only which scheduler calls them.
+
+**Depends on:** the SQL above being run once in the real Supabase project's SQL Editor — this PR
+only removes the now-redundant GitHub Actions schedule; it doesn't and can't set up the Supabase
+side itself (no CLI/credentials available in the dev environment this was built in).
+
 ## v2.94.2 — 2026-10-03
 
 **Fix: an admin "Quiz" folded into the homework grade no longer gets misclassified as a real exam**
