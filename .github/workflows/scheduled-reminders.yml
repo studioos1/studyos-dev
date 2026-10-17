@@ -1,35 +1,37 @@
-name: Scheduled reminders
+name: Scheduled reminders (manual trigger only — see note below)
 
 # Vercel Cron Jobs (vercel.json) turned out to be silently unavailable on the Hobby plan — the
 # deploy log had zero mention of "cron" anywhere, no error, no warning, just never registered.
-# This workflow replaces that trigger mechanism entirely: same two routes, same CRON_SECRET
-# bearer-token auth already built for Vercel Cron, just called by GitHub Actions' own scheduler
-# instead. Free, no third-party service, and — like Vercel Cron — only runs from whatever version
-# of this file lives on the default branch (main), not from a feature branch, so this schedule
-# doesn't actually start firing until the PR carrying it is merged.
+# This workflow originally replaced that trigger mechanism with GitHub Actions' own `schedule`
+# trigger instead. That didn't work out either: real production data (pulled from this workflow's
+# own run history via the GitHub API, 2026-10-04 through 2026-10-17) showed every single scheduled
+# run landing 2-7+ hours late — the 8:30am daily summary routinely arriving past noon, the 8:00pm
+# check-in routinely arriving after 1am. GitHub documents the `schedule` trigger as best-effort,
+# not guaranteed-on-time, and in practice for this account it was far worse than "sometimes
+# delayed by minutes" — consistently hours, every day, not occasional platform-load jitter.
 #
-# Needs two values set in GitHub → repo Settings → Secrets and variables → Actions:
-#   - Variables tab → PRODUCTION_URL (e.g. https://studyos.io) — not sensitive, so a variable,
-#     not a secret; avoids hardcoding the domain into this file.
-#   - Secrets tab → CRON_SECRET — the SAME value already set in Vercel's env vars.
+# **The actual trigger now lives in Supabase** (`pg_cron` + `pg_net`, scheduled directly from the
+# project's own Postgres instance via the SQL Editor — see CHANGELOG.md v2.94.3 for the exact SQL
+# used). Chosen over this GitHub Actions workflow and over Vercel Cron Jobs (Pro plan, $20/mo):
+# `pg_cron` fires at the literal database clock second, with no external best-effort scheduler
+# queue in between, on infrastructure this app already depends on for real user data — no new
+# paid plan, no third-party service account.
 #
-# Known limitation, stated plainly: GitHub Actions' `schedule` trigger is documented by GitHub as
-# best-effort, not guaranteed-on-time — it can be delayed (sometimes by many minutes) during
-# periods of high platform load. Same honest caveat as Vercel Cron would have had.
+# This file is kept only for `workflow_dispatch` — the manual "Run workflow" button in GitHub's
+# Actions tab — as a convenient way to re-trigger either route by hand (e.g. to resend a missed
+# message, or to smoke-test a deploy) without needing a terminal or production credentials handy.
+# Needs the same two values as before, still set in GitHub → repo Settings → Secrets and
+# variables → Actions (Variables tab → PRODUCTION_URL, Secrets tab → CRON_SECRET, matching
+# Vercel's env var of the same name) — both still used by the manual-dispatch path below.
 
 on:
-  schedule:
-    # 8:30am Pacific (15:30 UTC, current daylight-saving offset) — the daily summary SMS. This
-    # same call also runs the bell-log job server-side (app/api/cron/daily-summary calls
-    # runNotifyUrgentItems internally) — one trigger covers both.
-    - cron: "30 15 * * *"
-    # 8:00pm Pacific (03:00 UTC the next day) — the evening check-in nudge.
-    - cron: "0 3 * * *"
-  workflow_dispatch: {} # manual "Run workflow" button in GitHub's Actions tab, for testing
+  workflow_dispatch: {} # manual "Run workflow" button in GitHub's Actions tab, for testing/resend
 
 jobs:
   daily-summary:
-    if: github.event.schedule == '30 15 * * *' || github.event_name == 'workflow_dispatch'
+    # workflow_dispatch is the only trigger left (see note above) — both jobs just run every time
+    # the button is pressed; the old per-schedule `if:` split is gone since there's no longer a
+    # second `schedule:` entry to distinguish between.
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/daily-summary
@@ -43,7 +45,6 @@ jobs:
           if [ "$http_code" -ge 400 ]; then exit 1; fi
 
   evening-checkin:
-    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/evening-checkin
