@@ -1,5 +1,33 @@
 # StudyOS Changelog
 
+## 2026-10-20 — infra, no app version change
+
+**Proactive: explicit Data API grants added to `supabase/schema.sql` ahead of Supabase's 2026-10-30 change**
+
+Supabase announced that from 2026-10-30, new tables created in the `public` schema no longer get
+automatic Data API (PostgREST/GraphQL/supabase-js) access — a table created without an explicit
+`GRANT` after that date returns "permission denied" instead of reaching RLS at all. Supabase's own
+notice: "Your existing tables are not affected. They keep their current grants" — so this app's
+live production tables aren't at risk today. The real exposure is `supabase/schema.sql` itself:
+it's also what rebuilds the schema for a new project, a preview branch, or a local
+`supabase db reset`, all of which Supabase explicitly calls out as affected — any of those run
+after the cutover would silently lose Data API access on every table in this file, with no error
+until something tried to query it.
+
+Checked all 4 existing tables (`user_data`, `bug_reports`, `college_calendar_cache`,
+`invite_codes`) — none had explicit grants, all relying on the old implicit default. Added the
+standard grant block Supabase recommends (`select` to `anon`, full CRUD to `authenticated` and
+`service_role`) right after each table's own RLS setup, so grants stay colocated with the table
+that needs them. This doesn't loosen anything — RLS (already in place on every table) remains the
+real access control; the grant only makes a table visible to the Data API in the first place, same
+as it already implicitly was. `npx vitest run`: 391 passed, unaffected (schema.sql isn't imported
+by any JS code).
+
+**Note:** this only updates the schema *file*. The live production database already has its
+grandfathered grants and doesn't need anything re-run today — but re-running this file's now-
+explicit grants against production is harmless (GRANT is idempotent) and removes any future doubt,
+if ever wanted.
+
 ## 2026-10-17 — infra, no app version change
 
 **Fix: scheduled SMS reminders landing 2-7+ hours late**

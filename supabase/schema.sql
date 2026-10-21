@@ -31,6 +31,18 @@ create policy "insert own row" on public.user_data
 create policy "update own row" on public.user_data
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+-- Data API grants — required from 2026-10-30 onward: Supabase stops auto-granting Data API
+-- (PostgREST/GraphQL/supabase-js) access to new public-schema tables, so a table created without
+-- an explicit grant after that date returns "permission denied" instead of going through RLS at
+-- all. This app's existing live tables keep their already-applied grants regardless, but this
+-- file is also what rebuilds the schema for a new project, a preview branch, or a local
+-- `supabase db reset` — any of those after the cutover would hit the new default unless the grant
+-- is explicit here too. RLS above is still the real access control; this only makes the table
+-- visible to the Data API in the first place, same as Supabase's own recommended pattern.
+grant select on public.user_data to anon;
+grant select, insert, update, delete on public.user_data to authenticated;
+grant select, insert, update, delete on public.user_data to service_role;
+
 -- Bug reports — submitted from the "Report a bug" button (any signed-in user), reviewed from the
 -- in-app admin list (lib/constants.js's ADMIN_EMAILS — keep the two in sync). No service-role key
 -- or server route needed: RLS enforces the admin check at the database level regardless of what
@@ -67,6 +79,11 @@ create policy "admin update bug reports" on public.bug_reports
   for update using ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'))
   with check ((auth.jwt() ->> 'email') in ('avishai_shmariahu@hotmail.com'));
 
+-- Data API grants — see the note on public.user_data above for why this is needed from 2026-10-30.
+grant select on public.bug_reports to anon;
+grant select, insert, update, delete on public.bug_reports to authenticated;
+grant select, insert, update, delete on public.bug_reports to service_role;
+
 -- Shared, cross-user cache for college-calendar lookups (term dates/holidays from
 -- /api/college-calendar's real Anthropic web-search call) — real cost concern: without this,
 -- every user's every lookup of the same school pays for a fresh AI call, even if someone else
@@ -101,6 +118,14 @@ create policy "authenticated insert calendar cache" on public.college_calendar_c
   for insert with check (auth.role() = 'authenticated');
 create policy "authenticated update calendar cache" on public.college_calendar_cache
   for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- Data API grants — see the note on public.user_data above for why this is needed from 2026-10-30.
+-- No delete policy exists on this table (cache rows are never explicitly deleted by the app), so
+-- delete is included for completeness/consistency with the other tables but RLS has no policy
+-- permitting it — same effective behavior as today either way.
+grant select on public.college_calendar_cache to anon;
+grant select, insert, update, delete on public.college_calendar_cache to authenticated;
+grant select, insert, update, delete on public.college_calendar_cache to service_role;
 
 -- Invite codes — signup requires a valid code (cost/abuse control), and any signed-in user gets
 -- their own shareable code (the actual "invite a friend" feature). Redeeming happens BEFORE the
@@ -141,6 +166,16 @@ drop policy if exists "owner reads own invite code" on public.invite_codes;
 -- below instead, since those need to work for a not-yet-authenticated signup and need atomicity.
 create policy "owner reads own invite code" on public.invite_codes
   for select using (auth.uid() = owner_id);
+
+-- Data API grants — see the note on public.user_data above for why this is needed from 2026-10-30.
+-- Only select is actually reachable in practice (the only policy on this table is the owner-read
+-- one above); redeem/create both go through the SECURITY DEFINER functions below, which run with
+-- elevated privilege regardless of the caller's own table grants, not through a direct table grant
+-- — included for consistency/completeness, not because insert/update/delete are actually usable
+-- this way.
+grant select on public.invite_codes to anon;
+grant select, insert, update, delete on public.invite_codes to authenticated;
+grant select, insert, update, delete on public.invite_codes to service_role;
 
 create or replace function public.redeem_invite_code(p_code text)
 returns boolean
